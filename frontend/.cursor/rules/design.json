@@ -1,0 +1,517 @@
+{
+  "meta": {
+    "name": "MedCopilot Design System",
+    "version": "1.0.0",
+    "description": "Extracted design tokens and component specs from Timeline, GetAllEssays, UrgencyDashboard, SmartCalendarView, ViewAllActivities, RecentActivity, QuickInsights, AnalyticsView to recreate the UI with Tailwind CSS.",
+    "sourceFiles": [
+      "Timeline.jsx", "Timeline.css",
+      "GetAllEssays.jsx", "GetAllEssays.css",
+      "UrgencyDashboard.jsx", "UrgencyDashboard.css",
+      "SmartCalendarView.jsx", "SmartCalendarView.css",
+      "ViewAllActivities.jsx", "ViewAllActivities.css",
+      "RecentActivity.jsx", "RecentActivity.css",
+      "QuickInsights.jsx", "QuickInsights.css",
+      "AnalyticsView.jsx", "AnalyticsView.css"
+    ]
+  },
+  "tailwind": {
+    "screens": {
+      "lg": "1024px",
+      "md": "768px",
+      "sm": "480px"
+    },
+    "theme": {
+      "extend": {
+        "colors": {
+          "command": {
+            "primary": "#4361ee",
+            "primaryHover": "#3a56d4",
+            "primaryLight": "rgba(67, 97, 238, 0.1)",
+            "accent": "#7c3aed",
+            "accentLight": "rgba(124, 58, 237, 0.1)"
+          },
+          "state": {
+            "critical": "#dc2626",
+            "criticalLight": "rgba(220, 38, 38, 0.1)",
+            "criticalBorder": "rgba(220, 38, 38, 0.2)",
+            "urgent": "#f59e0b",
+            "urgentLight": "rgba(245, 158, 11, 0.1)",
+            "urgentBorder": "rgba(245, 158, 11, 0.2)",
+            "success": "#10b981",
+            "successDark": "#059669",
+            "successLight": "rgba(16, 185, 129, 0.1)"
+          },
+          "text": {
+            "primary": "#1a1a1a",
+            "secondary": "#4a5568",
+            "tertiary": "#718096",
+            "accent": "#2d3748"
+          },
+          "surface": {
+            "background": "#fafbfc",
+            "default": "#ffffff",
+            "elevated": "#ffffff"
+          },
+          "border": {
+            "default": "#e2e8f0",
+            "light": "#f1f5f9",
+            "accent": "rgba(67, 97, 238, 0.2)"
+          },
+          "neutral": {
+            "50": "#fafbfc",
+            "100": "#f8fafc",
+            "200": "#f3f4f6",
+            "300": "#e5e7eb",
+            "400": "#d1d5db",
+            "500": "#9ca3af",
+            "600": "#6b7280",
+            "700": "#475569",
+            "800": "#374151"
+          },
+          "brand": {
+            "blue": "#3b82f6",
+            "blueDark": "#1d4ed8",
+            "green": "#10b981",
+            "purple": "#8b5cf6",
+            "orange": "#ea580c",
+            "amber": "#fbbf24"
+          },
+          "quickInsights": {
+            "bgStart": "#1a1d3a",
+            "bgEnd": "#2d1b69",
+            "glow": "#fbbf24"
+          },
+          "calendar": {
+            "todayStart": "#3b82f6",
+            "todayEnd": "#1d4ed8",
+            "upcomingStart": "#fef3c7",
+            "upcomingEnd": "#fde68a",
+            "urgentStart": "#fed7aa",
+            "urgentEnd": "#fdba74",
+            "criticalStart": "#fecaca",
+            "criticalEnd": "#fca5a5",
+            "overdueStart": "#f87171",
+            "overdueEnd": "#dc2626"
+          }
+        },
+        "fontFamily": {
+          "display": ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "system-ui", "sans-serif"],
+          "mono": ["SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", "Consolas", "monospace"]
+        },
+        "borderRadius": {
+          "sm": "6px",
+          "md": "8px",
+          "lg": "12px",
+          "xl": "16px",
+          "2xl": "20px"
+        },
+        "boxShadow": {
+          "subtle": "0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06)",
+          "soft": "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)",
+          "elevated": "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
+          "command": "0 20px 25px -5px rgba(67,97,238,0.15), 0 10px 10px -5px rgba(67,97,238,0.04)"
+        },
+        "spacing": {
+          "0.25": "0.0625rem",
+          "0.5": "0.125rem",
+          "0.75": "0.1875rem",
+          "1.25": "0.3125rem",
+          "1.5": "0.375rem",
+          "1.75": "0.4375rem",
+          "2.5": "0.625rem",
+          "3.5": "0.875rem",
+          "4.5": "1.125rem",
+          "5.5": "1.375rem",
+          "6.5": "1.625rem"
+        },
+        "letterSpacing": {
+          "tight-1": "-0.01em",
+          "tight-2": "-0.02em",
+          "tight-3": "-0.03em",
+          "wide-1": "0.05em"
+        },
+        "transitionTimingFunction": {
+          "swift": "cubic-bezier(0.4, 0, 0.2, 1)",
+          "smooth": "cubic-bezier(0.4, 0, 0.2, 1)"
+        },
+        "transitionDuration": {
+          "swift": "200ms",
+          "smooth": "300ms"
+        },
+        "backgroundImage": {
+          "timelineMetricSchools": "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+          "timelineMetricEssays": "linear-gradient(135deg, #10b981, #059669)",
+          "timelineMetricProgress": "linear-gradient(135deg, #7c3aed, #6366f1)",
+          "timelineMetricAlerts": "linear-gradient(135deg, #f59e0b, #ea580c)",
+          "calendarToday": "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+          "calendarSelected": "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+          "quickInsightsBg": "linear-gradient(135deg, #1a1d3a 0%, #2d1b69 100%)"
+        },
+        "keyframes": {
+          "fadeInUp": {
+            "from": { "opacity": "0", "transform": "translateY(20px)" },
+            "to": { "opacity": "1", "transform": "translateY(0)" }
+          },
+          "slideInLeft": {
+            "from": { "opacity": "0", "transform": "translateX(-10px)" },
+            "to": { "opacity": "1", "transform": "translateX(0)" }
+          },
+          "slideInRight": {
+            "from": { "opacity": "0", "transform": "translateX(20px)" },
+            "to": { "opacity": "1", "transform": "translateX(0)" }
+          },
+          "pulseCritical": {
+            "0%": { "transform": "scale(1)" },
+            "50%": { "transform": "scale(1.02)" },
+            "100%": { "transform": "scale(1)" }
+          },
+          "pulseUrgent": {
+            "0%": { "opacity": "1" },
+            "50%": { "opacity": "0.8" },
+            "100%": { "opacity": "1" }
+          },
+          "spin": {
+            "from": { "transform": "rotate(0deg)" },
+            "to": { "transform": "rotate(360deg)" }
+          },
+          "ping": {
+            "75%": { "transform": "scale(1.5)", "opacity": "0" },
+            "100%": { "transform": "scale(1.5)", "opacity": "0" }
+          }
+        },
+        "animation": {
+          "fade-in-up": "fadeInUp 0.6s ease-out",
+          "slide-in-left": "slideInLeft 0.3s ease-out",
+          "slide-in-right": "slideInRight 0.3s ease",
+          "pulse-critical": "pulseCritical 1s infinite",
+          "pulse-urgent": "pulseUrgent 1.5s infinite",
+          "spin": "spin 1s linear infinite",
+          "ping": "ping 2s infinite"
+        }
+      }
+    }
+  },
+  "tokens": {
+    "colors": {
+      "command": { "$ref": "tailwind.theme.extend.colors.command" },
+      "state": { "$ref": "tailwind.theme.extend.colors.state" },
+      "text": { "$ref": "tailwind.theme.extend.colors.text" },
+      "surface": { "$ref": "tailwind.theme.extend.colors.surface" },
+      "border": { "$ref": "tailwind.theme.extend.colors.border" },
+      "neutral": { "$ref": "tailwind.theme.extend.colors.neutral" },
+      "brand": { "$ref": "tailwind.theme.extend.colors.brand" },
+      "calendar": { "$ref": "tailwind.theme.extend.colors.calendar" },
+      "quickInsights": { "$ref": "tailwind.theme.extend.colors.quickInsights" }
+    },
+    "typography": {
+      "fonts": {
+        "display": { "$ref": "tailwind.theme.extend.fontFamily.display" },
+        "mono": { "$ref": "tailwind.theme.extend.fontFamily.mono" }
+      },
+      "sizes": {
+        "xs": "0.75rem",
+        "sm": "0.8125rem",
+        "base": "0.9375rem",
+        "md": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem",
+        "2xl": "1.5rem",
+        "3xl": "1.75rem",
+        "4xl": "2rem",
+        "5xl": "2.5rem"
+      },
+      "weights": {
+        "regular": 400,
+        "medium": 500,
+        "semibold": 600,
+        "bold": 700
+      },
+      "lineHeight": {
+        "tight": 1.1,
+        "snug": 1.3,
+        "normal": 1.5,
+        "relaxed": 1.6
+      },
+      "letterSpacing": {
+        "tight1": { "$ref": "tailwind.theme.extend.letterSpacing.tight-1" },
+        "tight2": { "$ref": "tailwind.theme.extend.letterSpacing.tight-2" },
+        "tight3": { "$ref": "tailwind.theme.extend.letterSpacing.tight-3" },
+        "wide1": { "$ref": "tailwind.theme.extend.letterSpacing.wide-1" }
+      }
+    },
+    "spacing": {
+      "px": "1px",
+      "0": "0px",
+      "1": "0.25rem",
+      "2": "0.5rem",
+      "3": "0.75rem",
+      "4": "1rem",
+      "5": "1.25rem",
+      "6": "1.5rem",
+      "8": "2rem",
+      "10": "2.5rem",
+      "12": "3rem",
+      "14": "3.5rem",
+      "16": "4rem"
+    },
+    "radii": { "$ref": "tailwind.theme.extend.borderRadius" },
+    "shadows": { "$ref": "tailwind.theme.extend.boxShadow" },
+    "transitions": {
+      "swift": { "duration": { "$ref": "tailwind.theme.extend.transitionDuration.swift" }, "timing": { "$ref": "tailwind.theme.extend.transitionTimingFunction.swift" } },
+      "smooth": { "duration": { "$ref": "tailwind.theme.extend.transitionDuration.smooth" }, "timing": { "$ref": "tailwind.theme.extend.transitionTimingFunction.smooth" } }
+    },
+    "zIndex": {
+      "modal": 100,
+      "toast": 100
+    },
+    "gradients": {
+      "timeline": {
+        "schools": { "$ref": "tailwind.theme.extend.backgroundImage.timelineMetricSchools" },
+        "essays": { "$ref": "tailwind.theme.extend.backgroundImage.timelineMetricEssays" },
+        "progress": { "$ref": "tailwind.theme.extend.backgroundImage.timelineMetricProgress" },
+        "alerts": { "$ref": "tailwind.theme.extend.backgroundImage.timelineMetricAlerts" }
+      },
+      "calendar": {
+        "today": { "$ref": "tailwind.theme.extend.backgroundImage.calendarToday" },
+        "selected": { "$ref": "tailwind.theme.extend.backgroundImage.calendarSelected" }
+      },
+      "quickInsights": { "bg": { "$ref": "tailwind.theme.extend.backgroundImage.quickInsightsBg" } }
+    },
+    "breakpoints": { "$ref": "tailwind.screens" }
+  },
+  "layouts": {
+    "container": {
+      "maxWidth": "1400px",
+      "padding": { "default": "2rem 1.5rem", "md": "1.5rem 1rem", "sm": "1rem" },
+      "background": "surface.background",
+      "font": "display"
+    },
+    "timeline": {
+      "header": {
+        "spacing": { "mb": "2.5rem", "pb": "1.5rem" },
+        "borderBottom": "border.light",
+        "title": { "size": "5xl", "weight": "bold", "ls": "tight3" },
+        "subtitle": { "size": "lg", "color": "text.secondary", "weight": "medium", "ls": "tight1" }
+      },
+      "nav": {
+        "container": "flex gap-2 p-1.5 bg-white rounded-lg border border-border.light shadow-subtle w-fit",
+        "button": {
+          "base": "flex items-center gap-2 px-5 py-3 rounded-md font-medium text-text.secondary transition duration-swift ease-swift",
+          "hover": "hover:bg-[rgba(67,97,238,0.1)] hover:text-command.primary hover:-translate-y-[1px]",
+          "active": "bg-command.primary text-white shadow-soft hover:bg-[#3a56d4]"
+        }
+      },
+      "heroCard": {
+        "wrapper": "rounded-2xl border border-border.light shadow-command overflow-hidden backdrop-blur-xl bg-white/95",
+        "metricsGrid": "grid gap-px bg-border.light border-b border-border.light grid-cols-[repeat(auto-fit,minmax(140px,1fr))]",
+        "metric": {
+          "base": "flex items-center gap-3.5 p-6 bg-white transition duration-swift ease-swift",
+          "hover": "hover:bg-[rgba(67,97,238,0.1)]",
+          "clickable": "cursor-pointer transition-all duration-300 ease-swift hover:-translate-y-[2px] hover:shadow-[0_8px_25px_rgba(0,0,0,0.15)] hover:border hover:border-[rgba(59,130,246,0.3)]",
+          "icon": {
+            "size": "w-10 h-10",
+            "schools": "bg-[linear-gradient(135deg,#3b82f6,#1d4ed8)] text-white",
+            "essays": "bg-[linear-gradient(135deg,#10b981,#059669)] text-white",
+            "progress": "bg-[linear-gradient(135deg,#7c3aed,#6366f1)] text-white",
+            "alerts": "bg-[linear-gradient(135deg,#f59e0b,#ea580c)] text-white"
+          },
+          "value": "text-[1.125rem] font-bold text-text.primary tracking-tight-2",
+          "label": "text-[0.8125rem] font-medium text-text.secondary uppercase tracking-wide-1"
+        },
+        "footer": {
+          "lastUpdate": "text-[0.8125rem] text-text.tertiary font-mono font-medium"
+        }
+      },
+      "statusBadge": {
+        "base": "flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-[0.9375rem] tracking-tight-1 transition duration-swift ease-swift shadow-subtle",
+        "variants": {
+          "critical": "bg-[rgba(220,38,38,0.1)] text-[#dc2626] border border-[rgba(220,38,38,0.2)]",
+          "urgent": "bg-[rgba(245,158,11,0.1)] text-[#f59e0b] border border-[rgba(245,158,11,0.2)]",
+          "normal": "bg-[rgba(16,185,129,0.1)] text-[#059669] border border-[rgba(16,185,129,0.2)]",
+          "setup": "bg-[rgba(67,97,238,0.1)] text-command.primary border border-border.accent"
+        }
+      }
+    },
+    "getAllEssays": {
+      "container": "max-w-[1400px] mx-auto p-8 bg-[#fdfdfd] min-h-screen",
+      "header": {
+        "title": "text-[2rem] font-bold text-[#1f2937] tracking-tight-2",
+        "highlight": "text-command.primary",
+        "stats": {
+          "grid": "flex gap-8 mt-2",
+          "item": { "number": "text-[1.875rem] font-semibold text-[#1f2937] leading-none", "label": "text-[0.875rem] text-[#6b7280] font-medium mt-1" }
+        },
+        "banner": "inline-flex items-center px-4 py-2 bg-[#ecfdf5] border border-[#d1fae5] rounded-full text-[0.875rem] font-semibold text-[#059669]"
+      },
+      "filters": {
+        "panel": "flex flex-col gap-8 mb-8 p-6 bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_1px_3px_rgba(0,0,0,0.05)]",
+        "search": {
+          "container": "relative w-full min-w-[400px] max-w-[600px]",
+          "input": "w-full px-12 py-3.5 border-[1.5px] border-[#e5e7eb] rounded-xl text-[0.9375rem] bg-white transition focus:outline-none focus:border-[#2563eb] focus:shadow-[0_0_0_3px_rgba(37,99,235,0.1)] placeholder:text-[#9ca3af]"
+        },
+        "toggleModern": "flex items-center gap-2.5 px-5 py-3.5 bg-white border-[1.5px] border-[#e2e8f0] rounded-[12px] text-[0.9375rem] font-semibold text-[#475569] shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition hover:bg-[#f8fafc] hover:border-[#cbd5e1] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] data-[active=true]:bg-[#2563eb] data-[active=true]:border-[#2563eb] data-[active=true]:text-white",
+        "pills": {
+          "group": "flex items-center gap-2 bg-[#f8fafc] border-[1.5px] border-[#e2e8f0] rounded-[12px] px-3.5 py-2.5 min-w-[160px] flex-1 max-w-[200px]"
+        },
+        "clearButton": "flex items-center gap-1.5 px-3.5 py-2 bg-[#fef2f2] border-[1.5px] border-[#fecaca] rounded-[12px] text-[0.8125rem] font-semibold text-[#dc2626] uppercase tracking-[0.025em]"
+      },
+      "modal": {
+        "overlay": "fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]",
+        "card": "bg-white rounded-2xl p-8 max-w-[500px] w-[90%] shadow-[0_25px_50px_rgba(0,0,0,0.25)]"
+      },
+      "toast": {
+        "card": "fixed bottom-8 right-8 flex items-center gap-3 px-5 py-4 bg-white border border-[#e5e7eb] rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.1)] max-w-[400px] z-[100]",
+        "variants": {
+          "success": "border-[#059669] bg-[#f0fdf4]",
+          "error": "border-[#dc2626] bg-[#fef2f2]"
+        }
+      }
+    },
+    "urgencyDashboard": {
+      "card": "bg-white rounded-lg border border-border.light shadow-subtle overflow-hidden",
+      "header": "flex items-center justify-between px-6 py-5 border-b border-border.light bg-[linear-gradient(135deg,#fafbfc_0%,#f8fafc_100%)]",
+      "task": {
+        "wrapper": "rounded-lg border border-border.light bg-white overflow-hidden transition hover:-translate-y-[1px] hover:shadow-soft",
+        "variants": {
+          "overdue": "border-l-4 border-l-state.critical bg-[linear-gradient(135deg,rgba(220,38,38,0.1)_0%,transparent_50%)]",
+          "critical": "border-l-4 border-l-state.critical bg-[linear-gradient(135deg,rgba(220,38,38,0.1)_0%,transparent_50%)]",
+          "urgent": "border-l-4 border-l-state.urgent bg-[linear-gradient(135deg,rgba(245,158,11,0.1)_0%,transparent_50%)]"
+        },
+        "progressBar": "w-full h-[6px] bg-border.light rounded-[3px] overflow-hidden",
+        "progressFill": "h-full bg-[linear-gradient(90deg,#10b981,#34d399)] rounded-[3px]"
+      },
+      "actionBtn": "flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white text-[0.875rem] font-medium bg-command.primary transition hover:bg-[#3a56d4] hover:-translate-y-[1px] shadow-soft"
+    },
+    "calendar": {
+      "container": "bg-white rounded-[16px] border border-[#e5e7eb] shadow-[0_4px_16px_rgba(0,0,0,0.04)] overflow-hidden",
+      "header": "px-7 py-6 border-b border-[#f3f4f6] bg-[linear-gradient(135deg,#fafbfc_0%,#f8fafc_100%)] flex items-start justify-between",
+      "nav": "flex items-center justify-between px-7 py-5 border-b border-[#f3f4f6]",
+      "grid": "px-7 pb-7",
+      "weekday": "grid grid-cols-7 gap-px mb-3",
+      "days": "grid grid-cols-7 gap-px bg-[#f3f4f6] rounded-[12px] p-[1px]",
+      "day": {
+        "base": "min-h-[60px] bg-white flex flex-col items-center justify-start relative px-1.5 py-2 rounded-[8px] transition hover:bg-[#f8fafc] hover:-translate-y-[1px]",
+        "otherMonth": "text-[#9ca3af] bg-[#fafbfc]",
+        "today": "text-white bg-[linear-gradient(135deg,#3b82f6_0%,#1d4ed8_100%)]",
+        "selected": "text-white bg-[linear-gradient(135deg,#8b5cf6_0%,#7c3aed_100%)] shadow-[0_4px_12px_rgba(139,92,246,0.3)]",
+        "peak": "border-2 border-[#f59e0b] shadow-[0_0_0_3px_rgba(245,158,11,0.1)]",
+        "urgency": {
+          "upcoming": "bg-[linear-gradient(135deg,#fef3c7_0%,#fde68a_100%)] text-[#92400e]",
+          "urgent": "bg-[linear-gradient(135deg,#fed7aa_0%,#fdba74_100%)] text-[#9a3412]",
+          "critical": "bg-[linear-gradient(135deg,#fecaca_0%,#fca5a5_100%)] text-[#991b1b] animate-pulse-urgent",
+          "overdue": "bg-[linear-gradient(135deg,#f87171_0%,#dc2626_100%)] text-white border-2 border-[#b91c1c] animate-pulse-critical"
+        }
+      },
+      "sidebar": "bg-[#fafbfc] border-l border-[#e5e7eb] p-6 max-h-[600px] overflow-y-auto"
+    },
+    "recentActivity": {
+      "card": "bg-white rounded-lg border border-border.light shadow-subtle overflow-hidden",
+      "header": "flex items-center justify-between px-6 py-5 border-b border-border.light bg-[linear-gradient(135deg,#fafbfc_0%,#f8fafc_100%)]",
+      "item": {
+        "wrapper": "flex gap-4 transition hover:translate-x-[2px] animate-slide-in-left",
+        "marker": "w-8 h-8 rounded-full bg-white border-2 border-border.light grid place-items-center",
+        "line": "w-[2px] h-8 bg-border.light mt-2",
+        "types": {
+          "essay": "bg-[rgba(16,185,129,0.1)] border-[rgba(16,185,129,0.2)] text-[#10b981]",
+          "school": "bg-[rgba(59,130,246,0.1)] border-[rgba(59,130,246,0.2)] text-[#3b82f6]",
+          "deadline": "bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.2)] text-[#f59e0b]",
+          "milestone": "bg-[rgba(124,58,237,0.1)] border-[rgba(124,58,237,0.2)] text-[#7c3aed]"
+        }
+      },
+      "actionBtn": "px-3.5 py-2 border border-border.default rounded-md text-text.secondary text-[0.8125rem] font-medium transition hover:bg-[rgba(67,97,238,0.1)] hover:border-border.accent hover:text-command.primary hover:-translate-y-[1px]"
+    },
+    "viewAllActivities": {
+      "header": {
+        "wrapper": "sticky top-0 z-[100] bg-white/95 backdrop-blur-2xl border-b border-[rgba(226,232,240,0.6)] px-10 py-8 pb-6",
+        "title": "text-[2.5rem] font-bold bg-clip-text text-transparent bg-[linear-gradient(135deg,#1e293b_0%,#475569_100%)]",
+        "count": "text-[0.95rem] text-[#64748b] font-medium mt-1"
+      },
+      "search": "flex items-center bg-[rgba(248,250,252,0.8)] border border-[rgba(226,232,240,0.5)] rounded-[14px] px-4 min-w-[300px] focus-within:bg-white focus-within:border-[rgba(99,102,241,0.4)] focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.1)]",
+      "filterToggle": "flex items-center gap-2 bg-[rgba(248,250,252,0.8)] border border-[rgba(226,232,240,0.5)] rounded-[14px] px-5 py-3 font-medium text-[#475569] transition hover:bg-white hover:border-[rgba(99,102,241,0.4)]",
+      "section": {
+        "wrapper": "mb-6 bg-white/70 border border-[rgba(226,232,240,0.4)] rounded-[20px] overflow-hidden transition hover:bg-white/85 hover:border-[rgba(203,213,225,0.6)] hover:-translate-y-[1px] hover:shadow-[0_8px_25px_rgba(0,0,0,0.06)]",
+        "header": "relative px-8 py-5 grid place-items-center bg-[linear-gradient(135deg,rgba(248,250,252,0.8)_0%,rgba(241,245,249,0.8)_100%)] border-b border-[rgba(226,232,240,0.3)]",
+        "count": "bg-[linear-gradient(135deg,#6366f1_0%,#8b5cf6_100%)] text-white text-[0.75rem] font-semibold px-1.5 py-1 rounded-[12px] shadow-[0_2px_8px_rgba(99,102,241,0.2)]"
+      },
+      "card": {
+        "base": "bg-white/80 border border-[rgba(226,232,240,0.5)] rounded-[16px] p-5 transition hover:bg-white/95 hover:border-[rgba(203,213,225,0.8)] hover:-translate-y-[2px] hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)]"
+      }
+    },
+    "quickInsights": {
+      "card": "rounded-[20px] p-6 border border-[rgba(99,102,241,0.2)] shadow-[0_8px_32px_rgba(99,102,241,0.15),_0_4px_16px_rgba(0,0,0,0.1),_inset_0_1px_0_rgba(255,255,255,0.1)] relative overflow-hidden bg-[linear-gradient(135deg,#1a1d3a_0%,#2d1b69_100%)]",
+      "title": "text-[#e5e7eb] text-[18px] font-semibold",
+      "chip": "bg-[linear-gradient(135deg,#fbbf24,#f59e0b)] text-[#1f2937] px-2 py-0.5 rounded-[10px] text-[12px] font-semibold shadow-[0_2px_4px_rgba(251,191,36,0.3)]",
+      "insight": {
+        "base": "bg-white/5 border border-white/10 rounded-[16px] p-5 transition hover:-translate-y-[2px] hover:shadow-[0_8px_25px_rgba(0,0,0,0.15)]",
+        "colors": {
+          "blue": "before:bg-[linear-gradient(180deg,#3b82f6,#1d4ed8)]",
+          "green": "before:bg-[linear-gradient(180deg,#10b981,#047857)]",
+          "orange": "before:bg-[linear-gradient(180deg,#f59e0b,#d97706)]",
+          "red": "before:bg-[linear-gradient(180deg,#ef4444,#dc2626)]",
+          "purple": "before:bg-[linear-gradient(180deg,#8b5cf6,#7c3aed)]"
+        }
+      }
+    },
+    "analytics": {
+      "container": "bg-white rounded-2xl border border-border.light shadow-subtle",
+      "controls": "flex items-center gap-2",
+      "periodBtn": "px-3 py-1.5 rounded-md text-[#64748b] font-medium bg-[#f3f4f6] hover:bg-white hover:text-[#1f2937] hover:shadow-sm",
+      "chart": {
+        "grid": "fill-[#f1f5f9]",
+        "stroke": "stroke-[#4361ee]",
+        "areaGradient": ["#4361ee33", "#4361ee0D"]
+      }
+    }
+  },
+  "components": {
+    "button": {
+      "base": "inline-flex items-center gap-2 font-medium transition duration-swift ease-swift rounded-md",
+      "sizes": {
+        "sm": "px-3 py-2 text-[0.8125rem]",
+        "md": "px-4 py-2.5 text-[0.9375rem]",
+        "lg": "px-5 py-3 text-[0.9375rem]"
+      },
+      "variants": {
+        "primary": "bg-command.primary text-white shadow-soft hover:bg-command.primaryHover",
+        "secondary": "bg-command.accentLight border border-command.accent text-command.accent hover:bg-command.accent hover:text-white",
+        "ghost": "bg-transparent border border-border.default text-text.secondary hover:bg-command.primaryLight hover:text-command.primary",
+        "today": "bg-brand.blue text-white border border-brand.blue hover:bg-[#2563eb]"
+      }
+    },
+    "badge": {
+      "status": { "$ref": "layouts.timeline.statusBadge" },
+      "count": "inline-flex items-center justify-center min-w-[20px] h-[20px] rounded-full text-white text-[0.75rem] font-bold bg-[#ef4444]"
+    },
+    "card": {
+      "surface": "bg-white border border-border.light rounded-lg shadow-subtle",
+      "elevated": "bg-white border border-border.light rounded-2xl shadow-elevated",
+      "glass": "bg-white/95 border border-border.light rounded-2xl shadow-command backdrop-blur-xl"
+    },
+    "form": {
+      "input": "w-full px-12 py-3.5 border-[1.5px] border-[#e5e7eb] rounded-xl text-[0.9375rem] bg-white transition focus:outline-none focus:border-[#2563eb] focus:shadow-[0_0_0_3px_rgba(37,99,235,0.1)] placeholder:text-[#9ca3af]",
+      "selectPill": "appearance-none bg-transparent border-0 outline-0 text-[0.875rem] font-medium text-[#1e293b] cursor-pointer absolute inset-0 opacity-0"
+    },
+    "metric": { "$ref": "layouts.timeline.heroCard.metric" },
+    "toast": { "$ref": "layouts.getAllEssays.toast" },
+    "modal": { "$ref": "layouts.getAllEssays.modal" },
+    "timelineItem": {
+      "base": "flex gap-4",
+      "title": "text-[0.9375rem] font-semibold text-text.primary",
+      "desc": "text-[0.8125rem] text-text.secondary"
+    }
+  },
+  "utilities": {
+    "textShadowNone": "[text-shadow:none]",
+    "backdropBlur20": "backdrop-blur-[20px]",
+    "shadowCommand": "shadow-command",
+    "shadowSubtle": "shadow-subtle",
+    "shadowSoft": "shadow-soft",
+    "animateFadeInUp": "animate-fade-in-up",
+    "animatePulseCritical": "animate-pulse-critical",
+    "animatePulseUrgent": "animate-pulse-urgent",
+    "animateSlideInLeft": "animate-slide-in-left",
+    "animateSlideInRight": "animate-slide-in-right"
+  }
+}
+
+

@@ -1,0 +1,536 @@
+{
+  "meta": {
+    "name": "KIZ Design System",
+    "version": "1.0.0",
+    "description": "Système de design inspiré de la philosophie Jony Ive : 'As little design as possible' — parfaitement pensé",
+    "philosophy": "Design cognitif, cohérence systémique, élégance fonctionnelle"
+  },
+  "principles": [
+    "Design cognitif : analyser les patterns de lecture, éviter la confusion sémantique, optimiser la charge cognitive",
+    "Cohérence comme fondation : patterns universels, harmonie visuelle, prévisibilité des interactions",
+    "Épurement intelligent : 'As little design as possible' — supprimer tout ce qui n'a pas de fonction précise",
+    "Breathing space : les espaces blancs structurent l'attention et créent de l'élégance",
+    "Hiérarchie visuelle nette : information critique → contexte → détails avec transitions fluides",
+    "Mental Model naturel : aligner l'interface sur la logique cognitive de l'utilisateur",
+    "Zero Cognitive Friction : l'utilisateur ne doit jamais compenser les défauts du système",
+    "Perfection dans les détails : chaque micro-interaction compte pour l'expérience globale"
+  ],
+  "tokens": {
+    "color": {
+      "background": {
+        "primary": "#FAFBFC",
+        "secondary": "#F7FAFC", 
+        "elevated": "#FFFFFF",
+        "gradient": "linear-gradient(135deg, #FAFBFC 0%, #F7FAFC 100%)"
+      },
+      "foreground": {
+        "primary": "#2D3748",
+        "secondary": "#718096", 
+        "tertiary": "#CBD5E0",
+        "inverted": "#FFFFFF"
+      },
+      "kiz": {
+        "yellow": "#F7B500",
+        "yellowDark": "#E69500",
+        "yellowLight": "#FFF4CC",
+        "gradient": "linear-gradient(135deg, #F7B500 0%, #E69500 100%)"
+      },
+      "neutral": {
+        "50": "#FAFBFC",
+        "100": "#F7FAFC",
+        "300": "#CBD5E0",
+        "500": "#718096",
+        "700": "#2D3748",
+        "900": "#1A202C"
+      },
+      "semantic": {
+        "success": "#38A169",
+        "successLight": "#68D391",
+        "successGradient": "linear-gradient(135deg, #38A169 0%, #48BB78 100%)",
+        "warning": "#DD6B20",
+        "warningLight": "#F6AD55",
+        "warningGradient": "linear-gradient(135deg, #DD6B20 0%, #ED8936 100%)",
+        "error": "#E53E3E",
+        "errorLight": "#FC8181",
+        "errorGradient": "linear-gradient(135deg, #E53E3E 0%, #F56565 100%)",
+        "info": "#3182CE",
+        "infoLight": "#63B3ED",
+        "infoGradient": "linear-gradient(135deg, #3182CE 0%, #4299E1 100%)"
+      },
+      "border": {
+        "subtle": "#CBD5E0",
+        "default": "#718096",
+        "accent": "#F7B500"
+      }
+    },
+    "spacing": {
+      "xs": "0.25rem",
+      "sm": "0.5rem", 
+      "md": "0.75rem",
+      "base": "1rem",
+      "lg": "1.5rem",
+      "xl": "2rem",
+      "2xl": "2.5rem",
+      "3xl": "3rem",
+      "4xl": "4rem",
+      "5xl": "5rem"
+    },
+    "borderRadius": {
+      "none": "0",
+      "sm": "0.25rem",
+      "base": "0.5rem", 
+      "md": "0.75rem",
+      "lg": "1rem",
+      "xl": "1.5rem",
+      "2xl": "2rem",
+      "full": "9999px"
+    },
+    "typography": {
+      "fontFamily": {
+        "primary": "Inter, -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', 'Roboto', sans-serif",
+        "system": "-apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', 'Roboto', sans-serif",
+        "mono": "'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem",
+        "2xl": "1.5rem",
+        "3xl": "1.875rem",
+        "4xl": "2.25rem",
+        "5xl": "3rem"
+      },
+      "fontWeight": {
+        "light": 300,
+        "normal": 400,
+        "medium": 500,
+        "semibold": 600,
+        "bold": 700
+      },
+      "lineHeight": {
+        "none": 1,
+        "tight": 1.25,
+        "snug": 1.375,
+        "normal": 1.5,
+        "relaxed": 1.625,
+        "loose": 2
+      },
+      "letterSpacing": {
+        "tighter": "-0.05em",
+        "tight": "-0.025em", 
+        "normal": "0",
+        "wide": "0.025em",
+        "wider": "0.05em",
+        "widest": "0.1em"
+      }
+    },
+    "shadow": {
+      "none": "none",
+      "sm": "0 1px 2px rgba(26, 32, 44, 0.05)",
+      "base": "0 1px 3px rgba(26, 32, 44, 0.1), 0 1px 2px rgba(26, 32, 44, 0.06)",
+      "md": "0 4px 6px rgba(26, 32, 44, 0.07), 0 2px 4px rgba(26, 32, 44, 0.06)",
+      "lg": "0 10px 15px rgba(26, 32, 44, 0.1), 0 4px 6px rgba(26, 32, 44, 0.05)",
+      "xl": "0 20px 25px rgba(26, 32, 44, 0.1), 0 10px 10px rgba(26, 32, 44, 0.04)",
+      "2xl": "0 25px 50px rgba(26, 32, 44, 0.25)",
+      "inner": "inset 0 2px 4px rgba(26, 32, 44, 0.06)"
+    },
+    "transition": {
+      "fast": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+      "base": "200ms cubic-bezier(0.4, 0, 0.2, 1)",
+      "slow": "300ms cubic-bezier(0.4, 0, 0.2, 1)",
+      "slower": "500ms cubic-bezier(0.4, 0, 0.2, 1)"
+    },
+    "breakpoints": {
+      "sm": "640px",
+      "md": "768px", 
+      "lg": "1024px",
+      "xl": "1280px",
+      "2xl": "1536px"
+    },
+    "zIndex": {
+      "hide": -1,
+      "auto": "auto",
+      "base": 0,
+      "docked": 10,
+      "dropdown": 1000,
+      "sticky": 1100,
+      "banner": 1200,
+      "overlay": 1300,
+      "modal": 1400,
+      "popover": 1500,
+      "skipLink": 1600,
+      "toast": 1700,
+      "tooltip": 1800
+    }
+  },
+  "components": {
+    "Button": {
+      "base": {
+        "fontFamily": "{tokens.typography.fontFamily.primary}",
+        "fontSize": "{tokens.typography.fontSize.base}",
+        "fontWeight": "{tokens.typography.fontWeight.medium}",
+        "lineHeight": "{tokens.typography.lineHeight.none}",
+        "borderRadius": "{tokens.borderRadius.xl}",
+        "padding": "{tokens.spacing.md} {tokens.spacing.lg}",
+        "transition": "{tokens.transition.base}",
+        "cursor": "pointer",
+        "border": "none",
+        "display": "inline-flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "gap": "{tokens.spacing.sm}"
+      },
+      "variants": {
+        "primary": {
+          "background": "{tokens.color.kiz.gradient}",
+          "color": "{tokens.color.foreground.inverted}",
+          "boxShadow": "{tokens.shadow.sm}",
+          "hover": {
+            "boxShadow": "{tokens.shadow.md}",
+            "transform": "translateY(-1px)"
+          },
+          "active": {
+            "transform": "translateY(0) scale(0.98)"
+          },
+          "focus": {
+            "outline": "2px solid {tokens.color.kiz.yellow}",
+            "outlineOffset": "2px"
+          }
+        },
+        "secondary": {
+          "background": "{tokens.color.background.secondary}",
+          "color": "{tokens.color.foreground.primary}",
+          "border": "1px solid {tokens.color.border.subtle}",
+          "hover": {
+            "background": "{tokens.color.background.elevated}",
+            "borderColor": "{tokens.color.border.default}"
+          },
+          "focus": {
+            "outline": "2px solid {tokens.color.neutral.500}",
+            "outlineOffset": "2px"
+          }
+        },
+        "success": {
+          "background": "{tokens.color.semantic.successGradient}",
+          "color": "{tokens.color.foreground.inverted}",
+          "boxShadow": "{tokens.shadow.sm}",
+          "hover": {
+            "boxShadow": "{tokens.shadow.md}"
+          }
+        },
+        "warning": {
+          "background": "{tokens.color.semantic.warningGradient}",
+          "color": "{tokens.color.foreground.inverted}",
+          "boxShadow": "{tokens.shadow.sm}",
+          "hover": {
+            "boxShadow": "{tokens.shadow.md}"
+          }
+        },
+        "destructive": {
+          "background": "{tokens.color.semantic.errorGradient}",
+          "color": "{tokens.color.foreground.inverted}",
+          "boxShadow": "{tokens.shadow.sm}",
+          "hover": {
+            "boxShadow": "{tokens.shadow.md}"
+          }
+        },
+        "ghost": {
+          "background": "transparent",
+          "color": "{tokens.color.kiz.yellow}",
+          "hover": {
+            "background": "{tokens.color.kiz.yellowLight}",
+            "color": "{tokens.color.kiz.yellowDark}"
+          }
+        }
+      },
+      "sizes": {
+        "sm": {
+          "fontSize": "{tokens.typography.fontSize.sm}",
+          "padding": "{tokens.spacing.sm} {tokens.spacing.md}"
+        },
+        "base": {
+          "fontSize": "{tokens.typography.fontSize.base}",
+          "padding": "{tokens.spacing.md} {tokens.spacing.lg}"
+        },
+        "lg": {
+          "fontSize": "{tokens.typography.fontSize.lg}",
+          "padding": "{tokens.spacing.lg} {tokens.spacing.xl}"
+        }
+      }
+    },
+    "Card": {
+      "base": {
+        "background": "{tokens.color.background.elevated}",
+        "borderRadius": "{tokens.borderRadius.2xl}",
+        "boxShadow": "{tokens.shadow.sm}",
+        "border": "1px solid {tokens.color.border.subtle}",
+        "padding": "{tokens.spacing.lg}",
+        "transition": "{tokens.transition.slow}"
+      },
+      "variants": {
+        "elegant": {
+          "background": "{tokens.color.background.elevated}",
+          "backdropFilter": "blur(8px)",
+          "borderColor": "{tokens.color.border.subtle}"
+        },
+        "hover": {
+          "hover": {
+            "boxShadow": "{tokens.shadow.md}",
+            "transform": "translateY(-2px)"
+          }
+        },
+        "glass": {
+          "background": "rgba(250, 251, 252, 0.8)",
+          "backdropFilter": "blur(12px)",
+          "border": "1px solid rgba(203, 213, 224, 0.2)"
+        }
+      }
+    },
+    "Input": {
+      "base": {
+        "background": "{tokens.color.background.secondary}",
+        "border": "1px solid {tokens.color.border.subtle}",
+        "borderRadius": "{tokens.borderRadius.lg}",
+        "padding": "{tokens.spacing.md}",
+        "fontSize": "{tokens.typography.fontSize.base}",
+        "fontFamily": "{tokens.typography.fontFamily.primary}",
+        "color": "{tokens.color.foreground.primary}",
+        "transition": "{tokens.transition.base}",
+        "outline": "none"
+      },
+      "states": {
+        "focus": {
+          "borderColor": "{tokens.color.kiz.yellow}",
+          "boxShadow": "0 0 0 3px rgba(247, 181, 0, 0.1)"
+        },
+        "error": {
+          "borderColor": "{tokens.color.semantic.error}",
+          "boxShadow": "0 0 0 3px rgba(229, 62, 62, 0.1)"
+        },
+        "disabled": {
+          "background": "{tokens.color.neutral.100}",
+          "color": "{tokens.color.foreground.secondary}",
+          "cursor": "not-allowed"
+        }
+      }
+    },
+    "Badge": {
+      "base": {
+        "fontSize": "{tokens.typography.fontSize.xs}",
+        "fontWeight": "{tokens.typography.fontWeight.medium}",
+        "fontFamily": "{tokens.typography.fontFamily.primary}",
+        "padding": "{tokens.spacing.xs} {tokens.spacing.md}",
+        "borderRadius": "{tokens.borderRadius.full}",
+        "display": "inline-flex",
+        "alignItems": "center",
+        "gap": "{tokens.spacing.xs}"
+      },
+      "variants": {
+        "primary": {
+          "background": "{tokens.color.kiz.yellowLight}",
+          "color": "{tokens.color.kiz.yellowDark}"
+        },
+        "success": {
+          "background": "rgba(56, 161, 105, 0.1)",
+          "color": "{tokens.color.semantic.success}"
+        },
+        "warning": {
+          "background": "rgba(221, 107, 32, 0.1)",
+          "color": "{tokens.color.semantic.warning}"
+        },
+        "error": {
+          "background": "rgba(229, 62, 62, 0.1)",
+          "color": "{tokens.color.semantic.error}"
+        },
+        "info": {
+          "background": "rgba(49, 130, 206, 0.1)",
+          "color": "{tokens.color.semantic.info}"
+        },
+        "neutral": {
+          "background": "{tokens.color.neutral.100}",
+          "color": "{tokens.color.foreground.secondary}"
+        }
+      }
+    },
+    "Modal": {
+      "overlay": {
+        "background": "rgba(26, 32, 44, 0.5)",
+        "backdropFilter": "blur(4px)",
+        "position": "fixed",
+        "inset": "0",
+        "zIndex": "{tokens.zIndex.modal}",
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "padding": "{tokens.spacing.base}"
+      },
+      "content": {
+        "background": "{tokens.color.background.elevated}",
+        "borderRadius": "{tokens.borderRadius.2xl}",
+        "boxShadow": "{tokens.shadow.2xl}",
+        "maxWidth": "90vw",
+        "maxHeight": "90vh",
+        "overflow": "auto",
+        "position": "relative"
+      }
+    },
+    "Typography": {
+      "heading": {
+        "fontFamily": "{tokens.typography.fontFamily.primary}",
+        "fontWeight": "{tokens.typography.fontWeight.light}",
+        "lineHeight": "{tokens.typography.lineHeight.tight}",
+        "letterSpacing": "{tokens.typography.letterSpacing.tight}",
+        "color": "{tokens.color.foreground.primary}"
+      },
+      "body": {
+        "fontFamily": "{tokens.typography.fontFamily.primary}",
+        "fontWeight": "{tokens.typography.fontWeight.normal}",
+        "lineHeight": "{tokens.typography.lineHeight.relaxed}",
+        "color": "{tokens.color.foreground.primary}"
+      },
+      "caption": {
+        "fontFamily": "{tokens.typography.fontFamily.primary}",
+        "fontWeight": "{tokens.typography.fontWeight.normal}",
+        "fontSize": "{tokens.typography.fontSize.sm}",
+        "lineHeight": "{tokens.typography.lineHeight.normal}",
+        "color": "{tokens.color.foreground.secondary}"
+      },
+      "code": {
+        "fontFamily": "{tokens.typography.fontFamily.mono}",
+        "fontSize": "{tokens.typography.fontSize.sm}",
+        "background": "{tokens.color.background.secondary}",
+        "padding": "{tokens.spacing.xs} {tokens.spacing.sm}",
+        "borderRadius": "{tokens.borderRadius.sm}",
+        "color": "{tokens.color.foreground.primary}"
+      }
+    },
+    "Navigation": {
+      "base": {
+        "background": "{tokens.color.background.elevated}",
+        "borderBottom": "1px solid {tokens.color.border.subtle}",
+        "backdropFilter": "blur(8px)"
+      },
+      "link": {
+        "color": "{tokens.color.foreground.secondary}",
+        "padding": "{tokens.spacing.md} {tokens.spacing.lg}",
+        "borderRadius": "{tokens.borderRadius.lg}",
+        "transition": "{tokens.transition.base}",
+        "hover": {
+          "color": "{tokens.color.kiz.yellow}",
+          "background": "{tokens.color.kiz.yellowLight}"
+        },
+        "active": {
+          "color": "{tokens.color.kiz.yellowDark}",
+          "background": "{tokens.color.kiz.yellowLight}",
+          "fontWeight": "{tokens.typography.fontWeight.medium}"
+        }
+      }
+    },
+    "Form": {
+      "fieldset": {
+        "border": "none",
+        "padding": "0",
+        "margin": "0"
+      },
+      "label": {
+        "fontSize": "{tokens.typography.fontSize.sm}",
+        "fontWeight": "{tokens.typography.fontWeight.medium}",
+        "color": "{tokens.color.foreground.primary}",
+        "marginBottom": "{tokens.spacing.sm}",
+        "display": "block"
+      },
+      "group": {
+        "marginBottom": "{tokens.spacing.lg}"
+      },
+      "error": {
+        "fontSize": "{tokens.typography.fontSize.sm}",
+        "color": "{tokens.color.semantic.error}",
+        "marginTop": "{tokens.spacing.sm}"
+      },
+      "hint": {
+        "fontSize": "{tokens.typography.fontSize.sm}",
+        "color": "{tokens.color.foreground.secondary}",
+        "marginTop": "{tokens.spacing.sm}"
+      }
+    }
+  },
+  "patterns": {
+    "iconInfoContext": {
+      "description": "Pattern cognitif optimisé : Icône → Information critique → Contexte",
+      "structure": {
+        "icon": "Position gauche, taille cohérente",
+        "criticalInfo": "Information principale, mise en évidence",
+        "context": "Label ou contexte, position droite, style secondaire"
+      },
+      "example": "📅 June 12, 2025    Deadline\n     5 days remaining ⚠️"
+    },
+    "heroContent": {
+      "description": "Contenu principal comme héros absolu de l'interface",
+      "principles": [
+        "Le contenu principal occupe 70%+ de l'espace visuel",
+        "Actions discrètes mais accessibles en contexte",
+        "Pas de concurrence visuelle avec le contenu"
+      ]
+    },
+    "progressiveDisclosure": {
+      "description": "Révéler l'information par niveaux d'importance",
+      "levels": {
+        "critical": "Visible immédiatement",
+        "important": "Révélée sur interaction",
+        "detail": "Accessible via navigation"
+      }
+    },
+    "zeroFriction": {
+      "description": "Éliminer toute micro-friction cognitive",
+      "rules": [
+        "Positionnement mathématiquement parfait",
+        "Anticipation de tous les edge cases",
+        "Expérience universelle sur tous devices"
+      ]
+    }
+  },
+  "animations": {
+    "fadeIn": {
+      "keyframes": {
+        "0%": { "opacity": "0", "transform": "translateY(10px)" },
+        "100%": { "opacity": "1", "transform": "translateY(0)" }
+      },
+      "duration": "{tokens.transition.slow}",
+      "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
+    },
+    "slideUp": {
+      "keyframes": {
+        "0%": { "transform": "translateY(10px)", "opacity": "0" },
+        "100%": { "transform": "translateY(0)", "opacity": "1" }
+      },
+      "duration": "{tokens.transition.base}",
+      "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
+    },
+    "scaleIn": {
+      "keyframes": {
+        "0%": { "transform": "scale(0.95)", "opacity": "0" },
+        "100%": { "transform": "scale(1)", "opacity": "1" }
+      },
+      "duration": "{tokens.transition.fast}",
+      "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
+    }
+  },
+  "accessibility": {
+    "contrast": {
+      "minimum": "4.5:1",
+      "enhanced": "7:1"
+    },
+    "focusRing": {
+      "color": "{tokens.color.kiz.yellow}",
+      "width": "2px",
+      "offset": "2px",
+      "style": "solid"
+    },
+    "reducedMotion": {
+      "respectPreference": true,
+      "fallback": "fade"
+    }
+  }
+} 

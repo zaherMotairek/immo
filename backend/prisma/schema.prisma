@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+}
+
+enum BuildingStructureKind {
+  /** Plusieurs unités / plusieurs baux (ex. immeuble d’appartements, bâtiment découpé en lots). */
+  IMMEUBLE
+  /** Un seul lot louable sur le bien (villa, entrepôt entier, bureau entier, parcelle unique, etc.). */
+  MONO_LOT
+}
+
+model Building {
+  id            String                 @id @default(uuid())
+  name          String
+  city          String
+  commune       String
+  address       String?
+  postalCode    String?                @map("postal_code")
+  country       String                 @default("Côte d'Ivoire")
+  notes         String?
+  structureKind BuildingStructureKind  @default(MONO_LOT) @map("structure_kind")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  units         Unit[]
+  charges       Charge[]
+
+  @@map("buildings")
+}
+
+enum UnitKind {
+  APARTMENT
+  HOUSE
+  LAND
+  OFFICE
+  WAREHOUSE
+  COMMERCIAL
+  GARAGE
+  OTHER
+}
+
+model Unit {
+  id          String   @id @default(uuid())
+  buildingId  String   @map("building_id")
+  label       String
+  kind        UnitKind @default(APARTMENT)
+  floor       Int?
+  surfaceM2   Decimal? @map("surface_m2") @db.Decimal(10, 2)
+  rooms       Int?
+  defaultRent Decimal? @map("default_rent") @db.Decimal(12, 2)
+  description String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  building    Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  leases      Lease[]
+  charges     Charge[]
+
+  @@index([buildingId])
+  @@map("units")
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  email     String?
+  phone     String?
+  notes     String?
+  /** Scan CNI, passeport, etc. (fichier sur disque, clé dans id_doc_file_key). */
+  idDocOriginalName String?   @map("id_doc_original_name")
+  idDocMime         String?   @map("id_doc_mime")
+  idDocSize         Int?      @map("id_doc_size")
+  idDocFileKey      String?   @map("id_doc_file_key")
+  idDocUploadedAt   DateTime? @map("id_doc_uploaded_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  leases    Lease[]
+
+  @@map("tenants")
+}
+
+model Lease {
+  id            String    @id @default(uuid())
+  unitId        String    @map("unit_id")
+  tenantId      String    @map("tenant_id")
+  startDate     DateTime  @map("start_date") @db.Date
+  endDate       DateTime? @map("end_date") @db.Date
+  monthlyRent   Decimal   @map("monthly_rent") @db.Decimal(12, 2)
+  depositAmount Decimal?  @map("deposit_amount") @db.Decimal(12, 2)
+  rentDueDay    Int       @default(1) @map("rent_due_day")
+  active        Boolean   @default(true)
+  /** Nom du fichier tel qu’envoyé par l’utilisateur (PDF ou image). */
+  contractFileOriginalName String?   @map("contract_file_original_name")
+  contractFileMime         String?   @map("contract_file_mime")
+  contractFileSize         Int?      @map("contract_file_size")
+  /** Nom du fichier sur disque (UUID + extension), sous uploads/lease-contracts. */
+  contractFileKey          String?   @map("contract_file_key")
+  contractUploadedAt       DateTime? @map("contract_uploaded_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  unit          Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  payments      Payment[]
+
+  @@index([unitId])
+  @@index([tenantId])
+  @@map("leases")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  LATE
+  CANCELLED
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  leaseId     String        @map("lease_id")
+  periodYear  Int           @map("period_year")
+  periodMonth Int           @map("period_month")
+  amountDue   Decimal       @map("amount_due") @db.Decimal(12, 2)
+  dueDate     DateTime      @map("due_date") @db.Date
+  paidAt      DateTime?     @map("paid_at")
+  amountPaid  Decimal?      @map("amount_paid") @db.Decimal(12, 2)
+  status      PaymentStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  lease       Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@unique([leaseId, periodYear, periodMonth])
+  @@index([leaseId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("payments")
+}
+
+enum ChargeCategory {
+  TAX
+  FEES
+  INSURANCE
+  MAINTENANCE
+  UTILITIES
+  OTHER
+}
+
+model Charge {
+  id          String         @id @default(uuid())
+  buildingId  String         @map("building_id")
+  unitId      String?        @map("unit_id")
+  category    ChargeCategory
+  label       String
+  amount      Decimal        @db.Decimal(12, 2)
+  periodYear  Int            @map("period_year")
+  periodMonth Int?           @map("period_month")
+  paid        Boolean        @default(false)
+  notes       String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  building    Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  unit        Unit?          @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([buildingId])
+  @@index([periodYear])
+  @@map("charges")
+}

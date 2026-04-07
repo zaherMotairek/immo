@@ -1,0 +1,1197 @@
+---
+alwaysApply: true
+---
+
+# Module Separation of Concerns - Development Rule
+
+## Purpose
+Enforce strict separation of responsibilities across module layers to ensure maintainable, testable, and scalable React applications. Each layer has ONE clear responsibility and follows the single responsibility principle rigorously.
+
+## Architecture Principles
+
+### The Golden Rule
+**"Components render. Hooks orchestrate. Services fetch. Utils transform. Types define. Constants declare."**
+
+Each file should answer to exactly ONE of these verbs. If a file does multiple things, it should be split.
+
+### File Size Constraints
+- **Components**: < 250 lines (ideally < 150)
+- **Pages**: < 300 lines (ideally < 200)
+- **Hooks**: < 200 lines (ideally < 150)
+- **Services**: < 150 lines per domain
+- **Utils**: < 100 lines per file
+- **Types**: No limit (but organize by domain)
+- **Constants**: < 100 lines per file
+
+## Layer Responsibilities
+
+### 1. Components Layer (`components/{Module}/`)
+
+**SOLE RESPONSIBILITY**: Presentation and rendering logic ONLY
+
+#### ✅ ALLOWED
+```tsx
+// components/Transaction/TransactionCard.tsx
+interface TransactionCardProps {
+  transaction: Transaction
+  onClick?: (id: string) => void
+  onEdit?: (id: string) => void
+}
+
+export default function TransactionCard({ transaction, onClick, onEdit }: TransactionCardProps) {
+  const { id, amount, date, type, status } = transaction
+  
+  return (
+    <div className="border rounded-lg p-4" onClick={() => onClick?.(id)}>
+      <div className="flex justify-between items-center">
+        <span className="font-semibold">{formatCurrency(amount)}</span>
+        <StatusBadge status={status} />
+      </div>
+      <p className="text-sm text-gray-600">{formatDate(date)}</p>
+      {onEdit && (
+        <button onClick={(e) => {
+          e.stopPropagation()
+          onEdit(id)
+        }}>
+          Edit
+        </button>
+      )}
+    </div>
+  )
+}
+```
+
+**RULES**:
+- ✅ Receive data via props
+- ✅ Call callbacks for user interactions
+- ✅ Use utility functions for formatting (imported)
+- ✅ Conditional rendering based on props
+- ✅ useContext ONLY for theme/i18n
+- ❌ NO useState (except for pure UI state like hover, expanded)
+- ❌ NO useEffect (except for DOM manipulation)
+- ❌ NO API calls
+- ❌ NO business logic
+- ❌ NO data transformations
+- ❌ NO complex calculations
+
+#### ❌ FORBIDDEN ANTI-PATTERN
+```tsx
+// ❌ BAD: Component doing too much
+export default function TransactionCard({ transactionId }: { transactionId: string }) {
+  const [transaction, setTransaction] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  
+  useEffect(() => {
+    // ❌ NO: API call in component
+    fetchTransaction(transactionId).then(setTransaction)
+  }, [transactionId])
+  
+  // ❌ NO: Business logic in component
+  const total = transaction.items.reduce((sum, item) => {
+    return sum + (item.quantity * item.price * (1 + item.taxRate))
+  }, 0)
+  
+  return <div>{total}</div>
+}
+```
+
+---
+
+### 2. Pages Layer (`pages/{Module}/`)
+
+**SOLE RESPONSIBILITY**: Route orchestration and composition
+
+#### ✅ ALLOWED
+```tsx
+// pages/Transaction/TransactionListPage.tsx
+export default function TransactionListPage() {
+  const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
+  
+  // ALL logic comes from hooks
+  const {
+    transactions,
+    isLoading,
+    error,
+    filters,
+    handleFilterChange,
+    handleSort,
+    stats
+  } = useTransactionList()
+  
+  const { deleteTransaction, isDeleting } = useTransactionActions()
+  
+  // Simple handlers that delegate
+  const handleTransactionClick = (id: string) => navigate(`/transactions/${id}`)
+  const handleCreate = () => navigate('/transactions/create')
+  const handleDelete = async (id: string) => {
+    if (confirm('Delete this transaction?')) {
+      await deleteTransaction(id)
+    }
+  }
+  
+  // UI state management
+  if (isLoading) return <Loader />
+  if (error) return <ErrorState error={error} onRetry={refetch} />
+  if (transactions.length === 0) return <EmptyState onCreateClick={handleCreate} />
+  
+  return (
+    <div className="p-6">
+      <PageHeader 
+        title="Transactions" 
+        subtitle={`${stats.total} transactions`}
+        action={hasPermission('transaction:create') && (
+          <Button onClick={handleCreate}>Create Transaction</Button>
+        )}
+      />
+      
+      <TransactionFilters 
+        filters={filters} 
+        onChange={handleFilterChange} 
+      />
+      
+      <TransactionList 
+        transactions={transactions}
+        onClick={handleTransactionClick}
+        onDelete={hasPermission('transaction:delete') ? handleDelete : undefined}
+        isDeleting={isDeleting}
+      />
+    </div>
+  )
+}
+```
+
+**RULES**:
+- ✅ Import and use custom hooks
+- ✅ Compose presentation components
+- ✅ Handle routing (navigate, params)
+- ✅ Handle permissions
+- ✅ Simple UI state (modals open/close)
+- ✅ Delegate to callbacks
+- ❌ NO business logic
+- ❌ NO direct API calls
+- ❌ NO data transformations
+- ❌ NO complex state management
+- ❌ NO useMemo/useCallback (leave that to hooks)
+
+---
+
+### 3. Hooks Layer (`hooks/{module}/`)
+
+**SOLE RESPONSIBILITY**: Business logic, orchestration, and side effects
+
+#### ✅ ALLOWED - Data Fetching Hook
+```tsx
+// hooks/transaction/useTransactionList.ts
+export function useTransactionList(initialFilters?: TransactionFilters) {
+  const [filters, setFilters] = useState<TransactionFilters>(initialFilters || {})
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Data fetching with React Query
+  const {
+    data: transactions = [],
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: TRANSACTION_QUERY_KEYS.list(filters),
+    queryFn: () => transactionService.list(filters),
+    staleTime: 30000
+  })
+  
+  // Complex filtering logic
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery) return transactions
+    
+    const query = searchQuery.toLowerCase()
+    return transactions.filter(t => 
+      t.reference.toLowerCase().includes(query) ||
+      t.description.toLowerCase().includes(query) ||
+      t.customerName?.toLowerCase().includes(query)
+    )
+  }, [transactions, searchQuery])
+  
+  // Business logic calculations
+  const stats = useMemo(() => ({
+    total: transactions.length,
+    totalAmount: transactions.reduce((sum, t) => sum + t.amount, 0),
+    pending: transactions.filter(t => t.status === 'pending').length,
+    completed: transactions.filter(t => t.status === 'completed').length,
+    averageAmount: transactions.length > 0 
+      ? transactions.reduce((sum, t) => sum + t.amount, 0) / transactions.length 
+      : 0
+  }), [transactions])
+  
+  // Handlers with business logic
+  const handleFilterChange = useCallback((newFilters: Partial<TransactionFilters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }))
+  }, [])
+  
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+  }, [])
+  
+  const handleSort = useCallback((field: keyof Transaction, direction: 'asc' | 'desc') => {
+    setFilters(prev => ({ ...prev, sortBy: field, sortDir: direction }))
+  }, [])
+  
+  return {
+    // Data
+    transactions: filteredTransactions,
+    stats,
+    
+    // State
+    filters,
+    searchQuery,
+    isLoading,
+    error,
+    
+    // Actions
+    handleFilterChange,
+    handleSearch,
+    handleSort,
+    refetch
+  }
+}
+```
+
+#### ✅ ALLOWED - Actions Hook
+```tsx
+// hooks/transaction/useTransactionActions.ts
+export function useTransactionActions() {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateTransactionPayload) => 
+      transactionService.create(payload),
+    onSuccess: (newTransaction) => {
+      queryClient.invalidateQueries({ queryKey: TRANSACTION_QUERY_KEYS.lists() })
+      toast.success('Transaction created successfully')
+      navigate(`/transactions/${newTransaction.id}`)
+    },
+    onError: (error: ApiError) => {
+      toast.error(error.message || 'Failed to create transaction')
+    }
+  })
+  
+  // Update mutation with optimistic update
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateTransactionPayload }) =>
+      transactionService.update(id, payload),
+    onMutate: async ({ id, payload }) => {
+      await queryClient.cancelQueries({ queryKey: TRANSACTION_QUERY_KEYS.detail(id) })
+      const previous = queryClient.getQueryData(TRANSACTION_QUERY_KEYS.detail(id))
+      
+      queryClient.setQueryData(TRANSACTION_QUERY_KEYS.detail(id), (old: Transaction) => ({
+        ...old,
+        ...payload
+      }))
+      
+      return { previous }
+    },
+    onError: (error, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          TRANSACTION_QUERY_KEYS.detail(variables.id), 
+          context.previous
+        )
+      }
+      toast.error('Failed to update transaction')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TRANSACTION_QUERY_KEYS.lists() })
+      toast.success('Transaction updated')
+    }
+  })
+  
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => transactionService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TRANSACTION_QUERY_KEYS.all })
+      toast.success('Transaction deleted')
+    },
+    onError: () => {
+      toast.error('Failed to delete transaction')
+    }
+  })
+  
+  return {
+    createTransaction: createMutation.mutate,
+    updateTransaction: updateMutation.mutate,
+    deleteTransaction: deleteMutation.mutate,
+    isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending
+  }
+}
+```
+
+**RULES**:
+- ✅ ALL business logic goes here
+- ✅ Data fetching with React Query/SWR
+- ✅ useMemo for expensive calculations
+- ✅ useCallback for memoized functions
+- ✅ useState for local state management
+- ✅ useEffect for side effects
+- ✅ Complex state orchestration
+- ✅ Error handling
+- ❌ NO JSX (except for error boundaries)
+- ❌ NO styling logic
+- ❌ NO direct DOM manipulation
+
+---
+
+### 4. Services Layer (`services/`)
+
+**SOLE RESPONSIBILITY**: API communication ONLY
+
+#### ✅ ALLOWED
+```tsx
+// services/transactionService.ts
+import { apiClient } from './api.config'
+import type { 
+  Transaction, 
+  TransactionApiResponse,
+  CreateTransactionPayload,
+  UpdateTransactionPayload,
+  TransactionFilters 
+} from '@/types/transaction.types'
+
+/**
+ * Transaction API service
+ * Handles all HTTP requests for transaction domain
+ */
+export const transactionService = {
+  /**
+   * Fetches list of transactions with optional filters
+   */
+  list: async (filters?: TransactionFilters): Promise<Transaction[]> => {
+    const { data } = await apiClient.get<{ items: TransactionApiResponse[] }>(
+      '/transactions',
+      { params: filters }
+    )
+    return data.items.map(transformTransactionFromApi)
+  },
+  
+  /**
+   * Fetches a single transaction by ID
+   */
+  getById: async (id: string): Promise<Transaction> => {
+    const { data } = await apiClient.get<TransactionApiResponse>(`/transactions/${id}`)
+    return transformTransactionFromApi(data)
+  },
+  
+  /**
+   * Creates a new transaction
+   */
+  create: async (payload: CreateTransactionPayload): Promise<Transaction> => {
+    const apiPayload = transformTransactionToApi(payload)
+    const { data } = await apiClient.post<TransactionApiResponse>(
+      '/transactions',
+      apiPayload
+    )
+    return transformTransactionFromApi(data)
+  },
+  
+  /**
+   * Updates an existing transaction
+   */
+  update: async (id: string, payload: UpdateTransactionPayload): Promise<Transaction> => {
+    const apiPayload = transformTransactionToApi(payload)
+    const { data } = await apiClient.put<TransactionApiResponse>(
+      `/transactions/${id}`,
+      apiPayload
+    )
+    return transformTransactionFromApi(data)
+  },
+  
+  /**
+   * Deletes a transaction
+   */
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/transactions/${id}`)
+  },
+  
+  /**
+   * Validates a transaction
+   */
+  validate: async (id: string): Promise<Transaction> => {
+    const { data } = await apiClient.post<TransactionApiResponse>(
+      `/transactions/${id}/validate`
+    )
+    return transformTransactionFromApi(data)
+  },
+  
+  /**
+   * Exports transactions to CSV
+   */
+  export: async (filters?: TransactionFilters): Promise<Blob> => {
+    const { data } = await apiClient.get('/transactions/export', {
+      params: filters,
+      responseType: 'blob'
+    })
+    return data
+  }
+}
+
+// Private helper for API transformation (could be in utils)
+function transformTransactionToApi(transaction: Partial<Transaction>): any {
+  return {
+    reference: transaction.reference,
+    amount_cents: transaction.amount ? Math.round(transaction.amount * 100) : undefined,
+    currency: transaction.currency,
+    transaction_date: transaction.date?.toISOString(),
+    status: transaction.status?.toUpperCase(),
+    customer_id: transaction.customerId,
+    description: transaction.description
+  }
+}
+```
+
+**RULES**:
+- ✅ HTTP requests ONLY
+- ✅ JSDoc documentation for each function
+- ✅ Proper TypeScript types
+- ✅ Transform data using utils (or minimal inline)
+- ✅ Return typed data
+- ❌ NO business logic
+- ❌ NO UI state management
+- ❌ NO complex transformations (delegate to utils)
+- ❌ NO caching logic (React Query handles it)
+- ❌ NO retry logic (axios interceptor handles it)
+
+---
+
+### 5. Types Layer (`types/`)
+
+**SOLE RESPONSIBILITY**: TypeScript type definitions
+
+#### ✅ ALLOWED
+```tsx
+// types/transaction.types.ts
+
+// API Response Types (what backend sends)
+export interface TransactionApiResponse {
+  id: string
+  reference: string
+  amount_cents: number
+  currency: string
+  transaction_date: string
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED'
+  customer_id: string
+  customer_name?: string
+  description?: string
+  created_at: string
+  updated_at: string
+}
+
+// UI Types (what we use in frontend)
+export interface Transaction {
+  id: string
+  reference: string
+  amount: number
+  currency: Currency
+  date: Date
+  status: TransactionStatus
+  customerId: string
+  customerName?: string
+  description?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Enums and Unions
+export type TransactionStatus = 'pending' | 'completed' | 'cancelled'
+export type TransactionType = 'income' | 'expense' | 'transfer'
+export type Currency = 'EUR' | 'USD' | 'GBP' | 'XOF'
+
+// Filter Types
+export interface TransactionFilters {
+  search?: string
+  status?: TransactionStatus
+  type?: TransactionType
+  customerId?: string
+  dateFrom?: Date
+  dateTo?: Date
+  minAmount?: number
+  maxAmount?: number
+  sortBy?: keyof Transaction
+  sortDir?: 'asc' | 'desc'
+  page?: number
+  pageSize?: number
+}
+
+// Form Types
+export interface TransactionFormData {
+  reference: string
+  amount: string // string in form, number after validation
+  currency: Currency
+  date: Date | null
+  customerId: string
+  type: TransactionType
+  description?: string
+}
+
+// Payload Types
+export type CreateTransactionPayload = Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>
+export type UpdateTransactionPayload = Partial<CreateTransactionPayload>
+
+// Component Props Types
+export interface TransactionCardProps {
+  transaction: Transaction
+  onClick?: (id: string) => void
+  onEdit?: (id: string) => void
+  onDelete?: (id: string) => void
+  showActions?: boolean
+}
+
+export interface TransactionListProps {
+  transactions: Transaction[]
+  isLoading?: boolean
+  onClick?: (id: string) => void
+  emptyMessage?: string
+}
+
+// Utility Types
+export type TransactionWithCustomer = Transaction & {
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+}
+
+// State Types
+export interface TransactionListState {
+  transactions: Transaction[]
+  filters: TransactionFilters
+  selectedIds: string[]
+  isLoading: boolean
+  error: Error | null
+}
+
+// Statistics Types
+export interface TransactionStats {
+  total: number
+  totalAmount: number
+  pending: number
+  completed: number
+  cancelled: number
+  averageAmount: number
+  currency: Currency
+}
+```
+
+**RULES**:
+- ✅ Define ALL types used in the module
+- ✅ Separate API types from UI types
+- ✅ Use discriminated unions for variants
+- ✅ Export everything
+- ✅ Use descriptive names
+- ✅ Document complex types with JSDoc
+- ❌ NO logic
+- ❌ NO default values (use constants)
+- ❌ NO functions
+
+---
+
+### 6. Utils Layer (`utils/{module}/`)
+
+**SOLE RESPONSIBILITY**: Pure functions for transformations and calculations
+
+#### ✅ ALLOWED
+```tsx
+// utils/transaction/transactionTransformers.ts
+
+/**
+ * Transforms API response to UI Transaction type
+ */
+export function transformTransactionFromApi(
+  apiData: TransactionApiResponse
+): Transaction {
+  return {
+    id: apiData.id,
+    reference: apiData.reference,
+    amount: apiData.amount_cents / 100, // cents to euros
+    currency: apiData.currency as Currency,
+    date: new Date(apiData.transaction_date),
+    status: apiData.status.toLowerCase() as TransactionStatus,
+    customerId: apiData.customer_id,
+    customerName: apiData.customer_name,
+    description: apiData.description,
+    createdAt: new Date(apiData.created_at),
+    updatedAt: new Date(apiData.updated_at)
+  }
+}
+
+/**
+ * Transforms Transaction for CSV export
+ */
+export function transformTransactionForExport(transaction: Transaction) {
+  return {
+    Reference: transaction.reference,
+    Date: formatDate(transaction.date, 'YYYY-MM-DD'),
+    Amount: transaction.amount.toFixed(2),
+    Currency: transaction.currency,
+    Customer: transaction.customerName || transaction.customerId,
+    Status: transaction.status,
+    Description: transaction.description || ''
+  }
+}
+
+/**
+ * Calculates transaction totals by currency
+ */
+export function calculateTransactionTotals(
+  transactions: Transaction[]
+): Record<Currency, number> {
+  return transactions.reduce((acc, t) => {
+    acc[t.currency] = (acc[t.currency] || 0) + t.amount
+    return acc
+  }, {} as Record<Currency, number>)
+}
+
+/**
+ * Groups transactions by month
+ */
+export function groupTransactionsByMonth(
+  transactions: Transaction[]
+): Record<string, Transaction[]> {
+  return transactions.reduce((acc, transaction) => {
+    const monthKey = format(transaction.date, 'yyyy-MM')
+    if (!acc[monthKey]) acc[monthKey] = []
+    acc[monthKey].push(transaction)
+    return acc
+  }, {} as Record<string, Transaction[]>)
+}
+
+/**
+ * Validates transaction amount is within limits
+ */
+export function isTransactionAmountValid(
+  amount: number,
+  currency: Currency
+): boolean {
+  const limits = {
+    EUR: { min: 0.01, max: 1000000 },
+    USD: { min: 0.01, max: 1000000 },
+    GBP: { min: 0.01, max: 1000000 },
+    XOF: { min: 1, max: 100000000 }
+  }
+  
+  const { min, max } = limits[currency]
+  return amount >= min && amount <= max
+}
+```
+
+```tsx
+// utils/transaction/transactionFormatters.ts
+
+/**
+ * Formats transaction reference for display
+ */
+export function formatTransactionReference(reference: string): string {
+  // TRX-2024-0001 => TRX-2024-0001
+  return reference.toUpperCase()
+}
+
+/**
+ * Formats transaction amount with currency
+ */
+export function formatTransactionAmount(
+  amount: number,
+  currency: Currency
+): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: currency
+  }).format(amount)
+}
+
+/**
+ * Gets status color class
+ */
+export function getTransactionStatusColor(status: TransactionStatus): string {
+  const colors = {
+    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    completed: 'bg-green-100 text-green-800 border-green-200',
+    cancelled: 'bg-red-100 text-red-800 border-red-200'
+  }
+  return colors[status]
+}
+
+/**
+ * Gets status label
+ */
+export function getTransactionStatusLabel(status: TransactionStatus): string {
+  const labels = {
+    pending: 'En attente',
+    completed: 'Complété',
+    cancelled: 'Annulé'
+  }
+  return labels[status]
+}
+```
+
+**RULES**:
+- ✅ Pure functions ONLY (same input = same output)
+- ✅ NO side effects
+- ✅ Easily testable
+- ✅ Single responsibility per function
+- ✅ JSDoc documentation
+- ✅ Proper TypeScript types
+- ❌ NO API calls
+- ❌ NO state management
+- ❌ NO hooks
+- ❌ NO DOM manipulation
+
+---
+
+### 7. Constants Layer (`constants/`)
+
+**SOLE RESPONSIBILITY**: Static values and configuration
+
+#### ✅ ALLOWED
+```tsx
+// constants/transactionConstants.ts
+
+export const TRANSACTION_STATUS = {
+  PENDING: 'pending',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled'
+} as const
+
+export const TRANSACTION_TYPE = {
+  INCOME: 'income',
+  EXPENSE: 'expense',
+  TRANSFER: 'transfer'
+} as const
+
+export const CURRENCIES = [
+  { code: 'EUR' as const, name: 'Euro', symbol: '€' },
+  { code: 'USD' as const, name: 'US Dollar', symbol: '$' },
+  { code: 'GBP' as const, name: 'British Pound', symbol: '£' },
+  { code: 'XOF' as const, name: 'CFA Franc', symbol: 'CFA' }
+]
+
+export const TRANSACTION_STATUS_LABELS: Record<TransactionStatus, string> = {
+  pending: 'En attente',
+  completed: 'Complété',
+  cancelled: 'Annulé'
+}
+
+export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
+  income: 'Revenu',
+  expense: 'Dépense',
+  transfer: 'Transfert'
+}
+
+export const TRANSACTION_ROUTES = {
+  LIST: '/transactions',
+  DETAIL: '/transactions/:id',
+  CREATE: '/transactions/create',
+  EDIT: '/transactions/:id/edit'
+} as const
+
+export const TRANSACTION_PERMISSIONS = {
+  VIEW: 'transaction:view',
+  CREATE: 'transaction:create',
+  EDIT: 'transaction:edit',
+  DELETE: 'transaction:delete',
+  VALIDATE: 'transaction:validate',
+  EXPORT: 'transaction:export'
+} as const
+
+// React Query Keys
+export const TRANSACTION_QUERY_KEYS = {
+  all: ['transactions'] as const,
+  lists: () => [...TRANSACTION_QUERY_KEYS.all, 'list'] as const,
+  list: (filters?: TransactionFilters) => 
+    [...TRANSACTION_QUERY_KEYS.lists(), filters] as const,
+  details: () => [...TRANSACTION_QUERY_KEYS.all, 'detail'] as const,
+  detail: (id: string) => [...TRANSACTION_QUERY_KEYS.details(), id] as const,
+  stats: () => [...TRANSACTION_QUERY_KEYS.all, 'stats'] as const
+} as const
+
+// Validation Rules
+export const TRANSACTION_VALIDATION = {
+  REFERENCE: {
+    MIN_LENGTH: 3,
+    MAX_LENGTH: 50,
+    PATTERN: /^TRX-\d{4}-\d{4}$/
+  },
+  AMOUNT: {
+    MIN: 0.01,
+    MAX: 1000000,
+    DECIMAL_PLACES: 2
+  },
+  DESCRIPTION: {
+    MAX_LENGTH: 500
+  }
+} as const
+
+// Default Values
+export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = {
+  sortBy: 'date',
+  sortDir: 'desc',
+  page: 1,
+  pageSize: 20
+}
+
+export const DEFAULT_CURRENCY: Currency = 'EUR'
+
+// API Configuration
+export const TRANSACTION_API_ENDPOINTS = {
+  BASE: '/transactions',
+  VALIDATE: (id: string) => `/transactions/${id}/validate`,
+  EXPORT: '/transactions/export',
+  STATS: '/transactions/stats'
+} as const
+```
+
+**RULES**:
+- ✅ Use `as const` for immutability
+- ✅ UPPER_SNAKE_CASE for constants
+- ✅ Group related constants
+- ✅ Export everything
+- ✅ Type all constants properly
+- ❌ NO functions
+- ❌ NO logic
+- ❌ NO computed values (use utils)
+
+---
+
+### 8. Store Layer (`store/slices/`)
+
+**SOLE RESPONSIBILITY**: Global state management
+
+#### ✅ ALLOWED (Redux Toolkit)
+```tsx
+// store/slices/transactionSlice.ts
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { Transaction, TransactionFilters } from '@/types/transaction.types'
+
+interface TransactionState {
+  selectedIds: string[]
+  filters: TransactionFilters
+  viewMode: 'table' | 'cards' | 'calendar'
+  bulkActionMode: boolean
+}
+
+const initialState: TransactionState = {
+  selectedIds: [],
+  filters: DEFAULT_TRANSACTION_FILTERS,
+  viewMode: 'table',
+  bulkActionMode: false
+}
+
+const transactionSlice = createSlice({
+  name: 'transaction',
+  initialState,
+  reducers: {
+    setSelectedIds: (state, action: PayloadAction<string[]>) => {
+      state.selectedIds = action.payload
+    },
+    toggleSelection: (state, action: PayloadAction<string>) => {
+      const id = action.payload
+      const index = state.selectedIds.indexOf(id)
+      if (index > -1) {
+        state.selectedIds.splice(index, 1)
+      } else {
+        state.selectedIds.push(id)
+      }
+    },
+    clearSelection: (state) => {
+      state.selectedIds = []
+    },
+    setFilters: (state, action: PayloadAction<TransactionFilters>) => {
+      state.filters = action.payload
+    },
+    setViewMode: (state, action: PayloadAction<'table' | 'cards' | 'calendar'>) => {
+      state.viewMode = action.payload
+    },
+    toggleBulkActionMode: (state) => {
+      state.bulkActionMode = !state.bulkActionMode
+      if (!state.bulkActionMode) {
+        state.selectedIds = []
+      }
+    }
+  }
+})
+
+export const {
+  setSelectedIds,
+  toggleSelection,
+  clearSelection,
+  setFilters,
+  setViewMode,
+  toggleBulkActionMode
+} = transactionSlice.actions
+
+export default transactionSlice.reducer
+
+// Selectors
+export const selectSelectedIds = (state: RootState) => state.transaction.selectedIds
+export const selectFilters = (state: RootState) => state.transaction.filters
+export const selectViewMode = (state: RootState) => state.transaction.viewMode
+export const selectBulkActionMode = (state: RootState) => state.transaction.bulkActionMode
+export const selectHasSelection = (state: RootState) => state.transaction.selectedIds.length > 0
+```
+
+#### ✅ ALLOWED (Zustand)
+```tsx
+// store/useTransactionStore.ts
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+interface TransactionStore {
+  selectedIds: string[]
+  filters: TransactionFilters
+  viewMode: 'table' | 'cards' | 'calendar'
+  bulkActionMode: boolean
+  
+  // Actions
+  setSelectedIds: (ids: string[]) => void
+  toggleSelection: (id: string) => void
+  clearSelection: () => void
+  setFilters: (filters: TransactionFilters) => void
+  setViewMode: (mode: 'table' | 'cards' | 'calendar') => void
+  toggleBulkActionMode: () => void
+}
+
+export const useTransactionStore = create<TransactionStore>()(
+  persist(
+    (set, get) => ({
+      selectedIds: [],
+      filters: DEFAULT_TRANSACTION_FILTERS,
+      viewMode: 'table',
+      bulkActionMode: false,
+      
+      setSelectedIds: (ids) => set({ selectedIds: ids }),
+      
+      toggleSelection: (id) => set((state) => {
+        const index = state.selectedIds.indexOf(id)
+        const newIds = [...state.selectedIds]
+        if (index > -1) {
+          newIds.splice(index, 1)
+        } else {
+          newIds.push(id)
+        }
+        return { selectedIds: newIds }
+      }),
+      
+      clearSelection: () => set({ selectedIds: [] }),
+      
+      setFilters: (filters) => set({ filters }),
+      
+      setViewMode: (mode) => set({ viewMode: mode }),
+      
+      toggleBulkActionMode: () => set((state) => ({
+        bulkActionMode: !state.bulkActionMode,
+        selectedIds: !state.bulkActionMode ? [] : state.selectedIds
+      }))
+    }),
+    {
+      name: 'transaction-storage',
+      partialize: (state) => ({ 
+        viewMode: state.viewMode,
+        filters: state.filters 
+      })
+    }
+  )
+)
+```
+
+**RULES**:
+- ✅ Global UI state ONLY
+- ✅ Cross-component state
+- ✅ User preferences
+- ✅ Selection state
+- ✅ View modes
+- ❌ NO API data (use React Query)
+- ❌ NO derived state (use selectors)
+- ❌ NO business logic (use hooks)
+
+---
+
+## Common Anti-Patterns to Avoid
+
+### ❌ Fat Component
+```tsx
+// BAD: Everything in one component
+export default function TransactionDashboard() {
+  const [transactions, setTransactions] = useState([])
+  const [filters, setFilters] = useState({})
+  const [isLoading, setIsLoading] = useState(false)
+  
+  useEffect(() => {
+    fetchTransactions()
+  }, [filters])
+  
+  const fetchTransactions = async () => {
+    setIsLoading(true)
+    const data = await api.get('/transactions')
+    setTransactions(data)
+    setIsLoading(false)
+  }
+  
+  const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0)
+  const avgAmount = totalAmount / transactions.length
+  
+  // ... 500 more lines
+}
+```
+
+### ✅ Proper Separation
+```tsx
+// GOOD: Each layer does its job
+export default function TransactionDashboard() {
+  const { transactions, stats, isLoading } = useTransactionList()
+  return <TransactionList transactions={transactions} stats={stats} />
+}
+```
+
+---
+
+## Decision Tree: Where Does This Code Go?
+
+```
+Is it JSX? 
+  └─ YES → Component
+
+Is it an API call?
+  └─ YES → Service
+
+Is it a pure function?
+  └─ YES → Utils
+
+Is it a constant value?
+  └─ YES → Constants
+
+Is it a type definition?
+  └─ YES → Types
+
+Is it business logic with hooks?
+  └─ YES → Hook
+
+Is it route orchestration?
+  └─ YES → Page
+
+Is it global state?
+  └─ YES → Store
+```
+
+---
+
+## Testing Strategy by Layer
+
+### Components
+```tsx
+// Test props and rendering
+test('TransactionCard renders transaction data', () => {
+  const transaction = createMockTransaction()
+  render(<TransactionCard transaction={transaction} />)
+  expect(screen.getByText(transaction.reference)).toBeInTheDocument()
+})
+```
+
+### Hooks
+```tsx
+// Test logic and state changes
+test('useTransactionList filters transactions', () => {
+  const { result } = renderHook(() => useTransactionList())
+  act(() => result.current.handleSearch('TRX-001'))
+  expect(result.current.transactions).toHaveLength(1)
+})
+```
+
+### Utils
+```tsx
+// Test pure functions
+test('transformTransactionFromApi converts correctly', () => {
+  const apiData = createMockApiResponse()
+  const result = transformTransactionFromApi(apiData)
+  expect(result.amount).toBe(apiData.amount_cents / 100)
+})
+```
+
+### Services
+```tsx
+// Test API calls with MSW
+test('transactionService.list fetches transactions', async () => {
+  const transactions = await transactionService.list()
+  expect(transactions).toHaveLength(2)
+})
+```
+
+---
+
+## Checklist for New Module Development
+
+### Before Coding
+- [ ] Define all types in `types/{module}.types.ts`
+- [ ] Create constants in `constants/{module}Constants.ts`
+- [ ] Plan hooks needed
+- [ ] Identify components needed
+- [ ] Define service methods
+
+### Development Order
+1. [ ] Types
+2. [ ] Constants  
+3. [ ] Service
+4. [ ] Utils (transformers, formatters, validators)
+5. [ ] Hooks (data fetching)
+6. [ ] Hooks (actions)
+7. [ ] Hooks (forms if needed)
+8. [ ] Components (presentation)
+9. [ ] Pages (orchestration)
+10. [ ] Tests
+
+### Code Review Checklist
+- [ ] No business logic in components
+- [ ] No API calls in hooks (use services)
+- [ ] No JSX in hooks
+- [ ] All functions properly typed
+- [ ] Utils are pure functions
+- [ ] Constants use `as const`
+- [ ] Services only do API calls
+- [ ] Pages < 300 lines
+- [ ] Components < 250 lines
+- [ ] Tests cover critical paths
+
+---
+
+## Performance Implications
+
+### ✅ Good Performance
+- Components re-render only when props change (React.memo)
+- Hooks use useMemo for expensive calculations
+- Hooks use useCallback for stable callbacks
+- Services return cached data (React Query)
+- Utils are pure and fast
+
+### ❌ Bad Performance
+- Components do calculations on every render
+- Hooks don't memoize expensive operations
+- Unnecessary re-fetching from API
+- Large objects passed as props without memoization
+
+---
+
+## Summary
+
+**Remember: Each layer is a specialist. Don't make generalists.**
+
+- **Components**: UI specialists - render and nothing else
+- **Pages**: Orchestra conductors - compose and route
+- **Hooks**: Business managers - orchestrate logic
+- **Services**: API specialists - communicate with backend
+- **Utils**: Calculators - transform and compute
+- **Types**: Blueprints - define structures
+- **Constants**: Reference books - provide values
+- **Store**: Memory banks - hold global state
+
+**When in doubt, ask**: "What is the PRIMARY responsibility of this code?" Then put it in the matching layer.

@@ -1,0 +1,26 @@
+# Dépendances
+node_modules/
+
+# Builds
+dist/
+**/dist/
+frontend/dev-dist/
+
+# Secrets & environnement — uniquement les fichiers nommés exactement `.env`
+**/.env
+
+# Fichiers uploadés localement
+uploads/
+backend/uploads/
+
+# Prisma généré / cache local
+backend/generated/
+
+# Credentials locaux
+owner-passwords.json
+
+# OS & éditeurs
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*

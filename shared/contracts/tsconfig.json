@@ -1,0 +1,15 @@
+{
+  "extends": "../../frontend/jsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "module": "ESNext",
+    "target": "ES2020",
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
