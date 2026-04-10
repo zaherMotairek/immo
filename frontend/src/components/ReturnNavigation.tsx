@@ -22,13 +22,13 @@ export function ReturnNavigation({ fallbackHref, fallbackLabel, className = '' }
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-100/85 px-3 py-1.5 font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-100/85 px-3 py-1.5 font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         title="Revenir à l’écran précédent (recherche, autre page…)"
       >
-        <ChevronLeftIcon className="size-4 shrink-0 text-slate-500 dark:text-slate-400" />
+        <ChevronLeftIcon className="size-4 shrink-0 text-slate-600 dark:text-slate-300" />
         Retour
       </button>
-      <span className="select-none text-slate-300 dark:text-slate-600" aria-hidden>
+      <span className="select-none text-slate-400 dark:text-slate-500" aria-hidden>
         ·
       </span>
       <Link

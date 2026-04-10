@@ -406,7 +406,7 @@ export function GlobalSearchBar() {
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="off"
-          placeholder={`Biens, locataires, loyers… (${SHORTCUT_HINT})`}
+          placeholder={`Rechercher : bien, locataire, loyer… (${SHORTCUT_HINT})`}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -439,11 +439,11 @@ export function GlobalSearchBar() {
               }
             }
           }}
-          className="w-full border-slate-300/90 bg-slate-100/80 py-2.5 pl-10 pr-[4.5rem] shadow-sm dark:border-slate-600 dark:bg-slate-800/90"
+          className="w-full rounded-xl border-slate-200/95 bg-white py-2.5 pl-10 pr-[4.5rem] shadow-sm dark:border-slate-600 dark:bg-slate-800/95"
         />
         {!loading && (
           <kbd
-            className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-medium text-slate-500 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 sm:inline"
+            className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-600 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 sm:inline"
             aria-hidden
           >
             {SHORTCUT_HINT}
@@ -467,7 +467,7 @@ export function GlobalSearchBar() {
           role="listbox"
           aria-label="Recherches récentes"
         >
-          <p className="border-b border-slate-100 px-4 pb-2 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-600 dark:text-slate-500">
+          <p className="border-b border-slate-100 px-4 pb-2 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:text-slate-400">
             Recherches récentes
           </p>
           <ul className="max-h-48 overflow-auto py-1">
@@ -475,10 +475,10 @@ export function GlobalSearchBar() {
               <li key={r}>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-slate-800 transition hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700/60"
                   onClick={() => applyRecent(r)}
                 >
-                  <svg className="size-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <svg className="size-4 shrink-0 text-slate-500 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" />
                     <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -491,16 +491,16 @@ export function GlobalSearchBar() {
       )}
 
       {showHint && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 px-4 py-3 text-sm text-slate-600 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10">
-          <p className="font-medium text-slate-800 dark:text-slate-200">Encore une lettre</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 px-4 py-3 text-sm text-slate-700 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
+          <p className="font-semibold text-slate-900 dark:text-slate-100">Encore une lettre</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
             La recherche démarre à <strong>2 caractères</strong> (noms de biens, locataires, villes, montants…).
           </p>
         </div>
       )}
 
       {showResultsBlock && loading && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm text-slate-600 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm text-slate-700 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
           <div className="flex items-center gap-3">
             <span className="inline-block size-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600 dark:border-slate-600" />
             Recherche en cours…
@@ -516,8 +516,8 @@ export function GlobalSearchBar() {
 
       {showResultsBlock && !loading && !error && data && total === 0 && (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[70vh] overflow-auto rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
-          <p className="font-medium text-slate-800 dark:text-slate-200">Aucun résultat pour « {debounced} »</p>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <p className="font-semibold text-slate-900 dark:text-slate-100">Aucun résultat pour « {debounced} »</p>
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
             Essayez un nom de bien, un locataire, une ville, un libellé de charge ou une période (ex. 2026-03).
           </p>
         </div>
@@ -532,10 +532,10 @@ export function GlobalSearchBar() {
           aria-activedescendant={listKeyboardActive ? `search-opt-${activeIdx}` : undefined}
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-600">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               {total} résultat{total > 1 ? 's' : ''}
             </p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+            <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
               <span className="hidden sm:inline">↑↓ naviguer · </span>Entrée ouvrir · Échap fermer
             </p>
           </div>
@@ -550,7 +550,7 @@ export function GlobalSearchBar() {
                 return (
                   <Fragment key={item.key}>
                     {showHead && (
-                      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-200/70 bg-slate-100/95 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/98 dark:text-slate-400">
+                      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-200/70 bg-slate-100/95 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-700 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/98 dark:text-slate-300">
                         <span className={`h-3 w-1 shrink-0 rounded-full ${st.bar}`} aria-hidden />
                         {item.section}
                       </div>
@@ -575,7 +575,7 @@ export function GlobalSearchBar() {
                           <Highlight text={item.primary} needle={needle} />
                         </span>
                         <span
-                          className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400"
+                          className="mt-0.5 block truncate text-xs text-slate-600 dark:text-slate-300"
                           title={item.secondary}
                         >
                           <Highlight text={item.secondary} needle={needle} />

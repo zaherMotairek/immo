@@ -16,7 +16,7 @@ export function Card({
   return (
     <div
       {...rest}
-      className={`rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03] sm:p-5 dark:border-slate-700/80 dark:bg-slate-900/90 dark:text-slate-200 dark:shadow-none dark:ring-white/[0.04] ${className}`}
+      className={`rounded-2xl border border-slate-200/95 bg-white p-4 text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_4px_16px_rgb(15_23_42/0.05)] ring-1 ring-slate-900/[0.025] sm:p-5 dark:border-slate-700/75 dark:bg-slate-900/92 dark:text-slate-100 dark:shadow-[0_2px_8px_rgb(0_0_0/0.25)] dark:ring-white/[0.05] ${className}`}
     >
       {children}
     </div>
@@ -33,7 +33,7 @@ export function Button({
   variant?: 'primary' | 'primarySoft' | 'secondary' | 'ghost' | 'danger';
 }) {
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50';
+    'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 active:scale-[0.98]';
   const styles = {
     primary: 'bg-brand-600 text-white shadow-md shadow-brand-600/25 hover:bg-brand-700 focus-visible:outline-brand-600',
     /** Même famille que le primaire, ton plus clair (ex. acompte à côté de « Marquer payé »). */
@@ -41,7 +41,7 @@ export function Button({
       'border border-brand-500/40 bg-brand-100 text-brand-700 shadow-sm shadow-brand-600/10 hover:border-brand-600/50 hover:bg-brand-50 dark:border-brand-500/45 dark:bg-brand-600/28 dark:text-white dark:shadow-black/20 dark:hover:bg-brand-600/40',
     secondary:
       'border border-slate-300/90 bg-slate-100/85 text-slate-800 shadow-sm hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600',
-    ghost: 'text-slate-700 hover:bg-slate-200/80 dark:text-slate-200 dark:hover:bg-slate-700',
+    ghost: 'text-slate-800 hover:bg-slate-200/80 dark:text-slate-100 dark:hover:bg-slate-700',
     danger: 'bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700 focus-visible:outline-red-600',
   };
   return (
@@ -52,7 +52,7 @@ export function Button({
 }
 
 const inputBaseClass =
-  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-950 dark:focus:ring-brand-500/25';
+  'w-full min-h-10 rounded-xl border border-slate-200/95 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm placeholder:font-normal placeholder:text-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/18 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:placeholder:text-slate-400 dark:focus:bg-slate-950 dark:focus:ring-brand-500/22';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className = '', ...props },
@@ -130,7 +130,7 @@ export const AmountFcfaInput = forwardRef<HTMLInputElement, AmountFcfaInputProps
       {inputEl}
       <span
         aria-hidden
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold uppercase leading-none tracking-[0.2em] text-slate-500 dark:text-slate-400"
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold uppercase leading-none tracking-[0.2em] text-slate-600 dark:text-slate-300"
       >
         FCFA
       </span>
@@ -150,7 +150,7 @@ export function Label({
   return (
     <label
       htmlFor={htmlFor}
-      className={`mb-1 block text-xs font-medium tracking-normal text-slate-600 dark:text-slate-400 ${className}`}
+      className={`mb-1.5 block text-[13px] font-semibold leading-tight tracking-normal text-slate-700 dark:text-slate-300 ${className}`}
     >
       {children}
     </label>
@@ -158,7 +158,7 @@ export function Label({
 }
 
 const selectBaseClass =
-  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:bg-slate-950';
+  'w-full min-h-10 rounded-xl border border-slate-200/95 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/18 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:focus:bg-slate-950';
 
 export function Select({ className = '', ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={`${selectBaseClass} ${className}`} {...props} />;
@@ -171,7 +171,7 @@ export function HelpHint({ title, className = '' }: { title: string; className?:
       type="button"
       title={title}
       aria-label={title}
-      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-400 transition hover:border-slate-300 hover:text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-500 dark:hover:text-slate-300 ${className}`}
+      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-slate-300/90 bg-white text-slate-600 transition hover:border-slate-400 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-400 dark:hover:text-slate-100 ${className}`}
     >
       <svg aria-hidden className="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <circle cx="12" cy="12" r="10" />

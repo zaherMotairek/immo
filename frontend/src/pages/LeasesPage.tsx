@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
@@ -56,6 +57,11 @@ const filterPillOff =
   'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/75 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800';
 
 export function LeasesPage() {
+  const [params, setParams] = useSearchParams();
+  const leaseIdFocus = params.get('leaseId')?.trim() ?? '';
+  const hintTenant = params.get('hintTenant')?.trim() ?? '';
+  const hintPlace = params.get('hintPlace')?.trim() ?? '';
+
   const [leases, setLeases] = useState<LeaseRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
   const [unitId, setUnitId] = useState('');
@@ -129,6 +135,21 @@ export function LeasesPage() {
     return `${statusFr}${wellFr}. Année « Générer loyers » : ${genYear} (barre de filtres ci-dessus).`;
   }, [statusTab, wellViewFilter, genYear]);
 
+  const leaseFocusSummary = useMemo(() => {
+    if (!leaseIdFocus) return null;
+    const lease = leases.find((l) => l.id === leaseIdFocus);
+    if (lease) {
+      return {
+        tenant: `${lease.tenant.firstName} ${lease.tenant.lastName}`.trim(),
+        place: `${lease.unit.building.name} — ${lease.unit.label}`,
+      };
+    }
+    if (hintTenant || hintPlace) {
+      return { tenant: hintTenant || '—', place: hintPlace || '—' };
+    }
+    return { tenant: '', place: '' };
+  }, [leaseIdFocus, leases, hintTenant, hintPlace]);
+
   const groupedLeases = useMemo(() => {
     const map = new Map<string, LeaseRow[]>();
     for (const l of filteredLeases) {
@@ -151,6 +172,60 @@ export function LeasesPage() {
     }
     return entries;
   }, [filteredLeases]);
+
+  const appliedLeaseLinkRef = useRef<string | null>(null);
+
+  function clearLeaseDeepLink() {
+    setParams(
+      (prev) => {
+        const q = new URLSearchParams(prev);
+        q.delete('leaseId');
+        q.delete('hintTenant');
+        q.delete('hintPlace');
+        return q;
+      },
+      { replace: true },
+    );
+  }
+
+  useEffect(() => {
+    if (!leaseIdFocus) {
+      appliedLeaseLinkRef.current = null;
+      return;
+    }
+    const lease = leases.find((l) => l.id === leaseIdFocus);
+    if (!lease) return;
+    if (appliedLeaseLinkRef.current === leaseIdFocus) return;
+    appliedLeaseLinkRef.current = leaseIdFocus;
+    setStatusTab('all');
+    setWellViewFilter('all');
+  }, [leaseIdFocus, leases]);
+
+  useLayoutEffect(() => {
+    if (!leaseIdFocus || groupedLeases.length === 0) return;
+    const idx = groupedLeases.findIndex(([, rows]) => rows.some((r) => r.id === leaseIdFocus));
+    if (idx < 0) return;
+    const detailsEl = document.querySelector(`details[data-lease-group-idx="${idx}"]`) as HTMLDetailsElement | null;
+    if (detailsEl) detailsEl.open = true;
+    const t = window.setTimeout(() => {
+      const row = document.getElementById(`lease-row-${leaseIdFocus}`);
+      if (!row) return;
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      row.classList.add('ring-2', 'ring-brand-500', 'ring-offset-2', 'rounded-xl', 'dark:ring-offset-slate-900');
+      window.setTimeout(
+        () =>
+          row.classList.remove(
+            'ring-2',
+            'ring-brand-500',
+            'ring-offset-2',
+            'rounded-xl',
+            'dark:ring-offset-slate-900',
+          ),
+        2400,
+      );
+    }, 150);
+    return () => clearTimeout(t);
+  }, [leaseIdFocus, groupedLeases]);
 
   const selectedBuilding = buildings.find((x) => x.id === buildingIdForLease);
 
@@ -250,9 +325,61 @@ export function LeasesPage() {
               />
             </div>
             <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              Parcourez vos baux par bien, filtrez par statut ou type de local, puis ouvrez une fiche pour agir (loyers,
-              contrat, caution).
+              {leaseIdFocus ? (
+                <>
+                  <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue guidée :</strong> un bail précis est
+                  mis en avant ci-dessous (groupe ouvert, ligne surlignée). Les autres baux restent visibles dans la liste.
+                </>
+              ) : (
+                <>
+                  Parcourez vos baux par bien, filtrez par statut ou type de local, puis ouvrez une fiche pour agir (loyers,
+                  contrat, caution).
+                </>
+              )}
             </p>
+            {leaseIdFocus ? (
+              <div
+                className="mt-4 max-w-2xl rounded-xl border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3.5 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
+                role="status"
+              >
+                <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">
+                  Baux & génération loyers — ce bail est sélectionné
+                </p>
+                {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
+                  <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
+                    <span className="font-semibold text-slate-900 dark:text-slate-50">{leaseFocusSummary.tenant}</span>
+                    {leaseFocusSummary.place ? (
+                      <>
+                        {' '}
+                        · <span className="font-normal">{leaseFocusSummary.place}</span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : leaseIdFocus && leases.length > 0 ? (
+                  <p className="mt-2 text-sm text-amber-800 dark:text-amber-200/90">
+                    Aucun bail avec cet identifiant dans la liste chargée — il a peut-être été supprimé. Vérifiez l’URL ou
+                    ouvrez la fiche location.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Chargement du contexte…</p>
+                )}
+                <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                  <Link
+                    to={`/locations/${leaseIdFocus}`}
+                    className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                  >
+                    ← Fiche location de ce bail
+                  </Link>
+                  <button
+                    type="button"
+                    className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+                    onClick={clearLeaseDeepLink}
+                  >
+                    Afficher la page sans sélection
+                  </button>
+                </p>
+              </div>
+            ) : null}
           </div>
           <Button type="button" className="h-auto shrink-0 gap-2 py-2.5 text-sm font-semibold shadow-sm sm:mt-1" onClick={() => openAddLeaseForm()}>
             <span className="text-lg leading-none" aria-hidden>
@@ -548,12 +675,13 @@ export function LeasesPage() {
             </div>
 
             <div className="space-y-3 bg-slate-50/50 p-4 dark:bg-slate-950/20 sm:p-5">
-          {groupedLeases.map(([gKey, rows]) => {
+          {groupedLeases.map(([gKey, rows], groupIdx) => {
             const head = rows[0]!;
             const { name: bName, commune, city } = head.unit.building;
             return (
               <details
                 key={gKey}
+                data-lease-group-idx={groupIdx}
                 className="group rounded-xl border border-slate-200/90 bg-white shadow-sm open:ring-2 open:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900/40 dark:open:bg-slate-900/90"
               >
                 <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 text-sm marker:hidden [&::-webkit-details-marker]:hidden sm:px-4">
@@ -604,6 +732,7 @@ export function LeasesPage() {
                     return (
                     <li
                       key={l.id}
+                      id={`lease-row-${l.id}`}
                       className={
                         multiLot
                           ? `flex flex-col gap-3 overflow-hidden rounded-xl border border-slate-200/95 border-l-4 bg-white/95 shadow-md shadow-slate-900/[0.06] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-900/85 dark:shadow-black/25 dark:ring-slate-700/30 ${stripeClass} lg:flex-row lg:items-start lg:justify-between`

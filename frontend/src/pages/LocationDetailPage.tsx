@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LinkButton } from '@/components/LinkButton';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
@@ -64,6 +64,33 @@ function badge(fr: string) {
   if (fr === 'En retard') return 'bg-amber-100 text-amber-900 dark:bg-amber-950/65 dark:text-amber-200';
   if (fr === 'Annulé') return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
   return 'bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200';
+}
+
+function SectionHeader({ title, hintTitle }: { title: string; hintTitle?: string }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-200/90 pb-3 dark:border-slate-700/80">
+      <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</h2>
+      {hintTitle ? <HelpHint title={hintTitle} className="shrink-0" /> : null}
+    </div>
+  );
+}
+
+function SummaryTile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/90 px-4 py-3 shadow-sm dark:border-slate-600/80 dark:from-slate-800/60 dark:to-slate-900/40">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{label}</p>
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+function DlField({ label, children, span2 }: { label: string; children: ReactNode; span2?: boolean }) {
+  return (
+    <div className={span2 ? 'sm:col-span-2' : ''}>
+      <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">{label}</dt>
+      <dd className="mt-1.5 text-[15px] font-medium leading-snug text-slate-900 dark:text-slate-100">{children}</dd>
+    </div>
+  );
 }
 
 export function LocationDetailPage() {
@@ -217,19 +244,27 @@ export function LocationDetailPage() {
 
   if (err) {
     return (
-      <Card>
-        <p className="text-red-600">{err}</p>
-        <PageDetailBackLink to="/locations">Locations</PageDetailBackLink>
+      <Card className="border-red-200/90 dark:border-red-900/40">
+        <p className="font-medium text-red-800 dark:text-red-200">Impossible d’afficher cette location.</p>
+        <p className="mt-2 text-sm text-red-700/90 dark:text-red-300/90">{err}</p>
+        <PageDetailBackLink to="/locations">Retour aux locations</PageDetailBackLink>
       </Card>
     );
   }
 
   if (!data) {
-    return <p className="text-slate-500 dark:text-slate-400">Chargement de la fiche…</p>;
+    return (
+      <Card className="!py-10 text-center">
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Chargement de la fiche location…</p>
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">Veuillez patienter.</p>
+      </Card>
+    );
   }
 
   const { localization, property, tenant, financial } = data;
   const locationHeadline = `${property.buildingName} — ${property.unitLabel}`;
+  const buildingWithUnitFocusHref = `/biens/${encodeURIComponent(property.buildingId)}?unitId=${encodeURIComponent(property.unitId)}&hintUnitLabel=${encodeURIComponent(property.unitLabel)}&returnLocation=${encodeURIComponent(id ? `/locations/${id}` : '/locations')}`;
+  const bauxWithLeaseFocusHref = `/baux?leaseId=${encodeURIComponent(data.leaseId)}&hintTenant=${encodeURIComponent(tenant.fullName)}&hintPlace=${encodeURIComponent(locationHeadline)}`;
 
   async function requestDeleteLocation() {
     if (!data) return;
@@ -254,207 +289,218 @@ export function LocationDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">Fiche location</h1>
           {!data.active ? (
-            <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-200">
+            <span className="rounded-full bg-slate-300/90 px-3 py-1 text-xs font-semibold text-slate-900 dark:bg-slate-600 dark:text-slate-100">
               Bail inactif
             </span>
-          ) : null}
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge(financial.currentPaymentStatusFr)}`}
-          >
-            Mois en cours : {financial.currentPaymentStatusFr}
-          </span>
+          ) : (
+            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">
+              Bail actif
+            </span>
+          )}
         </div>
-        <p className="text-sm font-medium leading-snug text-slate-800 dark:text-slate-200">{locationHeadline}</p>
-        <p className="text-sm leading-snug text-slate-600 dark:text-slate-400">{unitKindLabel(property.kind)}</p>
+        <p className="text-lg font-semibold leading-snug text-slate-900 dark:text-slate-100">{locationHeadline}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{unitKindLabel(property.kind)}</p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryTile label="Loyer mensuel">
+            <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{fcfa(financial.monthlyRent)}</p>
+          </SummaryTile>
+          <SummaryTile label="Échéance loyer">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">Le {financial.rentDueDay}</p>
+            <p className="mt-0.5 text-xs font-normal text-slate-600 dark:text-slate-400">chaque mois</p>
+          </SummaryTile>
+          <SummaryTile label="Mois en cours">
+            <span
+              className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-semibold ${badge(financial.currentPaymentStatusFr)}`}
+            >
+              {financial.currentPaymentStatusFr}
+            </span>
+          </SummaryTile>
+          <SummaryTile label="Période suivie">
+            <p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {String(financial.currentPeriodMonth).padStart(2, '0')}/{financial.currentPeriodYear}
+            </p>
+          </SummaryTile>
+        </div>
+
+        <div className="mt-5 border-t border-slate-200/80 pt-4 dark:border-slate-700/80">
+          <div className="flex flex-wrap gap-2">
+            <LinkButton
+              to={`/paiements?leaseId=${encodeURIComponent(data.leaseId)}&year=all&month=all&hintTenant=${encodeURIComponent(tenant.fullName)}&hintPlace=${encodeURIComponent(locationHeadline)}`}
+              variant="primary"
+              className="py-2.5 text-sm"
+            >
+              Échéances & paiements (ce bail)
+            </LinkButton>
+            <LinkButton to={buildingWithUnitFocusHref} variant="secondary" className="py-2.5 text-sm">
+              Fiche du bien (cette unité)
+            </LinkButton>
+            <LinkButton to={bauxWithLeaseFocusHref} variant="secondary" className="py-2.5 text-sm">
+              Baux & génération (ce bail)
+            </LinkButton>
+          </div>
+          <p className="mt-2.5 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">Paiements</strong> : liste filtrée sur ce bail
+            uniquement. <strong className="font-semibold text-slate-700 dark:text-slate-300">Fiche du bien</strong> : la page
+            Bien s’ouvre avec cette <strong className="font-semibold text-slate-700 dark:text-slate-300">unité</strong> mise en
+            avant dans la liste. <strong className="font-semibold text-slate-700 dark:text-slate-300">Baux</strong> : la liste
+            déplie le bon immeuble et surligne <strong className="font-semibold text-slate-700 dark:text-slate-300">ce bail</strong>{' '}
+            pour « Générer loyers » ou le contrat.
+          </p>
+        </div>
       </PageDetailHero>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Localisation</h2>
-        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Ville</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{localization.city}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Commune / zone</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{localization.commune}</dd>
-          </div>
-          {localization.address && (
-            <div className="sm:col-span-2">
-              <dt className="text-slate-500 dark:text-slate-400">Adresse ou précision</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{localization.address}</dd>
-            </div>
-          )}
-          {localization.postalCode && (
-            <div>
-              <dt className="text-slate-500 dark:text-slate-400">Code postal</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{localization.postalCode}</dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Pays</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{localization.country}</dd>
-          </div>
-        </dl>
-        <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 dark:bg-slate-800/50 dark:text-slate-200">
-          {localization.shortLabel}
-        </p>
-      </Card>
-
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Détails du bien</h2>
-        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Nom du bien</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{property.buildingName}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Unité / référence</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{property.unitLabel}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Type</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{unitKindLabel(property.kind)}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Étage</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{property.floor != null ? property.floor : '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Pièces</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">{property.rooms != null ? property.rooms : '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Surface</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">
-              {property.surfaceM2 != null ? `${property.surfaceM2} m²` : '—'}
-            </dd>
-          </div>
-          {(property.description || property.notes) && (
-            <div className="sm:col-span-2">
-              <dt className="text-slate-500 dark:text-slate-400">Description</dt>
-              <dd className="text-slate-800 dark:text-slate-300">{property.description || property.notes}</dd>
-            </div>
-          )}
-        </dl>
-        <LinkButton to={`/biens/${property.buildingId}`} variant="secondary" className="mt-4 py-2 text-xs">
-          Voir le bien & les unités
-        </LinkButton>
-      </Card>
-
-      <Card className="border-slate-200 dark:border-slate-700">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Locataire</h2>
-        <p className="text-xl font-semibold leading-snug text-slate-900 dark:text-slate-100">{tenant.fullName}</p>
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-600 dark:bg-slate-800/50">
-          <dl className="space-y-3 text-sm">
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Téléphone</dt>
-              <dd className="mt-1 text-base font-medium text-slate-900 dark:text-slate-100">
-                {tenant.phone?.trim() ? (
-                  <a
-                    href={`tel:${tenant.phone.replace(/\s/g, '')}`}
-                    className="text-brand-800 hover:underline dark:text-brand-400"
-                  >
-                    {tenant.phone}
-                  </a>
-                ) : (
-                  <span className="font-normal text-slate-400">Non renseigné</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">E-mail</dt>
-              <dd className="mt-1 break-all text-base font-medium text-slate-900 dark:text-slate-100">
-                {tenant.email?.trim() ? (
-                  <a href={`mailto:${tenant.email}`} className="text-brand-800 hover:underline dark:text-brand-400">
-                    {tenant.email}
-                  </a>
-                ) : (
-                  <span className="font-normal text-slate-400">Non renseigné</span>
-                )}
-              </dd>
-            </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <SectionHeader title="Localisation" />
+          <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+            <DlField label="Ville">{localization.city}</DlField>
+            <DlField label="Commune / zone">{localization.commune}</DlField>
+            {localization.address ? (
+              <DlField label="Adresse ou précision" span2>
+                {localization.address}
+              </DlField>
+            ) : null}
+            {localization.postalCode ? <DlField label="Code postal">{localization.postalCode}</DlField> : null}
+            <DlField label="Pays">{localization.country}</DlField>
           </dl>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <LinkButton to={`/locataires?edit=${tenant.id}`} variant="secondary" className="py-2 text-sm">
-            Modifier ce locataire
+          <p className="mt-4 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 text-sm font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-200">
+            {localization.shortLabel}
+          </p>
+        </Card>
+
+        <Card>
+          <SectionHeader title="Logement loué" />
+          <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+            <DlField label="Site (immeuble / terrain)">{property.buildingName}</DlField>
+            <DlField label="Unité / lot">{property.unitLabel}</DlField>
+            <DlField label="Type">{unitKindLabel(property.kind)}</DlField>
+            <DlField label="Étage">{property.floor != null ? property.floor : '—'}</DlField>
+            <DlField label="Pièces">{property.rooms != null ? property.rooms : '—'}</DlField>
+            <DlField label="Surface">{property.surfaceM2 != null ? `${property.surfaceM2} m²` : '—'}</DlField>
+            {(property.description || property.notes) && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">Description</dt>
+                <dd className="mt-1.5 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
+                  {property.description || property.notes}
+                </dd>
+              </div>
+            )}
+          </dl>
+          <LinkButton to={buildingWithUnitFocusHref} variant="secondary" className="mt-5 py-2.5 text-sm">
+            Ouvrir la fiche du bien (unité {property.unitLabel})
           </LinkButton>
-          <LinkButton to="/locataires" variant="ghost" className="py-2 text-sm">
-            Liste des locataires
-          </LinkButton>
+        </Card>
+      </div>
+
+      <Card>
+        <SectionHeader title="Locataire" />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div
+            className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-sky-500/25 text-base font-bold uppercase tracking-wide text-brand-800 shadow-sm dark:from-brand-500/25 dark:to-sky-500/20 dark:text-brand-200"
+            aria-hidden
+          >
+            {`${tenant.firstName?.[0] ?? ''}${tenant.lastName?.[0] ?? ''}`.trim() || '?'}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xl font-semibold leading-snug text-slate-900 dark:text-slate-100">{tenant.fullName}</p>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-600 dark:bg-slate-800/50">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">Téléphone</dt>
+                  <dd className="mt-1.5 text-[15px] font-medium text-slate-900 dark:text-slate-100">
+                    {tenant.phone?.trim() ? (
+                      <a
+                        href={`tel:${tenant.phone.replace(/\s/g, '')}`}
+                        className="text-brand-700 hover:underline dark:text-brand-400"
+                      >
+                        {tenant.phone}
+                      </a>
+                    ) : (
+                      <span className="font-normal text-slate-500 dark:text-slate-400">Non renseigné</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="sm:col-span-2 sm:max-w-xl">
+                  <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">E-mail</dt>
+                  <dd className="mt-1.5 break-all text-[15px] font-medium text-slate-900 dark:text-slate-100">
+                    {tenant.email?.trim() ? (
+                      <a href={`mailto:${tenant.email}`} className="text-brand-700 hover:underline dark:text-brand-400">
+                        {tenant.email}
+                      </a>
+                    ) : (
+                      <span className="font-normal text-slate-500 dark:text-slate-400">Non renseigné</span>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <LinkButton to={`/locataires?edit=${tenant.id}`} variant="secondary" className="py-2.5 text-sm">
+                Modifier la fiche locataire
+              </LinkButton>
+              <LinkButton to="/locataires" variant="ghost" className="py-2.5 text-sm">
+                Tous les locataires
+              </LinkButton>
+            </div>
+          </div>
         </div>
       </Card>
 
       <Card>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Contrat de bail</h2>
-          <HelpHint
-            className="align-middle"
-            title="PDF ou photo du contrat signé (15 Mo max). Un nouveau fichier remplace l’ancien."
-          />
-        </div>
+        <SectionHeader
+          title="Pièce jointe : contrat"
+          hintTitle="PDF ou image du contrat signé (15 Mo max). Un nouveau fichier remplace l’ancien."
+        />
         <LeaseContractSection leaseId={data.leaseId} contract={data.contract} onChanged={reload} />
       </Card>
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Informations financières</h2>
-        <dl className="mb-6 grid gap-2 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Loyer mensuel</dt>
-            <dd className="text-xl font-bold text-slate-900 dark:text-slate-100">{fcfa(financial.monthlyRent)}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Jour d’échéance</dt>
-            <dd className="font-medium text-slate-900 dark:text-slate-100">Le {financial.rentDueDay} de chaque mois</dd>
-          </div>
-          {financial.depositAmount != null && financial.depositAmount > 0 ? (
-            <div>
-              <dt className="text-slate-500 dark:text-slate-400">Dépôt de garantie (caution)</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {fcfa(financial.depositAmount)}
-                {financial.depositPaidAt ? (
-                  <span className="mt-1 block text-sm font-normal text-emerald-700 dark:text-emerald-400">
-                    Encaissée le {financial.depositPaidAt}
-                  </span>
-                ) : (
-                  <span className="mt-1 block text-sm font-normal text-amber-800 dark:text-amber-300">
-                    Encaissement non enregistré dans l’app
-                  </span>
-                )}
-              </dd>
-            </div>
-          ) : (
-            <div>
-              <dt className="text-slate-500 dark:text-slate-400">Dépôt de garantie</dt>
-              <dd className="text-slate-500 dark:text-slate-400">Aucun montant indiqué</dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-slate-500 dark:text-slate-400">Statut loyer (mois en cours)</dt>
-            <dd>
-              <span className={`inline-block rounded-lg px-2 py-1 text-xs font-medium ${badge(financial.currentPaymentStatusFr)}`}>
-                {financial.currentPaymentStatusFr}
-              </span>
-            </dd>
-          </div>
-          {financial.currentPaymentDueDate && (
-            <div className="sm:col-span-2">
-              <dt className="text-slate-500 dark:text-slate-400">Date d’échéance (mois courant)</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{financial.currentPaymentDueDate.slice(0, 10)}</dd>
-            </div>
-          )}
-        </dl>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Période suivie : {financial.currentPeriodMonth}/{financial.currentPeriodYear}
+        <SectionHeader
+          title="Caution & suivi du mois"
+          hintTitle="Le loyer et l’échéance sont rappelés en haut de page. Ici : caution, statut, date d’échéance du mois suivi."
+        />
+        <p className="-mt-1 mb-5 text-sm text-slate-600 dark:text-slate-400">
+          Les montants de loyer se modifient plus bas (« Modifier le bail »). Pour encaisser ou voir l’historique des loyers de{' '}
+          <strong className="font-semibold text-slate-800 dark:text-slate-200">ce bail uniquement</strong> : bouton{' '}
+          <strong className="font-semibold text-slate-800 dark:text-slate-200">Échéances & paiements (ce bail)</strong> en haut de
+          page — la page Paiements précise alors le locataire et le logement concernés.
         </p>
+        <dl className="mb-6 grid gap-x-5 gap-y-4 sm:grid-cols-2">
+          {financial.depositAmount != null && financial.depositAmount > 0 ? (
+            <DlField label="Dépôt de garantie (caution)">
+              <span className="block">{fcfa(financial.depositAmount)}</span>
+              {financial.depositPaidAt ? (
+                <span className="mt-2 block text-sm font-normal text-emerald-700 dark:text-emerald-400">
+                  Encaissée le {financial.depositPaidAt}
+                </span>
+              ) : (
+                <span className="mt-2 block text-sm font-normal text-amber-800 dark:text-amber-300">
+                  Encaissement non enregistré dans l’app
+                </span>
+              )}
+            </DlField>
+          ) : (
+            <DlField label="Dépôt de garantie">
+              <span className="font-normal text-slate-600 dark:text-slate-400">Aucun montant indiqué sur ce bail</span>
+            </DlField>
+          )}
+          <DlField label="Statut loyer (mois affiché)">
+            <span className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-semibold ${badge(financial.currentPaymentStatusFr)}`}>
+              {financial.currentPaymentStatusFr}
+            </span>
+          </DlField>
+          {financial.currentPaymentDueDate ? (
+            <DlField label="Date d’échéance (ce mois)">{financial.currentPaymentDueDate.slice(0, 10)}</DlField>
+          ) : null}
+        </dl>
 
         {financial.depositAmount != null && financial.depositAmount > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <Button
               type="button"
               variant="secondary"
-              className="py-2 text-xs"
+              className="py-2.5 text-sm"
               disabled={depositActBusy || !!financial.depositPaidAt}
               onClick={() => void markDepositReceived(new Date().toISOString().slice(0, 10))}
             >
@@ -464,7 +510,7 @@ export function LocationDetailPage() {
               <Button
                 type="button"
                 variant="ghost"
-                className="py-2 text-xs"
+                className="py-2.5 text-sm"
                 disabled={depositActBusy}
                 onClick={() => void clearDepositReceived()}
               >
@@ -475,14 +521,13 @@ export function LocationDetailPage() {
         ) : null}
 
         {data.active ? (
-          <div className="mt-6 rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-600 dark:bg-slate-800/40">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Paiement de plusieurs mois de loyer</h3>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              Enregistre d’un coup les prochaines échéances <strong className="font-medium">encore impayées</strong> (ordre du
-              calendrier), jusqu’à 12 mois — par ex. <strong className="font-medium">6 mois</strong> payés d’avance. Les lignes de
-              loyer doivent exister (générez les années nécessaires depuis la page Baux).
+          <div className="mt-2 rounded-xl border border-brand-200/60 bg-gradient-to-br from-brand-50/90 to-slate-50/80 p-4 dark:border-brand-500/25 dark:from-brand-950/30 dark:to-slate-900/40">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Payer plusieurs mois d’un coup</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+              Enregistre les prochaines échéances <strong className="font-semibold text-slate-900 dark:text-slate-100">encore impayées</strong> (ordre du calendrier), jusqu’à 12 mois. Les lignes de loyer doivent exister — générez les années depuis la page{' '}
+              <strong className="font-semibold">Baux</strong>.
             </p>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="mt-4 flex flex-wrap items-end gap-3">
               <div>
                 <Label htmlFor="prepay-n">Nombre de mois</Label>
                 <Select
@@ -498,23 +543,20 @@ export function LocationDetailPage() {
                   ))}
                 </Select>
               </div>
-              <Button type="button" className="py-2 text-sm" disabled={prepayBusy} onClick={() => void prepayRent()}>
-                {prepayBusy ? 'Enregistrement…' : 'Marquer comme payés'}
+              <Button type="button" className="py-2.5 text-sm" disabled={prepayBusy} onClick={() => void prepayRent()}>
+                {prepayBusy ? 'Enregistrement…' : 'Marquer ces mois comme payés'}
               </Button>
             </div>
             {prepayErr ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{prepayErr}</p> : null}
           </div>
         ) : null}
 
-        <div className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-700">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le bail (loyer & conditions)</h3>
-            <HelpHint
-              className="align-middle"
-              title="Enregistre le contrat (montant loyer, dates, dépôt). Les échéances déjà créées et suivies comme « impayé » ou « en retard » sont actualisées au nouveau loyer. Les mois déjà marqués payés ne changent pas."
-            />
-          </div>
-          <form onSubmit={(e) => void saveLeaseConditions(e)} className="grid gap-3 sm:grid-cols-2">
+        <div className="mt-8 border-t border-slate-200/90 pt-6 dark:border-slate-700/80">
+          <SectionHeader
+            title="Modifier le bail"
+            hintTitle="Enregistre loyer, dates et dépôt. Les échéances « impayé » ou « en retard » suivent le nouveau loyer. Les mois déjà payés ne changent pas."
+          />
+          <form onSubmit={(e) => void saveLeaseConditions(e)} className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="lease-edit-rent">{INPUT_AMOUNT_FCFA_LABEL} — loyer mensuel</Label>
               <AmountFcfaInput
@@ -581,39 +623,26 @@ export function LocationDetailPage() {
               <Label htmlFor="lease-edit-end">Fin du bail (optionnel)</Label>
               <Input id="lease-edit-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-            {leaseErr ? <p className="text-sm text-red-600 sm:col-span-2">{leaseErr}</p> : null}
+            {leaseErr ? <p className="text-sm text-red-600 sm:col-span-2 dark:text-red-400">{leaseErr}</p> : null}
             <div className="sm:col-span-2">
-              <Button type="submit" className="py-2 text-sm" disabled={savingLease}>
+              <Button type="submit" className="py-2.5 text-sm" disabled={savingLease}>
                 {savingLease ? 'Enregistrement…' : 'Enregistrer les conditions du bail'}
               </Button>
             </div>
           </form>
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <LinkButton to="/baux" variant="secondary" className="py-2 text-xs">
-            Baux & génération loyers
-          </LinkButton>
-          <LinkButton
-            to={`/paiements?leaseId=${data.leaseId}&year=all&month=all`}
-            variant="primary"
-            className="py-2 text-xs"
-          >
-            Paiements (ce bail)
-          </LinkButton>
-        </div>
       </Card>
 
-      <Card className="border-red-200/90 dark:border-red-900/40">
-        <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Supprimer cette location</h2>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+      <Card className="border-red-200/90 bg-red-50/30 dark:border-red-900/45 dark:bg-red-950/20">
+        <h2 className="text-base font-semibold text-red-900 dark:text-red-200">Zone sensible — supprimer la location</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
           Retire le bail, toutes les échéances de loyer enregistrées et le contrat joint. L’unité redevient libre pour un nouveau
           bail ; le locataire reste dans l’annuaire.
         </p>
         <Button
           type="button"
           variant="secondary"
-          className="mt-4 border-red-200 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/40"
+          className="mt-4 border-red-300 py-2.5 text-sm font-semibold text-red-800 hover:bg-red-100 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-950/50"
           onClick={() => void requestDeleteLocation()}
         >
           Supprimer définitivement le bail…

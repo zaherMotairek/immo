@@ -28,7 +28,7 @@ export function LoginPage() {
 
   return (
     <div
-      className="relative flex min-h-dvh flex-col justify-center bg-gradient-to-br from-slate-300/85 via-slate-200 to-stone-200/90 px-4 py-8 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 sm:py-10"
+      className="relative flex min-h-dvh flex-col justify-center bg-gradient-to-br from-slate-200/95 via-[#eceff4] to-slate-200/90 px-4 py-8 dark:from-slate-950 dark:via-[#0b0c0f] dark:to-slate-950 sm:py-10"
       style={{
         paddingTop: 'max(2rem, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))',
@@ -45,12 +45,12 @@ export function LoginPage() {
       <div className="mx-auto w-full max-w-md">
         <div className="mb-6 text-center sm:mb-8">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">ImmoPilot</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Connexion gestionnaire</p>
-          <p className="mx-auto mt-3 max-w-[22rem] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">Espace connecté</p>
+          <p className="mx-auto mt-3 max-w-[22rem] text-xs leading-relaxed text-slate-600 dark:text-slate-300">
             Sur téléphone : même compte e-mail et mot de passe qu’en bureau. Connectez-vous au{' '}
-            <strong className="font-semibold text-slate-700 dark:text-slate-300">même Wi‑Fi</strong> que l’ordinateur qui
+            <strong className="font-semibold text-slate-800 dark:text-slate-200">même Wi‑Fi</strong> que l’ordinateur qui
             lance l’application, puis ouvrez{' '}
-            <strong className="font-semibold text-slate-700 dark:text-slate-300">
+            <strong className="font-semibold text-slate-800 dark:text-slate-200">
               http://&lt;adresse IP du PC&gt;:5173
             </strong>{' '}
             (adresse affichée au démarrage du front dans le terminal).
@@ -96,9 +96,9 @@ export function LoginPage() {
             </Button>
           </form>
         </Card>
-        <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-6 text-center text-xs text-slate-600 dark:text-slate-300">
           Compte de test : ex.{' '}
-          <code className="rounded bg-slate-200 px-1 dark:bg-slate-700 dark:text-slate-200">npm run seed</code> côté API.
+          <code className="rounded bg-slate-200 px-1 font-medium text-slate-900 dark:bg-slate-700 dark:text-slate-100">npm run seed</code> côté API.
           Sur base vide, un jeu de démo (Abidjan, Grand-Bassam…) est créé automatiquement.
         </p>
       </div>

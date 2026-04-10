@@ -39,6 +39,8 @@ export function PaymentsPage() {
   const [params, setParams] = useSearchParams();
   const overdueOnly = params.get('overdue') === '1' || params.get('overdue') === 'true';
   const leaseIdFilter = params.get('leaseId')?.trim() || '';
+  const hintTenant = params.get('hintTenant')?.trim() || '';
+  const hintPlace = params.get('hintPlace')?.trim() || '';
   const yearParam = params.get('year');
   const monthParam = params.get('month');
 
@@ -182,6 +184,35 @@ export function PaymentsPage() {
         : MOIS_SELECT_OPTIONS.find((o) => o.value === String(monthFilter))?.label ?? '';
     return `${y} · ${m}`;
   }, [yearFilter, monthFilter]);
+
+  /** Libellé locataire + logement pour le filtre « un bail » (données chargées en priorité, sinon paramètres URL depuis la fiche location). */
+  const leaseFocusSummary = useMemo(() => {
+    if (!leaseIdFilter) return null;
+    if (rows.length > 0) {
+      const l = rows[0]!.lease;
+      return {
+        tenant: `${l.tenant.firstName} ${l.tenant.lastName}`.trim(),
+        place: `${l.unit.building.name} — ${l.unit.label}`,
+      };
+    }
+    if (hintTenant || hintPlace) {
+      return { tenant: hintTenant || '—', place: hintPlace || '—' };
+    }
+    return { tenant: '', place: '' };
+  }, [leaseIdFilter, rows, hintTenant, hintPlace]);
+
+  function clearLeaseFilter() {
+    setParams(
+      (prev) => {
+        const q = new URLSearchParams(prev);
+        q.delete('leaseId');
+        q.delete('hintTenant');
+        q.delete('hintPlace');
+        return q;
+      },
+      { replace: true },
+    );
+  }
 
   async function markPaid(p: PaymentRow) {
     await api(`/payments/${p.id}`, {
@@ -351,9 +382,62 @@ export function PaymentsPage() {
               />
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              Suivi des loyers et encaissements sur les échéances mensuelles — hors caution (voir fiche location). Relances
-              incluses.
+              {leaseIdFilter ? (
+                <>
+                  <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue restreinte :</strong> uniquement les
+                  loyers (échéances) du bail indiqué ci-dessous — pas les autres locations. La caution reste sur la fiche
+                  location.
+                </>
+              ) : (
+                <>
+                  Suivi des loyers et encaissements sur les échéances mensuelles — hors caution (voir fiche location). Relances
+                  incluses.
+                </>
+              )}
             </p>
+            {leaseIdFilter ? (
+              <div
+                className="mt-4 max-w-2xl rounded-xl border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3.5 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
+                role="status"
+              >
+                <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">
+                  Paiements / échéances — ce bail seulement
+                </p>
+                {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
+                  <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
+                    <span className="font-semibold text-slate-900 dark:text-slate-50">
+                      {leaseFocusSummary.tenant || 'Locataire'}
+                    </span>
+                    {leaseFocusSummary.place ? (
+                      <>
+                        {' '}
+                        · <span className="font-normal">{leaseFocusSummary.place}</span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    Les lignes listées correspondent uniquement à ce bail (identifiant interne). Si la liste est vide, elles ne
+                    sont peut-être pas encore générées pour la période choisie.
+                  </p>
+                )}
+                <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                  <Link
+                    to={`/locations/${leaseIdFilter}`}
+                    className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                  >
+                    ← Fiche location de ce bail
+                  </Link>
+                  <button
+                    type="button"
+                    className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+                    onClick={clearLeaseFilter}
+                  >
+                    Afficher tous les baux
+                  </button>
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       </header>
@@ -493,26 +577,30 @@ export function PaymentsPage() {
 
         {leaseIdFilter ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/90 bg-slate-50/60 px-4 py-3.5 sm:px-6 dark:border-slate-700 dark:bg-slate-800/40">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200/95 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-600">
+            <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+              <span className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200/95 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-600">
                 <span aria-hidden className="size-2 shrink-0 rounded-full bg-brand-500" />
-                <span className="truncate">Ce bail uniquement</span>
+                <span className="truncate" title={leaseFocusSummary?.tenant ?? undefined}>
+                  Filtre actif ·{' '}
+                  {leaseFocusSummary?.tenant
+                    ? `paiements de ${leaseFocusSummary.tenant}`
+                    : 'un seul bail (loyers)'}
+                </span>
               </span>
-              <span className="hidden text-xs text-slate-500 sm:inline dark:text-slate-400">Les autres locations sont masquées.</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {leaseFocusSummary?.place ? (
+                  <span className="line-clamp-2 sm:line-clamp-1" title={leaseFocusSummary.place}>
+                    {leaseFocusSummary.place}
+                  </span>
+                ) : (
+                  'Les autres locations sont masquées.'
+                )}
+              </span>
             </div>
             <button
               type="button"
               className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
-              onClick={() =>
-                setParams(
-                  (prev) => {
-                    const q = new URLSearchParams(prev);
-                    q.delete('leaseId');
-                    return q;
-                  },
-                  { replace: true },
-                )
-              }
+              onClick={clearLeaseFilter}
             >
               Réinitialiser le filtre
             </button>

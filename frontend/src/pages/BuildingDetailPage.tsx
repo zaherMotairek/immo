@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
@@ -113,6 +113,10 @@ function StatTile({
 export function BuildingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const focusUnitId = params.get('unitId')?.trim() ?? '';
+  const hintUnitLabel = params.get('hintUnitLabel')?.trim() ?? '';
+  const returnLocation = params.get('returnLocation')?.trim() ?? '';
   const [b, setB] = useState<Building | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -233,6 +237,54 @@ export function BuildingDetailPage() {
     if (unitListFilter === 'occupied') return sortedUnits.filter((u) => unitIsOccupied(u));
     return sortedUnits;
   }, [sortedUnits, unitListFilter]);
+
+  const unitFocusTitle = useMemo(() => {
+    if (!focusUnitId || !b?.units?.length) return hintUnitLabel || '';
+    const u = b.units.find((x) => x.id === focusUnitId);
+    return u?.label ?? hintUnitLabel ?? focusUnitId;
+  }, [b?.units, focusUnitId, hintUnitLabel]);
+
+  function clearUnitFocus() {
+    setParams(
+      (prev) => {
+        const q = new URLSearchParams(prev);
+        q.delete('unitId');
+        q.delete('hintUnitLabel');
+        q.delete('returnLocation');
+        return q;
+      },
+      { replace: true },
+    );
+  }
+
+  useEffect(() => {
+    if (!focusUnitId) return;
+    setUnitListFilter('all');
+  }, [focusUnitId]);
+
+  useLayoutEffect(() => {
+    if (!id || !focusUnitId || !b?.units?.length || b.id !== id) return;
+    const unit = b.units.find((u) => u.id === focusUnitId);
+    if (!unit) return;
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(`unit-card-${focusUnitId}`);
+      if (!el) return;
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.classList.add('ring-2', 'ring-brand-500', 'ring-offset-2', 'rounded-2xl', 'dark:ring-offset-slate-900');
+      window.setTimeout(
+        () =>
+          el.classList.remove(
+            'ring-2',
+            'ring-brand-500',
+            'ring-offset-2',
+            'rounded-2xl',
+            'dark:ring-offset-slate-900',
+          ),
+        2600,
+      );
+    }, 200);
+    return () => clearTimeout(t);
+  }, [id, b?.id, b?.units, focusUnitId, filteredUnits]);
 
   useEffect(() => {
     if (!immeublePlanActive || kind !== 'APARTMENT') return;
@@ -504,6 +556,40 @@ export function BuildingDetailPage() {
           ) : null}
         </div>
       </PageDetailHero>
+
+      {focusUnitId ? (
+        <div
+          className="rounded-xl border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3.5 shadow-sm dark:border-brand-500/35 dark:from-brand-950/45 dark:to-slate-900/85"
+          role="status"
+        >
+          <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">Unité précise mise en avant</p>
+          <p className="mt-1.5 text-sm leading-snug text-slate-800 dark:text-slate-200">
+            Cette fiche bien affiche <strong className="font-semibold text-slate-900 dark:text-slate-50">toutes les unités</strong>
+            ; la liste ci-dessous a été défilée vers{' '}
+            <strong className="font-semibold text-slate-900 dark:text-slate-50">
+              {unitFocusTitle || `l’unité (${focusUnitId.slice(0, 8)}…)`}
+            </strong>
+            .
+          </p>
+          <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+            {returnLocation.startsWith('/locations/') ? (
+              <Link
+                to={returnLocation}
+                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+              >
+                ← Retour à la fiche location
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+              onClick={clearUnitFocus}
+            >
+              Afficher la fiche bien sans mise au point
+            </button>
+          </p>
+        </div>
+      ) : null}
 
       <nav
         aria-label="Sections de la fiche"
@@ -846,6 +932,7 @@ export function BuildingDetailPage() {
             return (
               <li
                 key={u.id}
+                id={`unit-card-${u.id}`}
                 className={`flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 border-l-4 bg-gradient-to-b from-slate-50/98 to-slate-100/25 shadow-sm dark:border-slate-700 dark:from-slate-900/75 dark:to-slate-900/30 ${unitKindBorderClass(u.kind)}`}
               >
                 <div className="flex flex-1 flex-col p-4">
