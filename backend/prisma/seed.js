@@ -55,6 +55,8 @@ async function seedDemoIvoryCoast() {
       address: 'Riviera 3, près de la voie express',
       country: "Côte d'Ivoire",
       structureKind: BuildingStructureKind.IMMEUBLE,
+      floorCount: 8,
+      apartmentCount: 32,
     },
   });
 
@@ -66,6 +68,8 @@ async function seedDemoIvoryCoast() {
       address: 'Zone 4, non loin du marché',
       country: "Côte d'Ivoire",
       structureKind: BuildingStructureKind.IMMEUBLE,
+      floorCount: 4,
+      apartmentCount: 2,
     },
   });
 
@@ -86,6 +90,7 @@ async function seedDemoIvoryCoast() {
       label: 'A4',
       kind: 'APARTMENT',
       floor: 2,
+      apartmentSlot: 4,
       rooms: 3,
       surfaceM2: 95,
       description: 'Appartement lumineux, balcon, cuisine équipée.',

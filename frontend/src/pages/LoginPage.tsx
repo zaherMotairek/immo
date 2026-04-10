@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Card, Input, Label } from '@/components/ui';
 
 export function LoginPage() {
@@ -26,20 +27,50 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col justify-center bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300 px-4 py-10">
+    <div
+      className="relative flex min-h-dvh flex-col justify-center bg-gradient-to-br from-slate-300/85 via-slate-200 to-stone-200/90 px-4 py-8 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 sm:py-10"
+      style={{
+        paddingTop: 'max(2rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
+      <div
+        className="absolute sm:right-6 sm:top-6"
+        style={{ top: 'max(1rem, env(safe-area-inset-top, 0px))', right: 'max(1rem, env(safe-area-inset-right, 0px))' }}
+      >
+        <ThemeToggle />
+      </div>
       <div className="mx-auto w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">ImmoPilot</h1>
-          <p className="mt-1 text-sm text-slate-600">Connexion gestionnaire</p>
+        <div className="mb-6 text-center sm:mb-8">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">ImmoPilot</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Connexion gestionnaire</p>
+          <p className="mx-auto mt-3 max-w-[22rem] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            Sur téléphone : même compte e-mail et mot de passe qu’en bureau. Connectez-vous au{' '}
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">même Wi‑Fi</strong> que l’ordinateur qui
+            lance l’application, puis ouvrez{' '}
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">
+              http://&lt;adresse IP du PC&gt;:5173
+            </strong>{' '}
+            (adresse affichée au démarrage du front dans le terminal).
+          </p>
         </div>
-        <Card>
-          <form onSubmit={onSubmit} className="space-y-4">
+        <Card className="shadow-md ring-1 ring-slate-900/[0.05] dark:ring-slate-600/30">
+          <form onSubmit={onSubmit} className="space-y-4" autoComplete="on">
             <div>
               <Label htmlFor="email">E-mail</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                inputMode="email"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="next"
+                className="min-h-11 text-base"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -49,22 +80,26 @@ export function LoginPage() {
               <Label htmlFor="password">Mot de passe</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 autoComplete="current-password"
+                enterKeyHint="go"
+                className="min-h-11 text-base"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
-            {err && <p className="text-sm text-red-600">{err}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
+            <Button type="submit" className="min-h-11 w-full text-base font-semibold" disabled={loading}>
               {loading ? 'Connexion…' : 'Se connecter'}
             </Button>
           </form>
         </Card>
-        <p className="mt-6 text-center text-xs text-slate-500">
-          Compte : <code className="rounded bg-slate-200 px-1">npm run seed</code> côté API. Sur base vide, un jeu de démo
-          (Abidjan, Grand-Bassam…) est créé automatiquement.
+        <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+          Compte de test : ex.{' '}
+          <code className="rounded bg-slate-200 px-1 dark:bg-slate-700 dark:text-slate-200">npm run seed</code> côté API.
+          Sur base vide, un jeu de démo (Abidjan, Grand-Bassam…) est créé automatiquement.
         </p>
       </div>
     </div>

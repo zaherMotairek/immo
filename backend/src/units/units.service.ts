@@ -37,6 +37,35 @@ export class UnitsService {
         'Ce bien est défini comme « un seul lot louable » (villa, entrepôt entier, parcelle unique, etc.). Il ne peut avoir qu’une seule unité. Cochez « Immeuble / bâtiment multi-lots » sur la fiche du bien pour en ajouter plusieurs.',
       );
     }
+
+    if (dto.apartmentSlot != null) {
+      const dup = await this.prisma.unit.findFirst({
+        where: { buildingId, apartmentSlot: dto.apartmentSlot },
+        select: { id: true },
+      });
+      if (dup) {
+        throw new BadRequestException(
+          `Le numéro d’appartement ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
+        );
+      }
+      if (
+        building.apartmentCount != null &&
+        (dto.apartmentSlot < 1 || dto.apartmentSlot > building.apartmentCount)
+      ) {
+        throw new BadRequestException(
+          `Le numéro d’appartement doit être entre 1 et ${building.apartmentCount} (déclaré sur l’immeuble).`,
+        );
+      }
+    }
+
+    if (dto.floor != null && building.floorCount != null && building.floorCount > 0) {
+      if (dto.floor < 0 || dto.floor > building.floorCount) {
+        throw new BadRequestException(
+          `L’étage doit être entre 0 (rez-de-chaussée) et ${building.floorCount} pour cet immeuble.`,
+        );
+      }
+    }
+
     const data: Prisma.UnitCreateInput = {
       label: dto.label,
       floor: dto.floor,
@@ -48,11 +77,48 @@ export class UnitsService {
     if (dto.defaultRent !== undefined) data.defaultRent = dto.defaultRent;
     if (dto.kind !== undefined) data.kind = dto.kind;
     if (dto.description !== undefined) data.description = dto.description;
+    if (dto.apartmentSlot != null) data.apartmentSlot = dto.apartmentSlot;
     return this.prisma.unit.create({ data });
   }
 
   async update(unitId: string, dto: UpdateUnitDto) {
-    await this.ensureUnit(unitId);
+    const unit = await this.prisma.unit.findUnique({
+      where: { id: unitId },
+      include: { building: true },
+    });
+    if (!unit) throw new NotFoundException('Unité introuvable');
+
+    if (dto.apartmentSlot !== undefined && dto.apartmentSlot != null) {
+      const dup = await this.prisma.unit.findFirst({
+        where: {
+          buildingId: unit.buildingId,
+          apartmentSlot: dto.apartmentSlot,
+          NOT: { id: unitId },
+        },
+        select: { id: true },
+      });
+      if (dup) {
+        throw new BadRequestException(
+          `Le numéro d’appartement ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
+        );
+      }
+      const ac = unit.building.apartmentCount;
+      if (ac != null && (dto.apartmentSlot < 1 || dto.apartmentSlot > ac)) {
+        throw new BadRequestException(
+          `Le numéro d’appartement doit être entre 1 et ${ac} (déclaré sur l’immeuble).`,
+        );
+      }
+    }
+
+    const floorVal = dto.floor !== undefined ? dto.floor : unit.floor;
+    if (floorVal != null && unit.building.floorCount != null && unit.building.floorCount > 0) {
+      if (floorVal < 0 || floorVal > unit.building.floorCount) {
+        throw new BadRequestException(
+          `L’étage doit être entre 0 (rez-de-chaussée) et ${unit.building.floorCount} pour cet immeuble.`,
+        );
+      }
+    }
+
     const data: Prisma.UnitUpdateInput = {};
     if (dto.label !== undefined) data.label = dto.label;
     if (dto.kind !== undefined) data.kind = dto.kind;
@@ -62,6 +128,7 @@ export class UnitsService {
     if (dto.surfaceM2 !== undefined) data.surfaceM2 = dto.surfaceM2;
     if (dto.defaultRent !== undefined) data.defaultRent = dto.defaultRent;
     if (dto.description !== undefined) data.description = dto.description;
+    if (dto.apartmentSlot !== undefined) data.apartmentSlot = dto.apartmentSlot;
     return this.prisma.unit.update({ where: { id: unitId }, data });
   }
 

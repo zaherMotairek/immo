@@ -19,6 +19,7 @@ import { LeasesService } from './leases.service';
 import { CreateLeaseDto } from './dto/create-lease.dto';
 import { UpdateLeaseDto } from './dto/update-lease.dto';
 import { GeneratePaymentsDto } from './dto/generate-payments.dto';
+import { PrepayMonthsDto } from './dto/prepay-months.dto';
 import { LEASE_CONTRACT_ALLOWED_MIMES, LEASE_CONTRACT_MAX_BYTES } from './lease-contract.constants';
 
 @Controller('leases')
@@ -30,6 +31,11 @@ export class LeasesController {
   overview(@Query('all') all?: string) {
     const activeOnly = !(all === '1' || all === 'true');
     return this.leases.listOverview(activeOnly);
+  }
+
+  @Get('deposits-collected')
+  depositsCollected() {
+    return this.leases.listDepositsCollected();
   }
 
   @Get()
@@ -94,5 +100,11 @@ export class LeasesController {
   @Post(':id/generate-payments')
   generatePayments(@Param('id') id: string, @Body() dto: GeneratePaymentsDto) {
     return this.leases.generatePayments(id, dto.year);
+  }
+
+  /** Marque comme payées les N prochaines échéances de loyer encore PENDING/LATE (1 à 12). */
+  @Post(':id/prepay-months')
+  prepayMonths(@Param('id') id: string, @Body() dto: PrepayMonthsDto) {
+    return this.leases.prepayNextMonths(id, dto.months);
   }
 }

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/web-manifest-combined.json",
+  "name": "ImmoPilot — Gestion immobilière",
+  "short_name": "ImmoPilot",
+  "description": "Biens, locataires, baux, loyers, charges et tableau de bord.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "lang": "fr",
+  "scope": "/",
+  "id": "/",
+  "orientation": "any",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/sync-kiz.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/sync-kiz.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { BuildingStructureKind } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateBuildingDto {
   @IsString()
@@ -41,4 +42,20 @@ export class CreateBuildingDto {
   @IsOptional()
   @IsEnum(BuildingStructureKind)
   structureKind?: BuildingStructureKind;
+
+  /** Pour un immeuble : nombre d’étages (R+13 → 13 ou 14 selon votre usage, optionnel). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(200)
+  floorCount?: number;
+
+  /** Pour un immeuble : nombre d’appartements / lots résidentiels prévus (indicatif). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50_000)
+  apartmentCount?: number;
 }

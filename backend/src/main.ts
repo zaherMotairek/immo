@@ -2,10 +2,12 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { PrismaClientExceptionFilter } from './prisma/prisma-client-exception.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+  app.useGlobalFilters(new PrismaClientExceptionFilter());
 
   /**
    * CORS : si `FRONTEND_ORIGIN` est défini, seules ces origines (séparées par des virgules) sont acceptées.
@@ -51,8 +53,9 @@ async function bootstrap() {
   );
 
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;
-  await app.listen(port);
-  logger.log(`ImmoPilot API : http://localhost:${port}`);
+  const host = process.env.LISTEN_HOST ?? '0.0.0.0';
+  await app.listen(port, host);
+  logger.log(`ImmoPilot API : http://localhost:${port} (écoute ${host} — accès téléphone / LAN si besoin)`);
 }
 
 bootstrap().catch((err) => {

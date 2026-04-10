@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
-import { eur } from '@/lib/format';
-import { Button, Card, Input, Label, Select } from '@/components/ui';
+import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
+import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
 
 const CATEGORIES = ['TAX', 'FEES', 'INSURANCE', 'MAINTENANCE', 'UTILITIES', 'OTHER'] as const;
@@ -31,6 +32,7 @@ type BuildingOpt = { id: string; name: string; units: { id: string; label: strin
 
 export function ChargesPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const focusChargeId = searchParams.get('focus');
   const year = new Date().getFullYear();
   const [y, setY] = useState(year);
@@ -114,10 +116,29 @@ export function ChargesPage() {
 
   return (
     <div className="space-y-6">
+      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
+      {focusChargeId ? (
+        <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <button
+            type="button"
+            className="font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+            onClick={() => {
+              const q = new URLSearchParams();
+              q.set('year', String(y));
+              navigate(`/charges?${q.toString()}`, { replace: true });
+            }}
+          >
+            Fermer la surbrillance (lien direct)
+          </button>
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Charges & impôts</h1>
-          <p className="text-sm text-slate-600">Foncière, copropriété, assurance, travaux, etc.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Charges & impôts</h1>
+          <HelpHint
+            className="align-middle"
+            title="Enregistrez les dépenses par bien (et éventuellement par unité) : foncière, copropriété, assurance, travaux, etc. Montants en FCFA."
+          />
         </div>
         <div>
           <Label>Année affichée</Label>
@@ -128,26 +149,32 @@ export function ChargesPage() {
       {summary && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="!p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Total charges</p>
-            <p className="mt-1 text-xl font-semibold">{eur(summary.totalCharges)}</p>
+            <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Total charges</p>
+            <p className="mt-1 text-xl font-semibold dark:text-slate-100">{fcfa(summary.totalCharges)}</p>
           </Card>
           <Card className="!p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Non réglées</p>
-            <p className="mt-1 text-xl font-semibold text-amber-800">{eur(summary.unpaidCharges)}</p>
+            <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Non réglées</p>
+            <p className="mt-1 text-xl font-semibold text-amber-800 dark:text-amber-300">{fcfa(summary.unpaidCharges)}</p>
           </Card>
           <Card className="!p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Impôts / taxes</p>
-            <p className="mt-1 text-xl font-semibold">{eur(summary.highlights.impotsEtTaxes)}</p>
+            <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Impôts / taxes</p>
+            <p className="mt-1 text-xl font-semibold dark:text-slate-100">{fcfa(summary.highlights.impotsEtTaxes)}</p>
           </Card>
           <Card className="!p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Copro / honoraires</p>
-            <p className="mt-1 text-xl font-semibold">{eur(summary.highlights.chargesCoproEtHonoraires)}</p>
+            <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Copro / honoraires</p>
+            <p className="mt-1 text-xl font-semibold dark:text-slate-100">{fcfa(summary.highlights.chargesCoproEtHonoraires)}</p>
           </Card>
         </div>
       )}
 
       <Card>
-        <h2 className="mb-4 font-semibold">Nouvelle charge</h2>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <h2 className="font-semibold">Nouvelle charge</h2>
+          <HelpHint
+            className="align-middle"
+            title="Renseignez le bien, la catégorie, le libellé et le montant. L’unité est optionnelle pour une charge qui concerne tout le site. Le mois précise une imputation mensuelle (sinon année entière)."
+          />
+        </div>
         <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label>Bien concerné</Label>
@@ -197,8 +224,8 @@ export function ChargesPage() {
             <Input value={label} onChange={(e) => setLabel(e.target.value)} required />
           </div>
           <div>
-            <Label>Montant (€)</Label>
-            <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            <Label>{INPUT_AMOUNT_FCFA_LABEL}</Label>
+            <AmountFcfaInput min={0} step={1} value={amount} onChange={(e) => setAmount(e.target.value)} required />
           </div>
           {err && <p className="text-sm text-red-600 sm:col-span-2">{err}</p>}
           <div className="sm:col-span-2">
@@ -209,7 +236,7 @@ export function ChargesPage() {
 
       <Card>
         <h2 className="mb-3 font-semibold">Détail {y}</h2>
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-slate-100 dark:divide-slate-700/80">
           {rows.map((c) => (
             <li
               key={c.id}
@@ -217,25 +244,27 @@ export function ChargesPage() {
               className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="font-medium text-slate-900">
+                <p className="font-medium text-slate-900 dark:text-slate-100">
                   {c.label} · {c.category}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {c.building.name}
                   {c.unit ? ` — ${unitKindLabel(c.unit.kind)} — ${c.unit.label}` : ''}
                   {c.periodMonth ? ` · mois ${c.periodMonth}` : ''}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="font-semibold">{eur(Number(c.amount))}</span>
-                <span className="text-xs">{c.paid ? 'Payé' : 'À payer'}</span>
+                <span className="font-semibold dark:text-slate-100">{fcfa(Number(c.amount))}</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400">{c.paid ? 'Payé' : 'À payer'}</span>
                 <Button variant="danger" className="py-1.5 text-xs" onClick={() => remove(c.id)}>
                   ×
                 </Button>
               </div>
             </li>
           ))}
-          {rows.length === 0 && <li className="py-6 text-center text-sm text-slate-500">Aucune charge cette année.</li>}
+          {rows.length === 0 && (
+            <li className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">Aucune charge cette année.</li>
+          )}
         </ul>
       </Card>
     </div>

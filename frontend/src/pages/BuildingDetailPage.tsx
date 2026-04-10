@@ -1,24 +1,29 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
-import { fcfa } from '@/lib/format';
-import { Button, Card, Input, Label, Select } from '@/components/ui';
+import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
+import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
+import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import {
   BUILDING_STRUCTURE_OPTIONS,
   type BuildingStructureValue,
 } from '@/lib/buildingStructure';
-import { UNIT_KIND_OPTIONS } from '@/lib/unitKind';
+import { UNIT_KIND_OPTIONS, unitKindLabel } from '@/lib/unitKind';
 
 type Unit = {
   id: string;
   label: string;
   kind?: string;
   floor: number | null;
+  apartmentSlot?: number | null;
   surfaceM2: unknown;
   rooms: number | null;
   defaultRent: unknown;
   description?: string | null;
-  leases?: Array<{ tenant: { firstName: string; lastName: string } }>;
+  leases?: Array<{
+    monthlyRent?: unknown;
+    tenant: { firstName: string; lastName: string };
+  }>;
 };
 
 type Building = {
@@ -30,8 +35,80 @@ type Building = {
   postalCode: string | null;
   country: string;
   structureKind: BuildingStructureValue;
+  floorCount?: number | null;
+  apartmentCount?: number | null;
   units: Unit[];
 };
+
+const ORG_SECTION_HINT =
+  'Immeuble multi-lots : plusieurs unités et plusieurs baux sur ce même bien. Un seul lot : une seule unité (villa, hangar en bloc, etc.).';
+
+const UNIT_SECTION_HINT =
+  'Indiquez le type de local (appartement, bureau, entrepôt, etc.). Sur un immeuble, vous pouvez mélanger plusieurs natures sur le même bien.';
+
+/** Bordure gauche des cartes unité selon la nature du local. */
+const UNIT_KIND_BORDER: Record<string, string> = {
+  APARTMENT: 'border-l-sky-500 dark:border-l-sky-400',
+  HOUSE: 'border-l-amber-500 dark:border-l-amber-400',
+  LAND: 'border-l-lime-600 dark:border-l-lime-500',
+  OFFICE: 'border-l-violet-500 dark:border-l-violet-400',
+  WAREHOUSE: 'border-l-orange-500 dark:border-l-orange-400',
+  COMMERCIAL: 'border-l-fuchsia-500 dark:border-l-fuchsia-400',
+  GARAGE: 'border-l-slate-500 dark:border-l-slate-400',
+  OTHER: 'border-l-slate-400 dark:border-l-slate-500',
+};
+
+function unitKindBorderClass(kind: string | undefined | null) {
+  if (!kind) return 'border-l-slate-400 dark:border-l-slate-500';
+  return UNIT_KIND_BORDER[kind] ?? 'border-l-slate-400 dark:border-l-slate-500';
+}
+
+function unitIsOccupied(u: Unit) {
+  return (u.leases?.length ?? 0) > 0;
+}
+
+function floorLabel(floor: number | null) {
+  if (floor == null) return null;
+  return floor === 0 ? 'RDC' : `Étage ${floor}`;
+}
+
+function BuildingHeroIcon({ immeuble }: { immeuble: boolean }) {
+  if (immeuble) {
+    return (
+      <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 shadow-sm dark:bg-sky-950/55 dark:text-sky-300">
+        <svg className="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+          <path d="M3 21h18M6 21V10l6-3.5L18 10v11M10 21v-5h4v5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    );
+  }
+  return (
+    <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 shadow-sm dark:bg-amber-950/45 dark:text-amber-200">
+      <svg className="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 22V12h6v10" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 shadow-sm dark:border-slate-600/80 dark:bg-slate-800/50">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</p>
+      {sub ? <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{sub}</p> : null}
+    </div>
+  );
+}
 
 export function BuildingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,8 +125,23 @@ export function BuildingDetailPage() {
   const [description, setDescription] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [structureKindDraft, setStructureKindDraft] = useState<BuildingStructureValue>('MONO_LOT');
+  const [floorCountDraft, setFloorCountDraft] = useState('');
+  const [apartmentCountDraft, setApartmentCountDraft] = useState('');
   const [structureErr, setStructureErr] = useState<string | null>(null);
   const [structureSaving, setStructureSaving] = useState(false);
+  /** Étage et n° d’app. (sélecteurs immeuble avec carnet renseigné). */
+  const [immeubleEtage, setImmeubleEtage] = useState('');
+  const [immeubleAppNo, setImmeubleAppNo] = useState('');
+  const [unitListFilter, setUnitListFilter] = useState<'all' | 'vacant' | 'occupied'>('all');
+  const [addUnitFormOpen, setAddUnitFormOpen] = useState(false);
+  const addUnitFormRef = useRef<HTMLDivElement | null>(null);
+
+  function openAddUnitForm() {
+    setAddUnitFormOpen(true);
+    window.requestAnimationFrame(() => {
+      addUnitFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   const load = useCallback(() => {
     if (!id) return;
@@ -59,6 +151,8 @@ export function BuildingDetailPage() {
       .then((data) => {
         setB(data);
         setStructureKindDraft(data.structureKind ?? 'MONO_LOT');
+        setFloorCountDraft(data.floorCount != null ? String(data.floorCount) : '');
+        setApartmentCountDraft(data.apartmentCount != null ? String(data.apartmentCount) : '');
         setLoadError(null);
       })
       .catch((e) => {
@@ -72,16 +166,99 @@ export function BuildingDetailPage() {
     load();
   }, [load]);
 
+  const immeubleLocked = b?.structureKind === 'IMMEUBLE';
+
+  const immeublePlanActive =
+    !!b &&
+    b.structureKind === 'IMMEUBLE' &&
+    b.floorCount != null &&
+    b.floorCount > 0 &&
+    b.apartmentCount != null &&
+    b.apartmentCount > 0;
+
+  const usedApartmentSlots = useMemo(() => {
+    if (!b?.units?.length) return new Set<number>();
+    const s = new Set<number>();
+    for (const u of b.units) {
+      if (u.apartmentSlot != null) s.add(u.apartmentSlot);
+    }
+    return s;
+  }, [b?.units]);
+
+  const buildingStats = useMemo(() => {
+    if (!b?.units) return null;
+    const total = b.units.length;
+    const occupied = b.units.filter((u) => (u.leases?.length ?? 0) > 0).length;
+    const vacant = Math.max(0, total - occupied);
+    let surfaceSum = 0;
+    let surfaceCount = 0;
+    for (const u of b.units) {
+      if (u.surfaceM2 == null) continue;
+      const n = Number(u.surfaceM2);
+      if (Number.isFinite(n) && n > 0) {
+        surfaceSum += n;
+        surfaceCount += 1;
+      }
+    }
+    const surfaceLabel =
+      surfaceCount > 0
+        ? `${Math.round(surfaceSum * 100) / 100} m²`.replace('.', ',')
+        : '—';
+    let monthlyRentTotal = 0;
+    for (const u of b.units) {
+      const lease = u.leases?.[0];
+      if (lease == null || lease.monthlyRent == null) continue;
+      const raw = lease.monthlyRent;
+      const n = typeof raw === 'string' ? Number(raw) : Number(raw);
+      if (Number.isFinite(n) && n >= 0) monthlyRentTotal += n;
+    }
+    return { total, occupied, vacant, surfaceLabel, surfaceCount, monthlyRentTotal };
+  }, [b?.units]);
+
+  const sortedUnits = useMemo(() => {
+    if (!b?.units?.length) return [];
+    return [...b.units].sort((a, c) => {
+      const fa = a.floor ?? 10_000;
+      const fc = c.floor ?? 10_000;
+      if (fa !== fc) return fa - fc;
+      const sa = a.apartmentSlot ?? 10_000;
+      const sc = c.apartmentSlot ?? 10_000;
+      if (sa !== sc) return sa - sc;
+      return a.label.localeCompare(c.label, 'fr', { numeric: true, sensitivity: 'base' });
+    });
+  }, [b?.units]);
+
+  const filteredUnits = useMemo(() => {
+    if (unitListFilter === 'vacant') return sortedUnits.filter((u) => !unitIsOccupied(u));
+    if (unitListFilter === 'occupied') return sortedUnits.filter((u) => unitIsOccupied(u));
+    return sortedUnits;
+  }, [sortedUnits, unitListFilter]);
+
+  useEffect(() => {
+    if (!immeublePlanActive || kind !== 'APARTMENT') return;
+    if (immeubleEtage === '' || immeubleAppNo === '') return;
+    const ét = immeubleEtage === '0' ? 'RDC' : immeubleEtage;
+    setLabel(`App. ${immeubleAppNo} · ét. ${ét}`);
+  }, [immeublePlanActive, kind, immeubleEtage, immeubleAppNo]);
+
   async function addUnit(e: React.FormEvent) {
     e.preventDefault();
     if (!id) return;
     setErr(null);
+    if (immeublePlanActive && kind === 'APARTMENT') {
+      if (immeubleEtage === '' || immeubleAppNo === '') {
+        setErr('Choisissez l’étage et le numéro d’appartement dans l’immeuble.');
+        return;
+      }
+    }
     try {
+      const useImmeublePicks = immeublePlanActive && kind === 'APARTMENT';
       await api(`/buildings/${id}/units`, {
         method: 'POST',
         json: {
           label,
-          floor: floor ? Number(floor) : undefined,
+          floor: useImmeublePicks ? Number(immeubleEtage) : floor ? Number(floor) : undefined,
+          apartmentSlot: useImmeublePicks ? Number(immeubleAppNo) : undefined,
           surfaceM2: surfaceM2 ? Number(surfaceM2) : undefined,
           rooms: rooms ? Number(rooms) : undefined,
           defaultRent: defaultRent ? Number(defaultRent) : undefined,
@@ -91,11 +268,14 @@ export function BuildingDetailPage() {
       });
       setLabel('');
       setFloor('');
+      setImmeubleEtage('');
+      setImmeubleAppNo('');
       setSurfaceM2('');
       setRooms('');
       setDefaultRent('');
       setKind('APARTMENT');
       setDescription('');
+      setAddUnitFormOpen(false);
       load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
@@ -121,16 +301,37 @@ export function BuildingDetailPage() {
     }
   }
 
-  async function saveStructureKind(e?: React.FormEvent) {
+  function parseOptionalInt(raw: string): { ok: true; value: number | null } | { ok: false } {
+    const t = raw.trim();
+    if (t === '') return { ok: true, value: null };
+    const n = Number(t);
+    if (!Number.isFinite(n) || n < 0) return { ok: false };
+    return { ok: true, value: Math.floor(n) };
+  }
+
+  async function saveBuildingProfile(e?: React.FormEvent) {
     e?.preventDefault();
     if (!id) return;
     setStructureErr(null);
+    const fc = parseOptionalInt(floorCountDraft);
+    const ac = parseOptionalInt(apartmentCountDraft);
+    if (!fc.ok || !ac.ok) {
+      setStructureErr('Nombre d’étages et nombre d’appartements doivent être des entiers positifs ou vides.');
+      return;
+    }
     setStructureSaving(true);
     try {
-      await api(`/buildings/${id}`, {
-        method: 'PATCH',
-        json: { structureKind: structureKindDraft },
-      });
+      const json: Record<string, unknown> = {
+        structureKind: immeubleLocked ? 'IMMEUBLE' : structureKindDraft,
+      };
+      if (immeubleLocked || structureKindDraft === 'IMMEUBLE') {
+        json.floorCount = fc.value;
+        json.apartmentCount = ac.value;
+      } else {
+        json.floorCount = null;
+        json.apartmentCount = null;
+      }
+      await api(`/buildings/${id}`, { method: 'PATCH', json });
       await load();
     } catch (e2) {
       setStructureErr(e2 instanceof Error ? e2.message : 'Enregistrement impossible.');
@@ -138,6 +339,15 @@ export function BuildingDetailPage() {
       setStructureSaving(false);
     }
   }
+
+  const buildingProfileDirty =
+    !!b &&
+    (immeubleLocked
+      ? floorCountDraft.trim() !== (b.floorCount != null ? String(b.floorCount) : '') ||
+        apartmentCountDraft.trim() !== (b.apartmentCount != null ? String(b.apartmentCount) : '')
+      : structureKindDraft !== b.structureKind ||
+        floorCountDraft.trim() !== (b.floorCount != null ? String(b.floorCount) : '') ||
+        apartmentCountDraft.trim() !== (b.apartmentCount != null ? String(b.apartmentCount) : ''));
 
   async function removeBuilding() {
     if (
@@ -157,158 +367,541 @@ export function BuildingDetailPage() {
   }
 
   if (loading) {
-    return <p className="text-slate-600">Chargement du bien…</p>;
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Chargement du bien">
+        <div className="animate-pulse space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-5 dark:border-slate-700 dark:bg-slate-900/60 sm:p-6">
+          <div className="h-4 w-24 rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="h-8 max-w-md rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="h-4 max-w-sm rounded bg-slate-200/80 dark:bg-slate-700/80" />
+          <div className="flex flex-wrap gap-2 pt-2">
+            <div className="h-7 w-20 rounded-full bg-slate-200/90 dark:bg-slate-700" />
+            <div className="h-7 w-28 rounded-full bg-slate-200/90 dark:bg-slate-700" />
+          </div>
+        </div>
+        <div className="h-36 animate-pulse rounded-2xl border border-slate-200/60 bg-slate-100/50 dark:border-slate-700 dark:bg-slate-900/40" />
+        <div className="h-52 animate-pulse rounded-2xl border border-slate-200/60 bg-slate-100/50 dark:border-slate-700 dark:bg-slate-900/40" />
+        <p className="sr-only">Chargement du bien…</p>
+      </div>
+    );
   }
 
   if (loadError || !b) {
     return (
       <Card>
-        <p className="text-red-700">{loadError ?? 'Bien introuvable.'}</p>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="font-medium text-red-700 dark:text-red-400">{loadError ?? 'Bien introuvable.'}</p>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           Vérifiez que l’API tourne, que vous êtes connecté, et que la base est à jour ({' '}
-          <code className="rounded bg-slate-200 px-1">npx prisma migrate deploy</code> ).
+          <code className="rounded bg-slate-200 px-1 dark:bg-slate-800 dark:text-slate-200">npx prisma migrate deploy</code> ).
         </p>
-        <Link to="/biens" className="mt-4 inline-block text-sm font-medium text-brand-700">
-          ← Retour à la liste
-        </Link>
+        <PageDetailBackLink to="/biens">Biens</PageDetailBackLink>
       </Card>
     );
   }
 
-  const locLine = [b.commune ?? '—', b.city ?? '—'].join(', ');
-  const extra = [b.address, b.postalCode].filter(Boolean).join(' · ');
+  const locParts = [b.commune, b.city].filter(Boolean);
+  const locLine = locParts.length ? locParts.join(', ') : '—';
+  const addressParts = [b.address, b.postalCode].filter(Boolean);
+  const addressLine = addressParts.length ? addressParts.join(' · ') : '';
+  const structureTypeHint = immeubleLocked
+    ? 'Ce bien est enregistré comme immeuble : le type ne peut plus être repassé en « un seul lot ».'
+    : (BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKindDraft)?.description ?? '');
+  const carnetHint =
+    immeublePlanActive && b
+      ? `Carnet : ${b.floorCount} étage(s), ${b.apartmentCount} appartement(s). Pour un appartement, choisissez l'étage et le numéro ; les numéros déjà attribués sont masqués.`
+      : '';
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <Link to="/biens" className="text-sm font-medium text-brand-700">
-            ← Biens
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">{b.name}</h1>
-          <p className="text-sm font-medium text-slate-800">{locLine}</p>
-          {extra && <p className="text-sm text-slate-600">{extra}</p>}
-          <p className="text-xs text-slate-500">{b.country}</p>
-        </div>
-        <Button variant="danger" className="shrink-0 py-2 text-sm" onClick={removeBuilding}>
-          Supprimer le bien
-        </Button>
-      </div>
-
-      <Card>
-        <h2 className="mb-1 font-semibold text-slate-900">Organisation du bien</h2>
-        <p className="mb-3 text-sm text-slate-600">
-          <strong>Immeuble / multi-lots</strong> : plusieurs unités et donc plusieurs baux sur ce même bien.
-          <strong> Un seul lot</strong> : une seule unité (villa entière, hangar loué en bloc, etc.).
-        </p>
-        <form onSubmit={saveStructureKind} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="min-w-[min(100%,20rem)] flex-1">
-            <Label htmlFor="building-structure-kind">Type</Label>
-            <Select
-              id="building-structure-kind"
-              value={structureKindDraft}
-              onChange={(e) => setStructureKindDraft(e.target.value as BuildingStructureValue)}
+      <PageDetailHero
+        backHref="/biens"
+        backLabel="Biens"
+        breadcrumbCurrent={b.name}
+        headerEnd={
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="gap-1.5 py-2 text-sm font-semibold sm:self-auto"
+              onClick={openAddUnitForm}
             >
-              {BUILDING_STRUCTURE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
+              <span className="text-base leading-none" aria-hidden>
+                +
+              </span>
+              Ajouter une unité
+            </Button>
+            <Button variant="danger" className="py-2 text-sm sm:self-auto" onClick={removeBuilding}>
+              Supprimer le bien
+            </Button>
           </div>
-          <Button type="submit" className="py-2" disabled={structureSaving || structureKindDraft === b.structureKind}>
-            {structureSaving ? 'Enregistrement…' : 'Enregistrer le type'}
+        }
+      >
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex flex-1 gap-4">
+            <BuildingHeroIcon immeuble={b.structureKind === 'IMMEUBLE'} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
+                {b.name}
+              </h1>
+              <p className="text-sm font-medium leading-snug text-slate-700 dark:text-slate-300">{locLine}</p>
+              {addressLine ? (
+                <p className="text-sm leading-snug text-slate-600 dark:text-slate-400">{addressLine}</p>
+              ) : (
+                <p className="text-sm italic text-slate-500 dark:text-slate-500">Adresse non renseignée</p>
+              )}
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{b.country}</p>
+              <div className="flex flex-wrap gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-700">
+                {b.structureKind === 'IMMEUBLE' ? (
+                  <>
+                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-900 dark:bg-sky-950/60 dark:text-sky-200">
+                      Immeuble multi-lots
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                      {b.floorCount != null
+                        ? `${b.floorCount} étage${b.floorCount !== 1 ? 's' : ''}`
+                        : 'Étages non renseignés'}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                      {b.apartmentCount != null
+                        ? `${b.apartmentCount} app. carnet`
+                        : 'Carnet non renseigné'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                    Un seul lot
+                  </span>
+                )}
+                <span className="inline-flex items-center rounded-full border border-emerald-600/90 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 dark:border-emerald-600/50 dark:bg-emerald-950/50 dark:text-emerald-200">
+                  {b.units.length} unité{b.units.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+          {buildingStats ? (
+            <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:max-w-xl lg:grid-cols-3">
+              <StatTile label="Unités" value={String(buildingStats.total)} />
+              <StatTile
+                label="Avec locataire"
+                value={String(buildingStats.occupied)}
+                sub={buildingStats.total ? `${Math.round((buildingStats.occupied / buildingStats.total) * 100)} % du bien` : undefined}
+              />
+              <StatTile label="Sans bail actif" value={String(buildingStats.vacant)} />
+              <StatTile
+                label="Revenu mensuel"
+                value={fcfa(Math.round(buildingStats.monthlyRentTotal))}
+                sub="Somme des loyers (baux actifs)"
+              />
+              <StatTile
+                label="Surface déclarée"
+                value={buildingStats.surfaceLabel}
+                sub={
+                  buildingStats.surfaceCount > 0
+                    ? `sur ${buildingStats.surfaceCount} lot${buildingStats.surfaceCount !== 1 ? 's' : ''}`
+                    : 'renseignez les m² par unité'
+                }
+              />
+            </div>
+          ) : null}
+        </div>
+      </PageDetailHero>
+
+      <nav
+        aria-label="Sections de la fiche"
+        className="flex flex-wrap gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50"
+      >
+        <a
+          href="#fiche-organisation"
+          className="rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:text-brand-700 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:text-brand-400"
+        >
+          Organisation
+        </a>
+        <a
+          href="#fiche-nouvelle-unite"
+          className="rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:text-brand-700 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:text-brand-400"
+          onClick={(e) => {
+            e.preventDefault();
+            openAddUnitForm();
+          }}
+        >
+          Nouvelle unité
+        </a>
+        <a
+          href="#fiche-unites"
+          className="rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:text-brand-700 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:text-brand-400"
+        >
+          Liste des unités
+        </a>
+      </nav>
+
+      <Card id="fiche-organisation" className="scroll-mt-24">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Organisation du bien</h2>
+          <HelpHint title={ORG_SECTION_HINT} className="align-middle" />
+        </div>
+        <form
+          onSubmit={saveBuildingProfile}
+          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
+        >
+          <div className="min-w-[min(100%,20rem)] flex-1">
+            <div className="mb-1 flex flex-wrap items-center gap-1.5">
+              <Label htmlFor="building-structure-kind" className="mb-0">
+                Type
+              </Label>
+              <HelpHint title={structureTypeHint} className="align-middle" />
+            </div>
+            {immeubleLocked ? (
+              <p
+                id="building-structure-kind"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-200"
+              >
+                Immeuble ou bâtiment multi-lots
+              </p>
+            ) : (
+              <Select
+                id="building-structure-kind"
+                value={structureKindDraft}
+                onChange={(e) => setStructureKindDraft(e.target.value as BuildingStructureValue)}
+              >
+                {BUILDING_STRUCTURE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
+          {structureKindDraft === 'IMMEUBLE' ? (
+            <>
+              <div className="w-full min-w-[8rem] sm:w-auto">
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <Label htmlFor="building-floor-count" className="mb-0">
+                    Étages (indicatif)
+                  </Label>
+                  <HelpHint
+                    title="Nombre d’étages indicatif pour le carnet d’appartements."
+                    className="align-middle"
+                  />
+                </div>
+                <Input
+                  id="building-floor-count"
+                  type="number"
+                  min={0}
+                  value={floorCountDraft}
+                  onChange={(e) => setFloorCountDraft(e.target.value)}
+                  placeholder="—"
+                />
+              </div>
+              <div className="w-full min-w-[8rem] sm:w-auto">
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <Label htmlFor="building-apartment-count" className="mb-0">
+                    Appartements (indicatif)
+                  </Label>
+                  <HelpHint
+                    title="À l’ajout d’unités, les numéros d’appartement déjà attribués sont masqués."
+                    className="align-middle"
+                  />
+                </div>
+                <Input
+                  id="building-apartment-count"
+                  type="number"
+                  min={0}
+                  value={apartmentCountDraft}
+                  onChange={(e) => setApartmentCountDraft(e.target.value)}
+                  placeholder="—"
+                />
+              </div>
+            </>
+          ) : null}
+          <Button type="submit" className="py-2" disabled={structureSaving || !buildingProfileDirty}>
+            {structureSaving ? 'Enregistrement…' : 'Enregistrer'}
           </Button>
         </form>
-        {structureErr && <p className="mt-2 text-sm text-red-600">{structureErr}</p>}
-        <p className="mt-2 text-xs text-slate-500">
-          {BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKindDraft)?.description}
-        </p>
+        {structureErr && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{structureErr}</p>}
       </Card>
 
-      <Card>
-        <h2 className="mb-1 font-semibold text-slate-900">Ajouter une unité</h2>
-        {b.structureKind === 'MONO_LOT' && b.units.length >= 1 ? (
-          <p className="text-sm text-slate-600">
-            Ce bien est en <strong>un seul lot</strong> : une unité suffit (ex. « Villa entière »). Pour ajouter
-            d’autres lots, passez d’abord le type à <strong>Immeuble ou bâtiment multi-lots</strong> ci-dessus.
-          </p>
-        ) : (
-          <>
-            <p className="mb-4 text-sm text-slate-600">
-              C&apos;est ici que vous indiquez la nature du local : <strong>appartement</strong>,{' '}
-              <strong>bureau</strong>, <strong>entrepôt</strong>, commerce, etc. Sur un immeuble, un même bien
-              peut mélanger plusieurs types (ex. appartements + parkings).
+      <div ref={addUnitFormRef} id="fiche-nouvelle-unite" className="scroll-mt-24">
+        <Card className="!p-0 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAddUnitFormOpen((o) => !o)}
+            aria-expanded={addUnitFormOpen}
+            className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50/95 dark:hover:bg-slate-800/60 sm:px-5 sm:py-4"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-600/12 text-lg font-bold leading-none text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                +
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Nouvelle unité</h2>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  {addUnitFormOpen ? 'Masquer le formulaire' : 'Afficher le formulaire d’ajout'}
+                </p>
+              </div>
+            </div>
+            <svg
+              className={`size-5 shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500 ${addUnitFormOpen ? 'rotate-180' : ''}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {addUnitFormOpen ? (
+            <div className="border-t border-slate-200/90 px-4 pb-5 pt-2 dark:border-slate-700 sm:px-5">
+              <div className="mb-3 flex flex-wrap items-center gap-2 pt-2">
+                <HelpHint title={UNIT_SECTION_HINT} className="align-middle" />
+                {immeublePlanActive && kind === 'APARTMENT' ? (
+                  <HelpHint title={carnetHint} className="align-middle" />
+                ) : null}
+              </div>
+              {b.structureKind === 'MONO_LOT' && b.units.length >= 1 ? (
+                <p className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <span>Ce bien est en un seul lot : une seule unité suffit.</span>
+                  <HelpHint title="Pour plusieurs lots distincts, passez d'abord le type du bien à « Immeuble ou bâtiment multi-lots » dans Organisation du bien." />
+                </p>
+              ) : (
+                <div className="rounded-xl border border-slate-200/75 bg-slate-50/70 p-4 shadow-inner shadow-slate-900/[0.02] dark:border-slate-600/70 dark:bg-slate-800/35 dark:shadow-none sm:p-5">
+              <form onSubmit={addUnit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Identification du lot / local
+                  </p>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Label htmlFor="new-unit-kind" className="mb-0">
+                      Nature de l&apos;unité
+                    </Label>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">*</span>
+                  </div>
+                  <Select id="new-unit-kind" value={kind} onChange={(e) => setKind(e.target.value)} required>
+                    {UNIT_KIND_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                {immeublePlanActive && kind === 'APARTMENT' ? (
+                  <>
+                    <div>
+                      <Label htmlFor="immeuble-etage">Étage</Label>
+                      <Select
+                        id="immeuble-etage"
+                        value={immeubleEtage}
+                        onChange={(e) => setImmeubleEtage(e.target.value)}
+                        required
+                      >
+                        <option value="">Choisir…</option>
+                        <option value="0">Rez-de-chaussée (0)</option>
+                        {Array.from({ length: b.floorCount ?? 0 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={String(n)}>
+                            Étage {n}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="immeuble-app-no">N° appartement</Label>
+                      <Select
+                        id="immeuble-app-no"
+                        value={immeubleAppNo}
+                        onChange={(e) => setImmeubleAppNo(e.target.value)}
+                        required
+                      >
+                        <option value="">Choisir…</option>
+                        {Array.from({ length: b.apartmentCount ?? 0 }, (_, i) => i + 1)
+                          .filter((n) => !usedApartmentSlots.has(n))
+                          .map((n) => (
+                            <option key={n} value={String(n)}>
+                              Appartement n° {n}
+                            </option>
+                          ))}
+                      </Select>
+                      {Array.from({ length: b.apartmentCount ?? 0 }, (_, i) => i + 1).every((n) =>
+                        usedApartmentSlots.has(n),
+                      ) && (
+                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                          Tous les numéros du carnet sont déjà attribués.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                ) : null}
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Label htmlFor="new-unit-label" className="mb-0">
+                      Libellé / référence
+                    </Label>
+                    {immeublePlanActive && kind === 'APARTMENT' ? (
+                      <HelpHint title="Rempli automatiquement à partir de l'étage et du numéro d'appartement ; vous pouvez le modifier." />
+                    ) : null}
+                  </div>
+                  <Input
+                    id="new-unit-label"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    required
+                    placeholder="A12, Bureau 2, Entrepôt B…"
+                  />
+                </div>
+                {!(immeublePlanActive && kind === 'APARTMENT') ? (
+                  <div>
+                    <Label>Étage (si pertinent)</Label>
+                    <Input value={floor} onChange={(e) => setFloor(e.target.value)} type="number" />
+                  </div>
+                ) : null}
+
+                <div className="sm:col-span-2 border-t border-slate-200/80 pt-4 lg:col-span-3 dark:border-slate-600/80">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Caractéristiques & loyer indicatif
+                  </p>
+                </div>
+                <div>
+                  <Label>Surface m²</Label>
+                  <Input value={surfaceM2} onChange={(e) => setSurfaceM2(e.target.value)} type="number" step="0.01" />
+                </div>
+                <div>
+                  <Label>Nombre de pièces</Label>
+                  <Input value={rooms} onChange={(e) => setRooms(e.target.value)} type="number" />
+                </div>
+                <div>
+                  <Label>{INPUT_AMOUNT_FCFA_LABEL} — loyer indicatif</Label>
+                  <AmountFcfaInput value={defaultRent} onChange={(e) => setDefaultRent(e.target.value)} min={0} step={1} />
+                </div>
+                <div className="sm:col-span-full">
+                  <Label>Description simple (optionnel)</Label>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Ex. balcon, parking, cave…"
+                  />
+                </div>
+                {err && <p className="text-sm text-red-600 dark:text-red-400 sm:col-span-full">{err}</p>}
+                <div className="sm:col-span-full flex flex-wrap items-center gap-3">
+                  <Button type="submit">Ajouter l&apos;unité</Button>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Les baux se créent ensuite depuis la page <strong className="font-medium text-slate-700 dark:text-slate-300">Baux</strong>.
+                  </p>
+                </div>
+              </form>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </Card>
+      </div>
+
+      <Card id="fiche-unites" className="scroll-mt-24">
+        <div className="mb-4 flex flex-col gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Unités</h2>
+            <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
+              Tri par étage et n° de lot. Filtrez libre / loué, modifiez la nature ou supprimez une unité.
             </p>
-            <form onSubmit={addUnit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="sm:col-span-2 lg:col-span-1">
-            <Label htmlFor="new-unit-kind">Nature de l&apos;unité (obligatoire)</Label>
-            <Select id="new-unit-kind" value={kind} onChange={(e) => setKind(e.target.value)} required>
-              {UNIT_KIND_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
+            {b.units.length > 0 && buildingStats ? (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{b.units.length}</span> au total ·{' '}
+                <span className="text-emerald-700 dark:text-emerald-400">{buildingStats.occupied} louée{buildingStats.occupied !== 1 ? 's' : ''}</span>
+                {' · '}
+                <span className="text-slate-600 dark:text-slate-400">{buildingStats.vacant} libre{buildingStats.vacant !== 1 ? 's' : ''}</span>
+              </p>
+            ) : null}
+          </div>
+          {b.units.length > 0 ? (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer les unités">
+              {(
+                [
+                  { key: 'all' as const, label: 'Toutes' },
+                  { key: 'vacant' as const, label: 'Libres' },
+                  { key: 'occupied' as const, label: 'Louées' },
+                ] as const
+              ).map(({ key, label: lbl }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setUnitListFilter(key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    unitListFilter === key
+                      ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500'
+                  }`}
+                >
+                  {lbl}
+                </button>
               ))}
-            </Select>
-          </div>
-          <div className="sm:col-span-2 lg:col-span-2">
-            <Label htmlFor="new-unit-label">Libellé / référence</Label>
-            <Input
-              id="new-unit-label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              required
-              placeholder="A12, Bureau 2, Entrepôt B…"
-            />
-          </div>
-          <div>
-            <Label>Étage (si pertinent)</Label>
-            <Input value={floor} onChange={(e) => setFloor(e.target.value)} type="number" />
-          </div>
-          <div>
-            <Label>Surface m²</Label>
-            <Input value={surfaceM2} onChange={(e) => setSurfaceM2(e.target.value)} type="number" step="0.01" />
-          </div>
-          <div>
-            <Label>Nombre de pièces</Label>
-            <Input value={rooms} onChange={(e) => setRooms(e.target.value)} type="number" />
-          </div>
-          <div>
-            <Label>Loyer indicatif (FCFA)</Label>
-            <Input value={defaultRent} onChange={(e) => setDefaultRent(e.target.value)} type="number" step="1" />
-          </div>
-          <div className="sm:col-span-full">
-            <Label>Description simple (optionnel)</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex. balcon, parking…" />
-          </div>
-          {err && <p className="text-sm text-red-600 sm:col-span-full">{err}</p>}
-          <div className="sm:col-span-full">
-            <Button type="submit">Ajouter l&apos;unité</Button>
-          </div>
-        </form>
-          </>
-        )}
-      </Card>
-
-      <Card>
-        <h2 className="mb-3 font-semibold text-slate-900">Unités</h2>
-        <ul className="divide-y divide-slate-200/80">
-          {b.units.map((u) => {
+            </div>
+          ) : null}
+        </div>
+        <ul className="grid list-none gap-4 sm:grid-cols-2">
+          {filteredUnits.map((u) => {
             const tenant = u.leases?.[0]?.tenant;
             const rent = u.defaultRent != null ? Number(u.defaultRent) : null;
+            const occupied = unitIsOccupied(u);
+            const fl = floorLabel(u.floor);
             return (
-              <li key={u.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <p className="font-medium text-slate-900">{u.label}</p>
-                  <div className="flex max-w-md flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor={`unit-kind-${u.id}`}>
-                      Nature de l&apos;unité
+              <li
+                key={u.id}
+                className={`flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 border-l-4 bg-gradient-to-b from-slate-50/98 to-slate-100/25 shadow-sm dark:border-slate-700 dark:from-slate-900/75 dark:to-slate-900/30 ${unitKindBorderClass(u.kind)}`}
+              >
+                <div className="flex flex-1 flex-col p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {u.apartmentSlot != null ? `Lot n° ${u.apartmentSlot}` : 'Unité'}
+                        </p>
+                      <p className="font-semibold leading-snug text-slate-900 dark:text-slate-100">{u.label}</p>
+                      <span className="mt-1.5 inline-flex rounded-md bg-slate-200/80 px-2 py-0.5 text-[11px] font-semibold text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                        {unitKindLabel(u.kind)}
+                      </span>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                        occupied
+                          ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
+                          : 'bg-slate-200/90 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      {occupied ? 'Loué' : 'Libre'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {fl ? (
+                      <span className="inline-flex rounded-lg bg-white/90 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
+                        {fl}
+                      </span>
+                    ) : null}
+                    <span className="inline-flex rounded-lg bg-white/90 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
+                      {u.surfaceM2 != null ? `${Number(u.surfaceM2)} m²` : 'Surface —'}
+                    </span>
+                    <span className="inline-flex rounded-lg bg-white/90 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
+                      {u.rooms != null ? `${u.rooms} p.` : 'Pièces —'}
+                    </span>
+                    {rent != null && Number.isFinite(rent) ? (
+                      <span className="inline-flex rounded-lg bg-brand-500/10 px-2 py-1 text-[11px] font-semibold tabular-nums text-brand-900 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200 dark:ring-brand-500/30">
+                        {fcfa(rent)}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-lg bg-slate-100/80 px-2 py-1 text-[11px] text-slate-500 ring-1 ring-slate-200/60 dark:bg-slate-800/50 dark:text-slate-400">
+                        Loyer —
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 rounded-lg border border-slate-200/70 bg-slate-50/80 p-2.5 dark:border-slate-600/60 dark:bg-slate-800/40">
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" htmlFor={`unit-kind-${u.id}`}>
+                      Nature du local
                     </label>
                     <Select
                       id={`unit-kind-${u.id}`}
                       value={u.kind ?? 'APARTMENT'}
                       onChange={(e) => void updateUnitKind(u.id, e.target.value)}
-                      className="text-xs sm:max-w-xs"
+                      className="text-xs"
                     >
                       {UNIT_KIND_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -317,24 +910,41 @@ export function BuildingDetailPage() {
                       ))}
                     </Select>
                   </div>
-                  <p className="text-xs text-slate-600">
-                    {u.surfaceM2 != null ? `${Number(u.surfaceM2)} m²` : '—'} · {u.rooms != null ? `${u.rooms} p.` : '—'}
-                    {rent != null && ` · ${fcfa(rent)}`}
-                  </p>
-                  {u.description && <p className="text-xs text-slate-600">{u.description}</p>}
-                  {tenant && (
-                    <p className="text-xs font-medium text-emerald-800">
-                      Occupé : {tenant.firstName} {tenant.lastName}
+
+                  {u.description ? (
+                    <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{u.description}</p>
+                  ) : null}
+                  {tenant ? (
+                    <p className="mt-3 rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-2.5 py-2 text-xs font-medium text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-950/45 dark:text-emerald-200">
+                      Locataire (bail actif) : {tenant.firstName} {tenant.lastName}
                     </p>
+                  ) : (
+                    <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-500">Pas de bail actif sur cette unité.</p>
                   )}
+                  <Button variant="danger" className="mt-4 w-full py-2 text-xs sm:w-auto sm:self-end" onClick={() => removeUnit(u.id)}>
+                    Supprimer l&apos;unité
+                  </Button>
                 </div>
-                <Button variant="danger" className="self-start py-2 text-xs" onClick={() => removeUnit(u.id)}>
-                  Supprimer l&apos;unité
-                </Button>
               </li>
             );
           })}
-          {b.units.length === 0 && <li className="py-6 text-center text-sm text-slate-500">Aucune unité.</li>}
+          {b.units.length === 0 && (
+            <li className="col-span-full rounded-xl border border-dashed border-slate-300/90 py-10 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
+              <p>Aucune unité pour ce bien.</p>
+              <button
+                type="button"
+                className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                onClick={openAddUnitForm}
+              >
+                Ajouter une unité
+              </button>
+            </li>
+          )}
+          {b.units.length > 0 && filteredUnits.length === 0 && (
+            <li className="col-span-full rounded-xl border border-dashed border-amber-200/90 bg-amber-50/40 py-8 text-center text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/25 dark:text-amber-200/90">
+              Aucune unité dans cette vue — choisissez « Toutes » ou un autre filtre.
+            </li>
+          )}
         </ul>
       </Card>
     </div>

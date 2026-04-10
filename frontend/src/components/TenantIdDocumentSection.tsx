@@ -160,12 +160,12 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
         </Button>
       </div>
       {idDocument && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
           <div className="flex flex-wrap gap-3">
             <TenantIdDocumentThumb tenantId={tenantId} mimeType={idDocument.mimeType} />
             <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-900">{idDocument.fileName ?? 'Fichier'}</p>
-              <p className="text-xs text-slate-600">
+              <p className="font-medium text-slate-900 dark:text-slate-100">{idDocument.fileName ?? 'Fichier'}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 {idDocument.mimeType ?? '—'} · {formatBytes(idDocument.size)}
                 {idDocument.uploadedAt && ` · envoyé le ${idDocument.uploadedAt.slice(0, 10)}`}
               </p>

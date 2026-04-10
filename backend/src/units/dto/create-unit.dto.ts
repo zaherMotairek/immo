@@ -17,6 +17,14 @@ export class CreateUnitDto {
   @IsInt()
   floor?: number;
 
+  /** Numéro d’appartement dans l’immeuble (1…N), doit être unique par bien si renseigné. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500_000)
+  apartmentSlot?: number;
+
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

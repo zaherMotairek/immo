@@ -19,7 +19,10 @@ export class BuildingsService {
             units: unitKind ? { where: { kind: unitKind } } : true,
           },
         },
-        units: { select: { id: true, label: true, kind: true }, orderBy: { label: 'asc' } },
+        units: {
+          select: { id: true, label: true, kind: true, apartmentSlot: true },
+          orderBy: { label: 'asc' },
+        },
       },
     });
   }
@@ -36,6 +39,7 @@ export class BuildingsService {
               orderBy: { startDate: 'desc' },
               take: 1,
               select: {
+                monthlyRent: true,
                 tenant: { select: { firstName: true, lastName: true } },
               },
             },
@@ -58,12 +62,23 @@ export class BuildingsService {
         country: dto.country ?? "Côte d'Ivoire",
         notes: dto.notes,
         structureKind: dto.structureKind ?? BuildingStructureKind.MONO_LOT,
+        floorCount: dto.floorCount ?? null,
+        apartmentCount: dto.apartmentCount ?? null,
       },
     });
   }
 
   async update(id: string, dto: UpdateBuildingDto) {
-    await this.ensureExists(id);
+    const existing = await this.prisma.building.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Bien introuvable');
+    if (
+      existing.structureKind === BuildingStructureKind.IMMEUBLE &&
+      dto.structureKind === BuildingStructureKind.MONO_LOT
+    ) {
+      throw new BadRequestException(
+        'Ce bien est un immeuble : le type ne peut plus être repassé en « un seul lot ». Créez un autre bien pour une villa ou un local loué en entier.',
+      );
+    }
     if (dto.structureKind === BuildingStructureKind.MONO_LOT) {
       const n = await this.prisma.unit.count({ where: { buildingId: id } });
       if (n > 1) {

@@ -95,13 +95,10 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
           Prendre une photo
         </Button>
       </div>
-      <p className="text-xs text-slate-500">
-        PDF ou image (JPEG, PNG, WebP), max. 15 Mo. Sur téléphone, « Prendre une photo » ouvre l’appareil photo.
-      </p>
       {contract && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm">
-          <p className="font-medium text-slate-900">{contract.fileName ?? 'Fichier'}</p>
-          <p className="text-xs text-slate-600">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
+          <p className="font-medium text-slate-900 dark:text-slate-100">{contract.fileName ?? 'Fichier'}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             {contract.mimeType ?? '—'} · {formatBytes(contract.size)}
             {contract.uploadedAt && ` · envoyé le ${contract.uploadedAt.slice(0, 10)}`}
           </p>

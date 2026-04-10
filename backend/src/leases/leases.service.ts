@@ -91,6 +91,37 @@ export class LeasesService {
     });
   }
 
+  /** Baux dont la caution a été marquée encaissée (liste synthèse). */
+  async listDepositsCollected() {
+    const leases = await this.prisma.lease.findMany({
+      where: {
+        depositPaidAt: { not: null },
+        depositAmount: { not: null, gt: 0 },
+      },
+      orderBy: { depositPaidAt: 'desc' },
+      include: {
+        tenant: true,
+        unit: { include: { building: true } },
+      },
+    });
+
+    return leases.map((l) => {
+      const b = l.unit.building;
+      const paidAt = l.depositPaidAt!;
+      return {
+        leaseId: l.id,
+        active: l.active,
+        monthlyRent: l.monthlyRent.toNumber(),
+        depositAmount: l.depositAmount!.toNumber(),
+        depositPaidAt: paidAt.toISOString().slice(0, 10),
+        tenantFullName: `${l.tenant.firstName} ${l.tenant.lastName}`.trim(),
+        buildingName: b.name,
+        unitLabel: l.unit.label,
+        localizationLine: [b.commune, b.city].filter(Boolean).join(' · '),
+      };
+    });
+  }
+
   async getFiche(id: string) {
     await this.payments.syncLateStatuses();
     const l = await this.prisma.lease.findUnique({
@@ -151,6 +182,7 @@ export class LeasesService {
         monthlyRent: l.monthlyRent.toNumber(),
         rentDueDay: l.rentDueDay,
         depositAmount: l.depositAmount?.toNumber() ?? null,
+        depositPaidAt: l.depositPaidAt ? l.depositPaidAt.toISOString().slice(0, 10) : null,
         currentPeriodYear: y,
         currentPeriodMonth: m,
         currentPaymentStatus: currentPayment?.status,
@@ -189,6 +221,14 @@ export class LeasesService {
       throw new BadRequestException('Cette unité a déjà un bail actif. Terminez ou désactivez-le avant d’en créer un nouveau.');
     }
 
+    let deposit: number | null | undefined = dto.depositAmount;
+    if (dto.depositMonths != null && dto.depositMonths > 0) {
+      deposit = dto.monthlyRent * dto.depositMonths;
+    }
+    if (deposit !== undefined && deposit !== null && deposit <= 0) {
+      deposit = null;
+    }
+
     return this.prisma.lease.create({
       data: {
         unitId: dto.unitId,
@@ -196,7 +236,7 @@ export class LeasesService {
         startDate: new Date(dto.startDate),
         endDate: dto.endDate ? new Date(dto.endDate) : null,
         monthlyRent: dto.monthlyRent,
-        depositAmount: dto.depositAmount,
+        depositAmount: deposit ?? null,
         rentDueDay: dto.rentDueDay ?? 1,
         active: dto.active ?? true,
       },
@@ -213,13 +253,27 @@ export class LeasesService {
     if (dto.endDate !== undefined) data.endDate = dto.endDate ? new Date(dto.endDate) : null;
     if (dto.monthlyRent !== undefined) data.monthlyRent = dto.monthlyRent;
     if (dto.depositAmount !== undefined) data.depositAmount = dto.depositAmount;
+    if (dto.depositPaidAt !== undefined) {
+      data.depositPaidAt = dto.depositPaidAt ? new Date(dto.depositPaidAt) : null;
+    }
     if (dto.rentDueDay !== undefined) data.rentDueDay = dto.rentDueDay;
     if (dto.active !== undefined) data.active = dto.active;
-    return this.prisma.lease.update({
+    const updated = await this.prisma.lease.update({
       where: { id },
       data,
       include: { tenant: true, unit: { include: { building: true } } },
     });
+    /** Aligner les échéances non soldées sur le nouveau loyer (contrat renégocié). */
+    if (dto.monthlyRent !== undefined) {
+      await this.prisma.payment.updateMany({
+        where: {
+          leaseId: id,
+          status: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
+        },
+        data: { amountDue: dto.monthlyRent },
+      });
+    }
+    return updated;
   }
 
   async remove(id: string) {
@@ -349,6 +403,56 @@ export class LeasesService {
       }
     }
     return { leaseId, year, createdCount: created.length, periods: created };
+  }
+
+  /**
+   * Enregistre le paiement des N prochaines échéances impayées (loyer), dans l’ordre chronologique.
+   * Utile quand le locataire paie plusieurs mois d’avance.
+   */
+  async prepayNextMonths(leaseId: string, months: number) {
+    if (!Number.isInteger(months) || months < 1 || months > 12) {
+      throw new BadRequestException('Nombre de mois invalide (indiquer un entier entre 1 et 12).');
+    }
+    await this.payments.syncLateStatuses();
+    const lease = await this.prisma.lease.findUnique({ where: { id: leaseId } });
+    if (!lease) throw new NotFoundException('Bail introuvable');
+
+    const unpaid = await this.prisma.payment.findMany({
+      where: {
+        leaseId,
+        status: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
+      },
+      orderBy: [{ periodYear: 'asc' }, { periodMonth: 'asc' }],
+      take: months,
+    });
+
+    if (unpaid.length < months) {
+      throw new BadRequestException(
+        `Il n’y a que ${unpaid.length} échéance(s) de loyer encore impayée(s). Générez les loyers pour l’année voulue (page Baux), ou choisissez moins de mois.`,
+      );
+    }
+
+    const paidAt = new Date();
+    const ids: string[] = [];
+    for (const p of unpaid) {
+      await this.prisma.payment.update({
+        where: { id: p.id },
+        data: {
+          status: PaymentStatus.PAID,
+          paidAt,
+          amountPaid: p.amountDue,
+        },
+      });
+      ids.push(p.id);
+    }
+
+    return {
+      leaseId,
+      monthsPaid: unpaid.length,
+      totalFcfa: unpaid.reduce((s, p) => s + p.amountDue.toNumber(), 0),
+      paymentIds: ids,
+      periods: unpaid.map((p) => `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`),
+    };
   }
 
   private async ensure(id: string) {

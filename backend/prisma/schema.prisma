@@ -24,19 +24,23 @@ enum BuildingStructureKind {
 }
 
 model Building {
-  id            String                 @id @default(uuid())
-  name          String
-  city          String
-  commune       String
-  address       String?
-  postalCode    String?                @map("postal_code")
-  country       String                 @default("Côte d'Ivoire")
-  notes         String?
-  structureKind BuildingStructureKind  @default(MONO_LOT) @map("structure_kind")
-  createdAt     DateTime               @default(now()) @map("created_at")
-  updatedAt     DateTime               @updatedAt @map("updated_at")
-  units         Unit[]
-  charges       Charge[]
+  id             String                 @id @default(uuid())
+  name           String
+  city           String
+  commune        String
+  address        String?
+  postalCode     String?                @map("postal_code")
+  country        String                 @default("Côte d'Ivoire")
+  notes          String?
+  structureKind  BuildingStructureKind  @default(MONO_LOT) @map("structure_kind")
+  /** Nombre d’étages du bâtiment (immeuble) — indicatif. */
+  floorCount     Int?                   @map("floor_count")
+  /** Nombre d’appartements prévus / déclarés (immeuble) — indicatif ; les baux restent liés aux unités créées. */
+  apartmentCount Int?                   @map("apartment_count")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  units          Unit[]
+  charges        Charge[]
 
   @@map("buildings")
 }
@@ -53,22 +57,25 @@ enum UnitKind {
 }
 
 model Unit {
-  id          String   @id @default(uuid())
-  buildingId  String   @map("building_id")
-  label       String
-  kind        UnitKind @default(APARTMENT)
-  floor       Int?
-  surfaceM2   Decimal? @map("surface_m2") @db.Decimal(10, 2)
-  rooms       Int?
-  defaultRent Decimal? @map("default_rent") @db.Decimal(12, 2)
-  description String?
-  notes       String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  building    Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  leases      Lease[]
-  charges     Charge[]
+  id            String   @id @default(uuid())
+  buildingId    String   @map("building_id")
+  label         String
+  kind          UnitKind @default(APARTMENT)
+  floor         Int?
+  /** Numéro d’appartement dans l’immeuble (1…apartmentCount), optionnel (parkings, etc.). */
+  apartmentSlot Int?     @map("apartment_slot")
+  surfaceM2     Decimal? @map("surface_m2") @db.Decimal(10, 2)
+  rooms         Int?
+  defaultRent   Decimal? @map("default_rent") @db.Decimal(12, 2)
+  description   String?
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  building      Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  leases        Lease[]
+  charges       Charge[]
 
+  @@unique([buildingId, apartmentSlot])
   @@index([buildingId])
   @@map("units")
 }
@@ -101,6 +108,8 @@ model Lease {
   endDate       DateTime? @map("end_date") @db.Date
   monthlyRent   Decimal   @map("monthly_rent") @db.Decimal(12, 2)
   depositAmount Decimal?  @map("deposit_amount") @db.Decimal(12, 2)
+  /** Date à laquelle la caution / dépôt de garantie a été encaissée (suivi métier). */
+  depositPaidAt DateTime? @map("deposit_paid_at") @db.Date
   rentDueDay    Int       @default(1) @map("rent_due_day")
   active        Boolean   @default(true)
   /** Nom du fichier tel qu’envoyé par l’utilisateur (PDF ou image). */

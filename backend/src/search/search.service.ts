@@ -26,7 +26,7 @@ export class SearchService {
           OR: [{ name: ic }, { city: ic }, { commune: ic }, { address: ic }],
         },
         orderBy: { name: 'asc' },
-        take: 12,
+        take: 15,
         select: { id: true, name: true, city: true, commune: true },
       }),
       this.prisma.tenant.findMany({
@@ -34,7 +34,7 @@ export class SearchService {
           OR: [{ firstName: ic }, { lastName: ic }, { email: ic }, { phone: ic }],
         },
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-        take: 12,
+        take: 15,
         select: { id: true, firstName: true, lastName: true, email: true, phone: true },
       }),
       this.prisma.unit.findMany({
@@ -42,7 +42,7 @@ export class SearchService {
           OR: [{ label: ic }, { description: ic }],
         },
         orderBy: { label: 'asc' },
-        take: 12,
+        take: 15,
         select: {
           id: true,
           label: true,
@@ -61,7 +61,7 @@ export class SearchService {
           ],
         },
         orderBy: { startDate: 'desc' },
-        take: 12,
+        take: 15,
         select: {
           id: true,
           active: true,
@@ -76,7 +76,7 @@ export class SearchService {
           OR: [{ label: ic }, { notes: ic }],
         },
         orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
-        take: 10,
+        take: 12,
         select: {
           id: true,
           label: true,
@@ -98,7 +98,7 @@ export class SearchService {
           ],
         },
         orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
-        take: 10,
+        take: 12,
         select: {
           id: true,
           periodYear: true,

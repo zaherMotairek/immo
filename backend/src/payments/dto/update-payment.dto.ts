@@ -17,6 +17,16 @@ export class UpdatePaymentDto {
   @Min(0)
   amountPaid?: number;
 
+  /**
+   * Versement partiel (FCFA) : s’ajoute au déjà encaissé. Ne pas combiner avec `amountPaid` dans la même requête.
+   * Quand le cumul atteint le montant dû, le statut passe automatiquement à PAYÉ.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  addAmountPaid?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

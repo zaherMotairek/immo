@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --color-brand-50: #eff6ff;
@@ -7,9 +9,10 @@
   --color-brand-500: #3b82f6;
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;
-  --color-app-bg: #cbd5e1;
-  --color-app-bg-deep: #94a3b8;
-  --color-surface: #f1f5f9;
+  /* Fonds sobres type application métier */
+  --color-app-bg: #e4e9f0;
+  --color-app-bg-deep: #d6dde8;
+  --color-surface: #f8fafc;
   --color-ink: #0f172a;
   --color-muted: #64748b;
 }
@@ -18,10 +21,22 @@ html {
   color-scheme: light;
 }
 
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-sans);
-  background: linear-gradient(160deg, var(--color-app-bg) 0%, #e2e8f0 45%, var(--color-app-bg-deep) 100%);
+  background-color: var(--color-app-bg);
+  background-image: linear-gradient(180deg, var(--color-surface) 0%, var(--color-app-bg) 38%, var(--color-app-bg-deep) 100%);
   background-attachment: fixed;
   color: var(--color-ink);
   min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.dark body {
+  background-color: #0b0d12;
+  background-image: linear-gradient(180deg, #111318 0%, #0b0d12 45%, #08090c 100%);
+  color: #e4e4e7;
 }

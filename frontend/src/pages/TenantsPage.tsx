@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/lib/api';
 import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
-import { Button, Card, Input, Label } from '@/components/ui';
+import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
 
 type Tenant = {
@@ -54,6 +55,15 @@ export function TenantsPage() {
   const [editPhone, setEditPhone] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editErr, setEditErr] = useState<string | null>(null);
+  const [addTenantOpen, setAddTenantOpen] = useState(false);
+  const addTenantFormRef = useRef<HTMLDivElement | null>(null);
+
+  function openAddTenantForm() {
+    setAddTenantOpen(true);
+    window.requestAnimationFrame(() => {
+      addTenantFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   function load() {
     api<Tenant[]>('/tenants').then(setRows).catch(() => setRows([]));
@@ -61,6 +71,12 @@ export function TenantsPage() {
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hash === '#nouveau-locataire') {
+      setAddTenantOpen(true);
+    }
   }, []);
 
   const editParam = params.get('edit');
@@ -146,6 +162,7 @@ export function TenantsPage() {
       setFullName('');
       setEmail('');
       setPhone('');
+      setAddTenantOpen(false);
       load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
@@ -164,38 +181,105 @@ export function TenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Locataires</h1>
-        <p className="text-sm text-slate-600">Création, modification des coordonnées et liaison aux baux.</p>
+      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
+      {editParam ? (
+        <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <button
+            type="button"
+            className="font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+            onClick={() => cancelEdit()}
+          >
+            Fermer la fiche ouverte (lien direct)
+          </button>
+        </p>
+      ) : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Locataires</h1>
+          <HelpHint
+            className="align-middle"
+            title="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
+          />
+        </div>
+        <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
+          <span className="text-base leading-none" aria-hidden>
+            +
+          </span>
+          Ajouter un locataire
+        </Button>
       </div>
 
-      <Card>
-        <h2 className="mb-4 font-semibold">Nouveau locataire</h2>
-        <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Label>Nom complet</Label>
-            <Input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-              placeholder="Ex. Amadou Koné"
-              autoComplete="name"
-            />
-          </div>
-          <div>
-            <Label>Téléphone (optionnel)</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+225 07 …" />
-          </div>
-          <div>
-            <Label>E-mail (optionnel)</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
-          </div>
-          {err && <p className="text-sm text-red-600 sm:col-span-2">{err}</p>}
-          <div className="sm:col-span-2">
-            <Button type="submit">Enregistrer</Button>
-          </div>
-        </form>
-      </Card>
+      <div ref={addTenantFormRef} id="nouveau-locataire" className="scroll-mt-24">
+        <Card className="!p-0 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAddTenantOpen((o) => !o)}
+            aria-expanded={addTenantOpen}
+            className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50/95 dark:hover:bg-slate-800/60 sm:px-5"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-600/12 text-lg font-bold leading-none text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                +
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Nouveau locataire</h2>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  {addTenantOpen ? 'Masquer le formulaire' : 'Afficher le formulaire d’enregistrement'}
+                </p>
+              </div>
+            </div>
+            <svg
+              className={`size-5 shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500 ${addTenantOpen ? 'rotate-180' : ''}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {addTenantOpen ? (
+            <div className="border-t border-slate-200/90 px-4 pb-5 pt-2 dark:border-slate-700 sm:px-5">
+              <div className="mb-4 flex flex-wrap items-center gap-2 pt-2">
+                <HelpHint
+                  className="align-middle"
+                  title="Le nom peut être saisi en une ligne (ex. prénom puis nom). Téléphone et e-mail servent aux relances depuis la page Paiements."
+                />
+                <span className="text-xs text-slate-500 dark:text-slate-400">Nom, coordonnées optionnelles.</span>
+              </div>
+              <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label>Nom complet</Label>
+                  <Input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    placeholder="Ex. Amadou Koné"
+                    autoComplete="name"
+                  />
+                </div>
+                <div>
+                  <Label>Téléphone (optionnel)</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+225 07 …" />
+                </div>
+                <div>
+                  <Label>E-mail (optionnel)</Label>
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+                </div>
+                {err && <p className="text-sm text-red-600 sm:col-span-2">{err}</p>}
+                <div className="sm:col-span-2 flex flex-wrap gap-2">
+                  <Button type="submit">Enregistrer</Button>
+                  <Button type="button" variant="ghost" className="py-2 text-sm" onClick={() => setAddTenantOpen(false)}>
+                    Fermer
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+        </Card>
+      </div>
 
       <Card>
         <h2 className="mb-3 font-semibold">Liste</h2>
@@ -207,11 +291,11 @@ export function TenantsPage() {
               <li
                 key={t.id}
                 id={`tenant-row-${t.id}`}
-                className="flex flex-col gap-4 border-b border-slate-100 py-5 last:border-b-0 sm:flex-row sm:items-start sm:justify-between"
+                className="flex flex-col gap-4 border-b border-slate-100 py-5 last:border-b-0 dark:border-slate-700/80 sm:flex-row sm:items-start sm:justify-between"
               >
                 {isEditing ? (
-                  <div className="min-w-0 flex-1 space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
-                    <p className="text-sm font-semibold text-slate-900">Modifier le locataire</p>
+                  <div className="min-w-0 flex-1 space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-600/40 dark:bg-brand-950/20">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <Label htmlFor={`ef-${t.id}`}>Prénom</Label>
@@ -268,15 +352,18 @@ export function TenantsPage() {
                       )}
                       <div className="min-w-0 flex-1 space-y-3">
                         <div>
-                          <p className="text-lg font-semibold leading-snug text-slate-900">
+                          <p className="text-lg font-semibold leading-snug text-slate-900 dark:text-slate-100">
                             {t.firstName} {t.lastName}
                           </p>
                           <dl className="mt-2 space-y-1.5 text-sm">
                             <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                              <dt className="shrink-0 font-medium text-slate-500">Téléphone</dt>
-                              <dd className="min-w-0 font-medium text-slate-900">
+                              <dt className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Téléphone</dt>
+                              <dd className="min-w-0 font-medium text-slate-900 dark:text-slate-100">
                                 {t.phone?.trim() ? (
-                                  <a href={`tel:${t.phone.replace(/\s/g, '')}`} className="text-brand-800 hover:underline">
+                                  <a
+                                    href={`tel:${t.phone.replace(/\s/g, '')}`}
+                                    className="text-brand-800 hover:underline dark:text-brand-400"
+                                  >
                                     {t.phone}
                                   </a>
                                 ) : (
@@ -285,10 +372,10 @@ export function TenantsPage() {
                               </dd>
                             </div>
                             <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                              <dt className="shrink-0 font-medium text-slate-500">E-mail</dt>
-                              <dd className="min-w-0 break-all font-medium text-slate-900">
+                              <dt className="shrink-0 font-medium text-slate-500 dark:text-slate-400">E-mail</dt>
+                              <dd className="min-w-0 break-all font-medium text-slate-900 dark:text-slate-100">
                                 {t.email?.trim() ? (
-                                  <a href={`mailto:${t.email}`} className="text-brand-800 hover:underline">
+                                  <a href={`mailto:${t.email}`} className="text-brand-800 hover:underline dark:text-brand-400">
                                     {t.email}
                                   </a>
                                 ) : (
@@ -299,24 +386,26 @@ export function TenantsPage() {
                           </dl>
                         </div>
                         {l && (
-                          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bail actif</p>
-                            <p className="mt-1 font-medium text-slate-900">{l.unit.building.name}</p>
-                            <p className="mt-0.5 text-slate-700">
-                              <span className="text-slate-500">Lieu :</span>{' '}
+                          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-800/50">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Bail actif
+                            </p>
+                            <p className="mt-1 font-medium text-slate-900 dark:text-slate-100">{l.unit.building.name}</p>
+                            <p className="mt-0.5 text-slate-700 dark:text-slate-300">
+                              <span className="text-slate-500 dark:text-slate-400">Lieu :</span>{' '}
                               {l.unit.building.commune}, {l.unit.building.city}
                             </p>
-                            <p className="text-slate-700">
-                              <span className="text-slate-500">Unité :</span>{' '}
+                            <p className="text-slate-700 dark:text-slate-300">
+                              <span className="text-slate-500 dark:text-slate-400">Unité :</span>{' '}
                               {unitKindLabel(l.unit.kind)} · {l.unit.label}
                             </p>
                           </div>
                         )}
-                        {!l && <p className="text-sm text-slate-500">Aucun bail actif lié pour l’instant.</p>}
+                        {!l && <p className="text-sm text-slate-500 dark:text-slate-400">Aucun bail actif lié pour l’instant.</p>}
                         {t.idDocFileKey && (
                           <button
                             type="button"
-                            className="text-left text-sm font-medium text-brand-700 hover:underline"
+                            className="text-left text-sm font-medium text-brand-700 hover:underline dark:text-brand-400"
                             onClick={() => openTenantIdDocumentPreview(t.id)}
                           >
                             Voir la pièce d’identité
@@ -337,7 +426,18 @@ export function TenantsPage() {
               </li>
             );
           })}
-          {rows.length === 0 && <li className="py-6 text-center text-sm text-slate-500">Aucun locataire.</li>}
+          {rows.length === 0 && (
+            <li className="py-8 text-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Aucun locataire.</p>
+              <button
+                type="button"
+                className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                onClick={() => openAddTenantForm()}
+              >
+                Ajouter un premier locataire
+              </button>
+            </li>
+          )}
         </ul>
       </Card>
     </div>

@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
+import { BulkReceiptDto } from './dto/bulk-receipt.dto';
 
 @Controller('payments')
 @UseGuards(JwtAuthGuard)
@@ -34,6 +36,24 @@ export class PaymentsController {
   @Post(':id/send-reminder')
   sendReminder(@Param('id') id: string) {
     return this.payments.sendOverdueReminder(id);
+  }
+
+  /** Reçu PDF pour une échéance déjà marquée payée (impression / archivage). */
+  @Get(':id/receipt')
+  async receipt(@Param('id') id: string, @Res() res: Response) {
+    const buf = await this.payments.buildReceiptPdf([id]);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="recu-loyer-${id.slice(0, 8)}.pdf"`);
+    res.send(buf);
+  }
+
+  /** Reçu PDF unique pour plusieurs loyers payés (même bail), ex. après prépaiement de plusieurs mois. */
+  @Post('receipts/bulk')
+  async bulkReceipt(@Body() dto: BulkReceiptDto, @Res() res: Response) {
+    const buf = await this.payments.buildReceiptPdf(dto.paymentIds);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="recu-loyers-${Date.now()}.pdf"`);
+    res.send(buf);
   }
 
   @Get(':id')

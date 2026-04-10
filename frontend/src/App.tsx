@@ -11,6 +11,7 @@ import { LeasesPage } from './pages/LeasesPage';
 import { LocationsPage } from './pages/LocationsPage';
 import { LocationDetailPage } from './pages/LocationDetailPage';
 import { PaymentsPage } from './pages/PaymentsPage';
+import { CautionsEncaisséesPage } from './pages/CautionsEncaisséesPage';
 import { ChargesPage } from './pages/ChargesPage';
 import { ExportsPage } from './pages/ExportsPage';
 
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="locataires" element={<TenantsPage />} />
         <Route path="baux" element={<LeasesPage />} />
         <Route path="paiements" element={<PaymentsPage />} />
+        <Route path="cautions" element={<CautionsEncaisséesPage />} />
         <Route path="charges" element={<ChargesPage />} />
         <Route path="exports" element={<ExportsPage />} />
       </Route>

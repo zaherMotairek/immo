@@ -1,5 +1,8 @@
 /** Libellés FR pour les types d’unité (alignés sur l’enum Prisma `UnitKind`). */
-export const UNIT_KIND_LABELS: Record<string, string> = {
+export const UNIT_KIND_LABELS: Record<
+  'APARTMENT' | 'HOUSE' | 'LAND' | 'OFFICE' | 'WAREHOUSE' | 'COMMERCIAL' | 'GARAGE' | 'OTHER',
+  string
+> = {
   APARTMENT: 'Appartement',
   HOUSE: 'Maison',
   LAND: 'Terrain',
@@ -11,11 +14,14 @@ export const UNIT_KIND_LABELS: Record<string, string> = {
 };
 
 export const UNIT_KIND_OPTIONS = Object.entries(UNIT_KIND_LABELS).map(([value, label]) => ({
-  value,
+  value: value as keyof typeof UNIT_KIND_LABELS,
   label,
 }));
 
+export type UnitKindCode = keyof typeof UNIT_KIND_LABELS;
+
 export function unitKindLabel(kind: string | undefined | null) {
   if (!kind) return '—';
-  return UNIT_KIND_LABELS[kind] ?? kind;
+  if (kind in UNIT_KIND_LABELS) return UNIT_KIND_LABELS[kind as UnitKindCode];
+  return kind;
 }

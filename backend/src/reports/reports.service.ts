@@ -185,7 +185,11 @@ export class ReportsService {
         p.status === PaymentStatus.LATE ||
         (p.status === PaymentStatus.PENDING && p.dueDate < today),
     );
-    const totalImpayesDu = overdue.reduce((s, p) => s + p.amountDue.toNumber(), 0);
+    const totalImpayesDu = overdue.reduce((s, p) => {
+      const due = p.amountDue.toNumber();
+      const paid = p.amountPaid?.toNumber() ?? 0;
+      return s + Math.max(0, due - paid);
+    }, 0);
 
     let totalUnits = 0;
     let occupiedUnits = 0;

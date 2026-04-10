@@ -245,6 +245,60 @@ export function downloadLeaseContractFile(leaseId: string, suggestedName: string
     .catch(() => alert('Impossible de télécharger le contrat.'));
 }
 
+/** Télécharge le reçu PDF d’une échéance (acompte ou solde, session JWT). */
+export function downloadPaymentReceipt(paymentId: string) {
+  const token = getToken();
+  if (!token) {
+    alert('Connectez-vous pour télécharger le reçu.');
+    return;
+  }
+  const url = `${baseUrl()}/payments/${encodeURIComponent(paymentId)}/receipt`;
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then((r) => {
+      if (!r.ok) throw new Error('Reçu indisponible');
+      return r.blob();
+    })
+    .then((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `recu-loyer-${paymentId.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(() =>
+      alert('Impossible de télécharger le reçu (vérifiez qu’au moins un versement est enregistré sur l’échéance).'),
+    );
+}
+
+/** Reçu PDF unique pour plusieurs échéances payées (même bail), ex. prépaiement de plusieurs mois. */
+export function downloadBulkPaymentReceipts(paymentIds: string[]) {
+  const token = getToken();
+  if (!token) {
+    alert('Connectez-vous pour télécharger le reçu.');
+    return;
+  }
+  if (!paymentIds.length) return;
+  fetch(`${baseUrl()}/payments/receipts/bulk`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paymentIds }),
+  })
+    .then((r) => {
+      if (!r.ok) throw new Error('Reçu indisponible');
+      return r.blob();
+    })
+    .then((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `recu-loyers-${Date.now()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(() =>
+      alert('Impossible de générer le reçu groupé (même bail, échéances déjà payées uniquement).'),
+    );
+}
+
 export function downloadReport(kind: 'pdf' | 'xlsx', year: number) {
   const token = getToken();
   const q = `?year=${year}`;
