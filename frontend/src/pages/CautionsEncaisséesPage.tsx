@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
-import { Card, HelpHint } from '@/components/ui';
+import { Card } from '@/components/ui';
 
 type DepositRow = {
   leaseId: string;
@@ -17,7 +19,6 @@ type DepositRow = {
   localizationLine: string;
 };
 
-/** Équivalent en mois de loyer (caution ÷ loyer) ; indicatif si le montant a été saisi à la main. */
 function cautionMoisLabel(monthlyRent: number, depositAmount: number): string {
   if (monthlyRent <= 0 || depositAmount <= 0) return '—';
   const m = depositAmount / monthlyRent;
@@ -45,15 +46,12 @@ export function CautionsEncaisséesPage() {
   return (
     <div className="space-y-6">
       <ReturnNavigation fallbackHref="/paiements" fallbackLabel="Paiements" />
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Cautions encaissées</h1>
-          <HelpHint
-            className="align-middle"
-            title="Liste de tous les baux pour lesquels la caution a été marquée comme encaissée (fiche location). La colonne « Mois » = montant caution ÷ loyer mensuel du bail (indicatif). Les échéances loyer : page Paiements."
-          />
-        </div>
-      </div>
+      <AppPageTitle
+        className="max-w-3xl"
+        iconTo="/cautions"
+        title="Cautions encaissées"
+        hintTitle="Baux avec dépôt marqué encaissé. Colonne « Mois » : équivalent en mois de loyer (caution ÷ loyer). Échéances : Paiements."
+      />
 
       {rows.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -125,12 +123,12 @@ export function CautionsEncaisséesPage() {
                       {fcfa(r.depositAmount)}
                     </td>
                     <td className="px-4 py-3">
-                      <Link
+                      <SmartLink
                         to={`/locations/${r.leaseId}`}
                         className="text-xs font-semibold text-brand-700 hover:underline dark:text-brand-400"
                       >
                         Fiche
-                      </Link>
+                      </SmartLink>
                     </td>
                   </tr>
                 ))

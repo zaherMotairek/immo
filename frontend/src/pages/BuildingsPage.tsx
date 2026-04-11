@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
 import { Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { BUILDING_STRUCTURE_OPTIONS, type BuildingStructureValue } from '@/lib/buildingStructure';
@@ -15,6 +17,7 @@ type BuildingRow = {
   structureKind?: BuildingStructureValue;
   floorCount?: number | null;
   apartmentCount?: number | null;
+  terrainLotCount?: number | null;
   _count: { units: number };
 };
 
@@ -37,15 +40,26 @@ function normalizeKindParam(raw: string | null): AllowedKind {
 
 function structureKindShort(k?: BuildingStructureValue | string | null) {
   if (k === 'IMMEUBLE') return 'Multi-lots';
+  if (k === 'TERRAIN_LOTS') return 'Terrain multi';
   return 'Un seul lot';
 }
 
-function BuildingCardIcon({ immeuble }: { immeuble: boolean }) {
-  if (immeuble) {
+function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructureValue | string | null }) {
+  if (structureKind === 'IMMEUBLE') {
     return (
       <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
         <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
           <path d="M3 21h18M6 21V10l6-3.5L18 10v11M10 21v-5h4v5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    );
+  }
+  if (structureKind === 'TERRAIN_LOTS') {
+    return (
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-lime-100 text-lime-900 dark:bg-lime-950/45 dark:text-lime-200">
+        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+          <path d="M4 20h16M6 20V10l4-6 4 4 4-4v16" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8 14h2M12 12h2M16 14h2" strokeLinecap="round" />
         </svg>
       </div>
     );
@@ -87,6 +101,7 @@ export function BuildingsPage() {
   const [structureKind, setStructureKind] = useState<BuildingStructureValue>('MONO_LOT');
   const [floorCountImmeuble, setFloorCountImmeuble] = useState('');
   const [apartmentCountImmeuble, setApartmentCountImmeuble] = useState('');
+  const [terrainLotCountNew, setTerrainLotCountNew] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
@@ -97,6 +112,26 @@ export function BuildingsPage() {
     window.requestAnimationFrame(() => {
       addFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
+
+  function resetNewBuildingForm() {
+    setName('');
+    setCityChoice(IVORY_COAST_CITIES[0]);
+    setCityOther('');
+    setCommuneChoice(COMMUNE_SUGGESTIONS[0]);
+    setCommuneOther('');
+    setAddress('');
+    setPostalCode('');
+    setStructureKind('MONO_LOT');
+    setFloorCountImmeuble('');
+    setApartmentCountImmeuble('');
+    setTerrainLotCountNew('');
+    setErr(null);
+  }
+
+  function cancelNewBuilding() {
+    resetNewBuildingForm();
+    setAddFormOpen(false);
   }
 
   const load = useCallback(() => {
@@ -177,6 +212,11 @@ export function BuildingsPage() {
                   apartmentCountImmeuble.trim() === '' ? undefined : Number(apartmentCountImmeuble),
               }
             : {}),
+          ...(structureKind === 'TERRAIN_LOTS'
+            ? {
+                terrainLotCount: terrainLotCountNew.trim() === '' ? undefined : Number(terrainLotCountNew),
+              }
+            : {}),
         },
       });
       setName('');
@@ -186,6 +226,7 @@ export function BuildingsPage() {
       setCommuneOther('');
       setFloorCountImmeuble('');
       setApartmentCountImmeuble('');
+      setTerrainLotCountNew('');
       setAddFormOpen(false);
       load();
     } catch (e2) {
@@ -202,14 +243,13 @@ export function BuildingsPage() {
   return (
     <div className="space-y-6">
       <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Biens immobiliers</h1>
-          <HelpHint
-            className="align-middle"
-            title="Immeuble collectif, villa, entrepôt, terrain… même principe : nom du site + localisation (Côte d’Ivoire). Supprimer un bien : bouton en bas de carte (supprime aussi unités, baux et loyers liés)."
-          />
-        </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <AppPageTitle
+          className="max-w-3xl"
+          iconTo="/biens"
+          title="Biens immobiliers"
+          hintTitle="Immeuble collectif, villa, entrepôt, terrain… même principe : nom du site + localisation (Côte d’Ivoire). Supprimer un bien : bouton en bas de carte (supprime aussi unités, baux et loyers liés)."
+        />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddForm()}>
           <span className="text-base leading-none" aria-hidden>
             +
@@ -285,12 +325,12 @@ export function BuildingsPage() {
             return (
               <li key={b.id}>
                 <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/95 to-slate-100/40 shadow-sm transition hover:border-brand-400/55 hover:shadow-md dark:border-slate-700 dark:from-slate-900/80 dark:to-slate-900/40 dark:hover:border-brand-500/45">
-                  <Link
+                  <SmartLink
                     to={`/biens/${b.id}`}
                     className="group flex flex-1 flex-col p-4 no-underline outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                   >
                     <div className="flex gap-3">
-                      <BuildingCardIcon immeuble={isImmeuble} />
+                      <BuildingCardIcon structureKind={b.structureKind} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="text-base font-semibold leading-snug text-slate-900 group-hover:text-brand-700 dark:text-slate-100 dark:group-hover:text-brand-400 sm:text-lg">
@@ -314,12 +354,17 @@ export function BuildingsPage() {
                               {b.apartmentCount != null ? `${b.apartmentCount} app.` : '— app.'}
                             </span>
                           ) : null}
+                          {b.structureKind === 'TERRAIN_LOTS' && b.terrainLotCount != null ? (
+                            <span className="rounded-md bg-lime-200/60 px-2 py-0.5 text-[10px] font-medium text-lime-950 dark:bg-lime-950/50 dark:text-lime-100">
+                              {b.terrainLotCount} lot{b.terrainLotCount !== 1 ? 's' : ''} décl.
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
-                  </Link>
+                  </SmartLink>
                   <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200/60 bg-slate-100/40 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50">
-                    <Link
+                    <SmartLink
                       to={`/biens/${b.id}`}
                       className="text-xs font-medium text-brand-600 transition hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300"
                     >
@@ -327,7 +372,7 @@ export function BuildingsPage() {
                       <span className="inline-block transition hover:translate-x-0.5" aria-hidden>
                         →
                       </span>
-                    </Link>
+                    </SmartLink>
                     <button
                       type="button"
                       className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/50"
@@ -412,76 +457,119 @@ export function BuildingsPage() {
               <div className="mb-4 flex flex-wrap items-center gap-2 pt-2">
                 <HelpHint
                   className="align-middle"
-                  title="Un immeuble est un seul bien avec plusieurs unités (plusieurs baux). Une villa, un entrepôt loué en entier ou un terrain = un seul lot : une unité, un bail."
+                  title="Immeuble ou terrain parcelé : un seul bien avec plusieurs unités et plusieurs baux. Villa, entrepôt entier ou parcelle unique sans découpe : un seul lot, une unité, un bail."
                 />
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Renseignez la localisation et le type de site ci-dessous.
+                  Choisissez d’abord le genre de bien, puis indiquez étages / nombre d’unités si besoin, puis nom et lieu.
                 </span>
               </div>
         <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <div className="mb-1 flex flex-wrap items-center gap-1.5">
-              <Label htmlFor="new-building-structure" className="mb-0">
-                Organisation du bien
-              </Label>
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              <Label className="mb-0">Genre de bien</Label>
               <HelpHint
                 className="align-middle"
                 title={BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKind)?.description ?? ''}
               />
             </div>
-            <Select
-              id="new-building-structure"
-              value={structureKind}
-              onChange={(e) => setStructureKind(e.target.value as BuildingStructureValue)}
+            <div
+              className="grid gap-2 sm:grid-cols-3"
+              role="radiogroup"
+              aria-label="Genre de bien"
             >
-              {BUILDING_STRUCTURE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value} title={o.description}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
+              {BUILDING_STRUCTURE_OPTIONS.map((o) => {
+                const on = structureKind === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setStructureKind(o.value)}
+                    className={`rounded-xl border-2 p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                      on
+                        ? 'border-brand-600 bg-brand-50 shadow-sm dark:border-brand-500 dark:bg-brand-950/40'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/80 dark:hover:border-slate-500 dark:hover:bg-slate-800/80'
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold text-slate-900 dark:text-slate-50">{o.cardTitle}</span>
+                    <span className="mt-1 block text-[11px] leading-snug text-slate-600 dark:text-slate-400">{o.cardHint}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {structureKind === 'IMMEUBLE' ? (
-            <>
-              <div>
+            <div className="sm:col-span-2">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Taille de l’immeuble (indicatif)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <Label htmlFor="new-building-floors" className="mb-0">
+                      Nombre d&apos;étages
+                    </Label>
+                    <HelpHint
+                      className="align-middle"
+                      title="Pour proposer les étages dans « Nouvelle unité » (RDC, 1, 2…). Indicatif."
+                    />
+                  </div>
+                  <Input
+                    id="new-building-floors"
+                    type="number"
+                    min={0}
+                    value={floorCountImmeuble}
+                    onChange={(e) => setFloorCountImmeuble(e.target.value)}
+                    placeholder="Ex. 4"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <Label htmlFor="new-building-apartments" className="mb-0">
+                      Nombre d&apos;unités (appartements, bureaux…)
+                    </Label>
+                    <HelpHint
+                      className="align-middle"
+                      title="Pour numéroter les locaux (n°1…n). Chaque unité sera ensuite créée avec son type : appartement, bureau, entrepôt, etc."
+                    />
+                  </div>
+                  <Input
+                    id="new-building-apartments"
+                    type="number"
+                    min={0}
+                    value={apartmentCountImmeuble}
+                    onChange={(e) => setApartmentCountImmeuble(e.target.value)}
+                    placeholder="Ex. 12"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : structureKind === 'TERRAIN_LOTS' ? (
+            <div className="sm:col-span-2">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Découpe du terrain
+              </p>
+              <div className="max-w-xs">
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <Label htmlFor="new-building-floors" className="mb-0">
-                    Nombre d&apos;étages (indicatif)
+                  <Label htmlFor="new-building-terrain-lots" className="mb-0">
+                    Nombre de lots / unités prévues
                   </Label>
                   <HelpHint
                     className="align-middle"
-                    title="Indicatif pour organiser le carnet d’appartements sur la fiche du bien."
+                    title="Combien de lots ou d’emplacements (parcelles, stands…). Pour chaque lot, vous choisirez ensuite le type (terrain bâti, commerce, etc.) sur la fiche du bien."
                   />
                 </div>
                 <Input
-                  id="new-building-floors"
+                  id="new-building-terrain-lots"
                   type="number"
                   min={0}
-                  value={floorCountImmeuble}
-                  onChange={(e) => setFloorCountImmeuble(e.target.value)}
-                  placeholder="Ex. 13"
+                  value={terrainLotCountNew}
+                  onChange={(e) => setTerrainLotCountNew(e.target.value)}
+                  placeholder="Ex. 4"
                 />
               </div>
-              <div>
-                <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <Label htmlFor="new-building-apartments" className="mb-0">
-                    Nombre d&apos;appartements (indicatif)
-                  </Label>
-                  <HelpHint
-                    className="align-middle"
-                    title="Après création du bien, ajoutez chaque appartement comme unité (libellé, étage). Pour un bail, vous choisirez le bien puis l’unité."
-                  />
-                </div>
-                <Input
-                  id="new-building-apartments"
-                  type="number"
-                  min={0}
-                  value={apartmentCountImmeuble}
-                  onChange={(e) => setApartmentCountImmeuble(e.target.value)}
-                  placeholder="Ex. 48"
-                />
-              </div>
-            </>
+            </div>
           ) : null}
           <div className="sm:col-span-2">
             <Label>Nom ou référence du bien</Label>
@@ -529,8 +617,8 @@ export function BuildingsPage() {
           {err && <p className="text-sm text-red-600 sm:col-span-2">{err}</p>}
           <div className="sm:col-span-2 flex flex-wrap gap-2">
             <Button type="submit">Enregistrer</Button>
-            <Button type="button" variant="ghost" className="py-2 text-sm" onClick={() => setAddFormOpen(false)}>
-              Fermer
+            <Button type="button" variant="secondary" className="py-2 text-sm" onClick={cancelNewBuilding}>
+              Annuler
             </Button>
           </div>
         </form>

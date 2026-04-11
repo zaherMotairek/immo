@@ -8,7 +8,7 @@ export const UNIT_KIND_LABELS: Record<
   LAND: 'Terrain',
   OFFICE: 'Bureau',
   WAREHOUSE: 'Entrepôt',
-  COMMERCIAL: 'Local commercial',
+  COMMERCIAL: 'Commerce / magasin',
   GARAGE: 'Garage / parking',
   OTHER: 'Autre',
 };

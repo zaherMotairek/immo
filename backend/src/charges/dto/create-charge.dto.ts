@@ -1,6 +1,6 @@
-import { ChargeCategory } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { CHARGE_CATEGORY_VALUES, type ChargeCategoryValue } from '../charge-categories';
 
 export class CreateChargeDto {
   @IsUUID()
@@ -10,8 +10,10 @@ export class CreateChargeDto {
   @IsUUID()
   unitId?: string;
 
-  @IsEnum(ChargeCategory)
-  category!: ChargeCategory;
+  @IsIn([...CHARGE_CATEGORY_VALUES], {
+    message: `Catégorie invalide. Valeurs acceptées : ${CHARGE_CATEGORY_VALUES.join(', ')}`,
+  })
+  category!: ChargeCategoryValue;
 
   @IsString()
   @MinLength(1)

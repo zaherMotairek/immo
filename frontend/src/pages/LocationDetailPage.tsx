@@ -1,12 +1,14 @@
-import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { LinkButton } from '@/components/LinkButton';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
-import { api, downloadBulkPaymentReceipts } from '@/lib/api';
+import { SidebarNavIcon } from '@/components/SidebarNavIcons';
+import { api } from '@/lib/api';
 import { fcfa, formatAmountDigitsGrouped, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { resolveReturnTarget } from '@/lib/navigation';
 
 type Fiche = {
   leaseId: string;
@@ -96,6 +98,11 @@ function DlField({ label, children, span2 }: { label: string; children: ReactNod
 export function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
+  const back = useMemo(
+    () => resolveReturnTarget(routerLocation.state, { fallbackHref: '/locations', fallbackLabel: 'Locations' }),
+    [routerLocation.state],
+  );
   const [data, setData] = useState<Fiche | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [savingLease, setSavingLease] = useState(false);
@@ -132,6 +139,35 @@ export function LocationDetailPage() {
     setEndDate(data.endDate ? data.endDate.slice(0, 10) : '');
     setLeaseErr(null);
   }, [data]);
+
+  const leaseFormDirty = useMemo(() => {
+    if (!data) return false;
+    const dep =
+      depositAmount.trim() === '' ? null : Math.round(Number(depositAmount));
+    const serverDep =
+      data.financial.depositAmount != null
+        ? Math.round(Number(data.financial.depositAmount))
+        : null;
+    return (
+      monthlyRent !== String(Math.round(Number(data.financial.monthlyRent))) ||
+      rentDueDay !== String(data.financial.rentDueDay) ||
+      dep !== serverDep ||
+      startDate !== data.startDate.slice(0, 10) ||
+      (endDate.trim() || '') !== (data.endDate ? data.endDate.slice(0, 10) : '')
+    );
+  }, [data, monthlyRent, rentDueDay, depositAmount, startDate, endDate]);
+
+  function resetLeaseEditForm() {
+    if (!data) return;
+    setMonthlyRent(String(Math.round(Number(data.financial.monthlyRent))));
+    setRentDueDay(String(data.financial.rentDueDay));
+    setDepositAmount(
+      data.financial.depositAmount != null ? String(Math.round(Number(data.financial.depositAmount))) : '',
+    );
+    setStartDate(data.startDate.slice(0, 10));
+    setEndDate(data.endDate ? data.endDate.slice(0, 10) : '');
+    setLeaseErr(null);
+  }
 
   async function saveLeaseConditions(e: FormEvent) {
     e.preventDefault();
@@ -221,9 +257,8 @@ export function LocationDetailPage() {
         paymentIds: string[];
       }>(`/leases/${data.leaseId}/prepay-months`, { method: 'POST', json: { months: n } });
       alert(
-        `${res.monthsPaid} mois enregistré(s) comme payés (${res.periods.join(', ')}) — total ${fcfa(res.totalFcfa)}. Un reçu PDF groupé va se télécharger.`,
+        `${res.monthsPaid} mois enregistré(s) comme payés (${res.periods.join(', ')}) — total ${fcfa(res.totalFcfa)}. Téléchargez le reçu PDF depuis Paiements (bouton Reçu PDF) si besoin.`,
       );
-      if (res.paymentIds?.length) downloadBulkPaymentReceipts(res.paymentIds);
       await reload();
     } catch (e2) {
       setPrepayErr(e2 instanceof Error ? e2.message : 'Impossible d’enregistrer le paiement.');
@@ -247,7 +282,7 @@ export function LocationDetailPage() {
       <Card className="border-red-200/90 dark:border-red-900/40">
         <p className="font-medium text-red-800 dark:text-red-200">Impossible d’afficher cette location.</p>
         <p className="mt-2 text-sm text-red-700/90 dark:text-red-300/90">{err}</p>
-        <PageDetailBackLink to="/locations">Retour aux locations</PageDetailBackLink>
+        <PageDetailBackLink to={back.href}>Retour vers {back.label}</PageDetailBackLink>
       </Card>
     );
   }
@@ -281,22 +316,31 @@ export function LocationDetailPage() {
   return (
     <div className="space-y-6">
       <PageDetailHero
-        backHref="/locations"
-        backLabel="Locations"
+        backHref={back.href}
+        backLabel={back.label}
         breadcrumbCurrent={locationHeadline}
         breadcrumbTitle={locationHeadline}
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">Fiche location</h1>
-          {!data.active ? (
-            <span className="rounded-full bg-slate-300/90 px-3 py-1 text-xs font-semibold text-slate-900 dark:bg-slate-600 dark:text-slate-100">
-              Bail inactif
-            </span>
-          ) : (
-            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">
-              Bail actif
-            </span>
-          )}
+        <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+          <div
+            className="flex size-[3.15rem] shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-gradient-to-br from-brand-50 via-white to-sky-50/90 text-brand-700 shadow-md shadow-slate-900/[0.06] ring-1 ring-slate-900/[0.03] dark:border-slate-600 dark:from-brand-950/50 dark:via-slate-900 dark:to-slate-800/90 dark:text-brand-300 dark:ring-white/[0.04] sm:size-[3.35rem]"
+            aria-hidden
+            title="Locations"
+          >
+            <SidebarNavIcon to="/locations" className="size-6 sm:size-[1.6rem]" />
+          </div>
+          <div className="min-w-0 flex flex-1 flex-wrap items-center gap-3 pt-0.5">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">Fiche location</h1>
+            {!data.active ? (
+              <span className="rounded-full bg-slate-300/90 px-3 py-1 text-xs font-semibold text-slate-900 dark:bg-slate-600 dark:text-slate-100">
+                Bail inactif
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">
+                Bail actif
+              </span>
+            )}
+          </div>
         </div>
         <p className="text-lg font-semibold leading-snug text-slate-900 dark:text-slate-100">{locationHeadline}</p>
         <p className="text-sm text-slate-600 dark:text-slate-400">{unitKindLabel(property.kind)}</p>
@@ -340,12 +384,9 @@ export function LocationDetailPage() {
             </LinkButton>
           </div>
           <p className="mt-2.5 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            <strong className="font-semibold text-slate-700 dark:text-slate-300">Paiements</strong> : liste filtrée sur ce bail
-            uniquement. <strong className="font-semibold text-slate-700 dark:text-slate-300">Fiche du bien</strong> : la page
-            Bien s’ouvre avec cette <strong className="font-semibold text-slate-700 dark:text-slate-300">unité</strong> mise en
-            avant dans la liste. <strong className="font-semibold text-slate-700 dark:text-slate-300">Baux</strong> : la liste
-            déplie le bon immeuble et surligne <strong className="font-semibold text-slate-700 dark:text-slate-300">ce bail</strong>{' '}
-            pour « Générer loyers » ou le contrat.
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">Paiements</strong> : échéances de ce bail.{' '}
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">Fiche du bien</strong> : unité mise en avant.{' '}
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">Baux</strong> : génération des loyers et contrat.
           </p>
         </div>
       </PageDetailHero>
@@ -455,108 +496,111 @@ export function LocationDetailPage() {
         <LeaseContractSection leaseId={data.leaseId} contract={data.contract} onChanged={reload} />
       </Card>
 
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <SectionHeader
+            title="Suivi du mois"
+            hintTitle="Statut et échéance pour la période affichée en tête de page. Détail des encaissements : Paiements (bouton ci-dessus)."
+          />
+          <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+            <DlField label="Statut loyer">
+              <span className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-semibold ${badge(financial.currentPaymentStatusFr)}`}>
+                {financial.currentPaymentStatusFr}
+              </span>
+            </DlField>
+            {financial.currentPaymentDueDate ? (
+              <DlField label="Échéance">{financial.currentPaymentDueDate.slice(0, 10)}</DlField>
+            ) : (
+              <DlField label="Échéance">
+                <span className="font-normal text-slate-500 dark:text-slate-400">—</span>
+              </DlField>
+            )}
+          </dl>
+        </Card>
+
+        <Card>
+          <SectionHeader title="Dépôt de garantie" hintTitle="Montant contractuel et date d’encaissement enregistrée dans l’application." />
+          {financial.depositAmount != null && financial.depositAmount > 0 ? (
+            <>
+              <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+                <DlField label="Montant" span2>
+                  <span className="block text-[15px] font-semibold">{fcfa(financial.depositAmount)}</span>
+                  {financial.depositPaidAt ? (
+                    <span className="mt-2 block text-sm font-normal text-emerald-700 dark:text-emerald-400">
+                      Encaissée le {financial.depositPaidAt}
+                    </span>
+                  ) : (
+                    <span className="mt-2 block text-sm font-normal text-amber-800 dark:text-amber-300">
+                      Encaissement non enregistré
+                    </span>
+                  )}
+                </DlField>
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="py-2.5 text-sm"
+                  disabled={depositActBusy || !!financial.depositPaidAt}
+                  onClick={() => void markDepositReceived(new Date().toISOString().slice(0, 10))}
+                >
+                  Marquer comme encaissée (aujourd’hui)
+                </Button>
+                {financial.depositPaidAt ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="py-2.5 text-sm"
+                    disabled={depositActBusy}
+                    onClick={() => void clearDepositReceived()}
+                  >
+                    Effacer la date d’encaissement
+                  </Button>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600 dark:text-slate-400">Aucun montant renseigné sur ce bail. Indiquez-le dans « Modifier le bail ».</p>
+          )}
+        </Card>
+      </div>
+
+      {data.active ? (
+        <Card className="border-brand-200/60 bg-gradient-to-br from-brand-50/90 to-slate-50/80 dark:border-brand-500/25 dark:from-brand-950/30 dark:to-slate-900/40">
+          <SectionHeader
+            title="Paiement groupé (plusieurs mois)"
+            hintTitle="Enregistre les prochaines échéances impayées dans l’ordre du calendrier. Les lignes doivent exister (page Baux)."
+          />
+          <div className="mt-1 flex flex-wrap items-end gap-3">
+            <div>
+              <Label htmlFor="prepay-n">Nombre de mois</Label>
+              <Select
+                id="prepay-n"
+                className="mt-1 min-w-[10rem]"
+                value={prepayMonths}
+                onChange={(e) => setPrepayMonths(e.target.value)}
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={String(m)}>
+                    {m} mois{m === 6 ? ' (semestre)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button type="button" className="py-2.5 text-sm" disabled={prepayBusy} onClick={() => void prepayRent()}>
+              {prepayBusy ? 'Enregistrement…' : 'Marquer ces mois comme payés'}
+            </Button>
+          </div>
+          {prepayErr ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{prepayErr}</p> : null}
+        </Card>
+      ) : null}
+
       <Card>
         <SectionHeader
-          title="Caution & suivi du mois"
-          hintTitle="Le loyer et l’échéance sont rappelés en haut de page. Ici : caution, statut, date d’échéance du mois suivi."
+          title="Modifier le bail"
+          hintTitle="Loyer, dates et dépôt. Les échéances impayées ou en retard suivent le nouveau loyer ; les mois déjà payés sont inchangés."
         />
-        <p className="-mt-1 mb-5 text-sm text-slate-600 dark:text-slate-400">
-          Les montants de loyer se modifient plus bas (« Modifier le bail »). Pour encaisser ou voir l’historique des loyers de{' '}
-          <strong className="font-semibold text-slate-800 dark:text-slate-200">ce bail uniquement</strong> : bouton{' '}
-          <strong className="font-semibold text-slate-800 dark:text-slate-200">Échéances & paiements (ce bail)</strong> en haut de
-          page — la page Paiements précise alors le locataire et le logement concernés.
-        </p>
-        <dl className="mb-6 grid gap-x-5 gap-y-4 sm:grid-cols-2">
-          {financial.depositAmount != null && financial.depositAmount > 0 ? (
-            <DlField label="Dépôt de garantie (caution)">
-              <span className="block">{fcfa(financial.depositAmount)}</span>
-              {financial.depositPaidAt ? (
-                <span className="mt-2 block text-sm font-normal text-emerald-700 dark:text-emerald-400">
-                  Encaissée le {financial.depositPaidAt}
-                </span>
-              ) : (
-                <span className="mt-2 block text-sm font-normal text-amber-800 dark:text-amber-300">
-                  Encaissement non enregistré dans l’app
-                </span>
-              )}
-            </DlField>
-          ) : (
-            <DlField label="Dépôt de garantie">
-              <span className="font-normal text-slate-600 dark:text-slate-400">Aucun montant indiqué sur ce bail</span>
-            </DlField>
-          )}
-          <DlField label="Statut loyer (mois affiché)">
-            <span className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-semibold ${badge(financial.currentPaymentStatusFr)}`}>
-              {financial.currentPaymentStatusFr}
-            </span>
-          </DlField>
-          {financial.currentPaymentDueDate ? (
-            <DlField label="Date d’échéance (ce mois)">{financial.currentPaymentDueDate.slice(0, 10)}</DlField>
-          ) : null}
-        </dl>
-
-        {financial.depositAmount != null && financial.depositAmount > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="py-2.5 text-sm"
-              disabled={depositActBusy || !!financial.depositPaidAt}
-              onClick={() => void markDepositReceived(new Date().toISOString().slice(0, 10))}
-            >
-              Marquer la caution encaissée (aujourd’hui)
-            </Button>
-            {financial.depositPaidAt ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="py-2.5 text-sm"
-                disabled={depositActBusy}
-                onClick={() => void clearDepositReceived()}
-              >
-                Effacer la date d’encaissement
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {data.active ? (
-          <div className="mt-2 rounded-xl border border-brand-200/60 bg-gradient-to-br from-brand-50/90 to-slate-50/80 p-4 dark:border-brand-500/25 dark:from-brand-950/30 dark:to-slate-900/40">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Payer plusieurs mois d’un coup</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-              Enregistre les prochaines échéances <strong className="font-semibold text-slate-900 dark:text-slate-100">encore impayées</strong> (ordre du calendrier), jusqu’à 12 mois. Les lignes de loyer doivent exister — générez les années depuis la page{' '}
-              <strong className="font-semibold">Baux</strong>.
-            </p>
-            <div className="mt-4 flex flex-wrap items-end gap-3">
-              <div>
-                <Label htmlFor="prepay-n">Nombre de mois</Label>
-                <Select
-                  id="prepay-n"
-                  className="mt-1 min-w-[10rem]"
-                  value={prepayMonths}
-                  onChange={(e) => setPrepayMonths(e.target.value)}
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={String(m)}>
-                      {m} mois{m === 6 ? ' (semestre)' : ''}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <Button type="button" className="py-2.5 text-sm" disabled={prepayBusy} onClick={() => void prepayRent()}>
-                {prepayBusy ? 'Enregistrement…' : 'Marquer ces mois comme payés'}
-              </Button>
-            </div>
-            {prepayErr ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{prepayErr}</p> : null}
-          </div>
-        ) : null}
-
-        <div className="mt-8 border-t border-slate-200/90 pt-6 dark:border-slate-700/80">
-          <SectionHeader
-            title="Modifier le bail"
-            hintTitle="Enregistre loyer, dates et dépôt. Les échéances « impayé » ou « en retard » suivent le nouveau loyer. Les mois déjà payés ne changent pas."
-          />
-          <form onSubmit={(e) => void saveLeaseConditions(e)} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={(e) => void saveLeaseConditions(e)} className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="lease-edit-rent">{INPUT_AMOUNT_FCFA_LABEL} — loyer mensuel</Label>
               <AmountFcfaInput
@@ -624,13 +668,21 @@ export function LocationDetailPage() {
               <Input id="lease-edit-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
             {leaseErr ? <p className="text-sm text-red-600 sm:col-span-2 dark:text-red-400">{leaseErr}</p> : null}
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 flex flex-wrap gap-2">
               <Button type="submit" className="py-2.5 text-sm" disabled={savingLease}>
                 {savingLease ? 'Enregistrement…' : 'Enregistrer les conditions du bail'}
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="py-2.5 text-sm"
+                disabled={savingLease || !leaseFormDirty}
+                onClick={resetLeaseEditForm}
+              >
+                Annuler
+              </Button>
             </div>
           </form>
-        </div>
       </Card>
 
       <Card className="border-red-200/90 bg-red-50/30 dark:border-red-900/45 dark:bg-red-950/20">

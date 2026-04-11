@@ -91,7 +91,6 @@ export class LeasesService {
     });
   }
 
-  /** Baux dont la caution a été marquée encaissée (liste synthèse). */
   async listDepositsCollected() {
     const leases = await this.prisma.lease.findMany({
       where: {

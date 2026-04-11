@@ -103,6 +103,7 @@ export class SearchService {
           id: true,
           periodYear: true,
           periodMonth: true,
+          dueDate: true,
           status: true,
           amountDue: true,
           lease: {

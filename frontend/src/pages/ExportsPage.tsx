@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { downloadReport } from '@/lib/api';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
 
@@ -9,13 +10,12 @@ export function ExportsPage() {
   return (
     <div className="space-y-6">
       <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Exports</h1>
-        <HelpHint
-          className="align-middle"
-          title="Téléchargez un rapport PDF ou un tableau Excel pour l’année choisie (loyers, charges, synthèse)."
-        />
-      </div>
+      <AppPageTitle
+        className="max-w-3xl"
+        iconTo="/exports"
+        title="Exports"
+        hintTitle="Téléchargez un rapport PDF ou un tableau Excel pour l’année choisie (loyers, charges, synthèse)."
+      />
 
       <Card className="max-w-md">
         <div className="mb-4">

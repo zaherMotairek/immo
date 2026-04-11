@@ -19,6 +19,8 @@ model User {
 enum BuildingStructureKind {
   /** Plusieurs unités / plusieurs baux (ex. immeuble d’appartements, bâtiment découpé en lots). */
   IMMEUBLE
+  /** Même terrain cadastral découpé en plusieurs lots / locataires / baux (parcelles, emplacements, etc.). */
+  TERRAIN_LOTS
   /** Un seul lot louable sur le bien (villa, entrepôt entier, bureau entier, parcelle unique, etc.). */
   MONO_LOT
 }
@@ -37,6 +39,8 @@ model Building {
   floorCount     Int?                   @map("floor_count")
   /** Nombre d’appartements prévus / déclarés (immeuble) — indicatif ; les baux restent liés aux unités créées. */
   apartmentCount Int?                   @map("apartment_count")
+  /** Nombre de lots prévus sur le terrain (terrain multi-lots) — indicatif. */
+  terrainLotCount Int?                 @map("terrain_lot_count")
   createdAt      DateTime               @default(now()) @map("created_at")
   updatedAt      DateTime               @updatedAt @map("updated_at")
   units          Unit[]
@@ -165,6 +169,10 @@ enum ChargeCategory {
   INSURANCE
   MAINTENANCE
   UTILITIES
+  /** Gardiennage, vigile, société de sécurité, contrôle d’accès… */
+  SECURITY
+  /** Salaires et charges sociales : concierge, agent d’entretien, personnel de l’immeuble… */
+  PAYROLL
   OTHER
 }
 

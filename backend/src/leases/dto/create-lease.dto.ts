@@ -26,7 +26,6 @@ export class CreateLeaseDto {
   @Min(0)
   depositAmount?: number;
 
-  /** Si 1, 2 ou 3 : caution = loyer mensuel × ce nombre (prioritaire sur depositAmount). 0 ou absent = pas de calcul auto. */
   @IsOptional()
   @Type(() => Number)
   @IsInt()

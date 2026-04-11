@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -34,6 +35,7 @@ type SearchResponse = {
     id: string;
     periodYear: number;
     periodMonth: number;
+    dueDate: string;
     status: string;
     amountDue: unknown;
     lease: {
@@ -51,6 +53,8 @@ type SearchItem = {
   sectionVariant: 'building' | 'tenant' | 'unit' | 'lease' | 'charge' | 'payment';
   primary: string;
   secondary: string;
+  /** Pastille statut loyer (résultats Paiements). */
+  paymentBadge?: { label: string; className: string };
 };
 
 const RECENT_KEY = 'immopilot-search-recent';
@@ -84,19 +88,36 @@ function pushRecentQuery(q: string) {
   writeRecent([t, ...prev].slice(0, RECENT_MAX));
 }
 
-function paymentStatusFr(status: string) {
-  switch (status) {
-    case 'PAID':
-      return 'Payé';
-    case 'LATE':
-      return 'En retard';
-    case 'PENDING':
-      return 'À venir';
-    case 'CANCELLED':
-      return 'Annulé';
-    default:
-      return status;
+/** Payé / À venir (échéance non dépassée) / En retard — aligné sur la page Paiements. */
+function paymentSearchBadge(p: { status: string; dueDate: string }): { label: string; className: string } {
+  if (p.status === 'PAID') {
+    return {
+      label: 'Payé',
+      className:
+        'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-400/40 dark:bg-emerald-950/55 dark:text-emerald-200 dark:ring-emerald-700/50',
+    };
   }
+  if (p.status === 'CANCELLED') {
+    return {
+      label: 'Annulé',
+      className: 'bg-slate-200 text-slate-700 ring-1 ring-slate-400/30 dark:bg-slate-700 dark:text-slate-200',
+    };
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const d = p.dueDate.slice(0, 10);
+  const overdue = p.status === 'LATE' || (p.status === 'PENDING' && d < today);
+  if (overdue) {
+    return {
+      label: 'En retard',
+      className:
+        'bg-amber-100 text-amber-950 ring-1 ring-amber-500/35 dark:bg-amber-950/50 dark:text-amber-100 dark:ring-amber-700/40',
+    };
+  }
+  return {
+    label: 'À venir',
+    className:
+      'bg-sky-100 text-sky-950 ring-1 ring-sky-400/40 dark:bg-sky-950/45 dark:text-sky-100 dark:ring-sky-700/45',
+  };
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -204,6 +225,7 @@ function SearchIcon() {
 
 export function GlobalSearchBar() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useRef(`search-results-${Math.random().toString(36).slice(2, 9)}`).current;
   const [open, setOpen] = useState(false);
@@ -291,7 +313,7 @@ export function GlobalSearchBar() {
     for (const c of data.charges) {
       out.push({
         key: `c-${c.id}`,
-        href: `/charges?year=${c.periodYear}&focus=${c.id}`,
+        href: `/charges?year=${c.periodYear}&month=${c.periodMonth != null ? c.periodMonth : 'all'}&focus=${c.id}`,
         section: 'Charges',
         sectionVariant: 'charge',
         primary: c.label,
@@ -300,13 +322,15 @@ export function GlobalSearchBar() {
     }
     for (const p of data.payments) {
       const { tenant, unit } = p.lease;
+      const badge = paymentSearchBadge(p);
       out.push({
         key: `p-${p.id}`,
         href: `/paiements?year=${p.periodYear}&month=${p.periodMonth}&focus=${p.id}`,
         section: 'Paiements',
         sectionVariant: 'payment',
         primary: `${tenant.firstName} ${tenant.lastName} · ${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`,
-        secondary: `${unit.building.name} — ${unit.label} · ${paymentStatusFr(p.status)} · ${fcfa(Number(p.amountDue))}`,
+        secondary: `${unit.building.name} — ${unit.label} · ${fcfa(Number(p.amountDue))}`,
+        paymentBadge: badge,
       });
     }
     return out;
@@ -368,9 +392,12 @@ export function GlobalSearchBar() {
       setQuery('');
       setData(null);
       setError(null);
-      navigate(to);
+      const from = routerLocation.pathname + routerLocation.search;
+      saveScrollForPath(from);
+      const state: AppNavigateState = { from };
+      navigate(to, { state });
     },
-    [navigate],
+    [navigate, routerLocation.pathname, routerLocation.search],
   );
 
   const applyRecent = useCallback((r: string) => {
@@ -571,8 +598,17 @@ export function GlobalSearchBar() {
                     >
                       <span className="mt-0.5 shrink-0">{st.icon}</span>
                       <span className="min-w-0 flex-1">
-                        <span className="block font-medium text-slate-900 dark:text-slate-100">
-                          <Highlight text={item.primary} needle={needle} />
+                        <span className="flex w-full items-center justify-between gap-3">
+                          <span className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100">
+                            <Highlight text={item.primary} needle={needle} />
+                          </span>
+                          {item.paymentBadge ? (
+                            <span
+                              className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${item.paymentBadge.className}`}
+                            >
+                              {item.paymentBadge.label}
+                            </span>
+                          ) : null}
                         </span>
                         <span
                           className="mt-0.5 block truncate text-xs text-slate-600 dark:text-slate-300"

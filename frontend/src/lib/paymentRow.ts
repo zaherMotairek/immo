@@ -1,5 +1,6 @@
 export type PaymentRow = {
   id: string;
+  leaseId?: string;
   periodYear: number;
   periodMonth: number;
   dueDate: string;

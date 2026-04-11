@@ -1,7 +1,10 @@
 import { Fragment } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
+import { NavigationProvider } from '@/context/NavigationContext';
+import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { GlobalSearchBar } from './GlobalSearchBar';
+import { MiniAssistantPanel } from './MiniAssistantPanel';
 import { SidebarNavIcon } from './SidebarNavIcons';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from './ui';
@@ -109,7 +112,8 @@ export function Layout() {
           ))}
         </nav>
       </aside>
-      <main className="flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 dark:text-slate-100">
+      <main className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 dark:text-slate-100">
+        <MiniAssistantPanel />
         <div className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/90 px-4 pb-3.5 pt-3.5 shadow-[0_4px_20px_rgb(15_23_42/0.04)] backdrop-blur-lg dark:border-slate-700/80 dark:bg-slate-900/92 dark:shadow-[0_4px_24px_rgb(0_0_0/0.2)] sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-6xl">
             <GlobalSearchBar />
@@ -117,7 +121,10 @@ export function Layout() {
         </div>
         <div className="flex-1 p-4 sm:p-6 lg:px-8 lg:pb-12 lg:pt-8">
           <div className="mx-auto max-w-6xl">
-            <Outlet />
+            <NavigationProvider>
+              <ScrollRestoration />
+              <Outlet />
+            </NavigationProvider>
           </div>
         </div>
       </main>

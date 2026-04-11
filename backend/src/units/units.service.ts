@@ -34,8 +34,25 @@ export class UnitsService {
       building._count.units >= 1
     ) {
       throw new BadRequestException(
-        'Ce bien est défini comme « un seul lot louable » (villa, entrepôt entier, parcelle unique, etc.). Il ne peut avoir qu’une seule unité. Cochez « Immeuble / bâtiment multi-lots » sur la fiche du bien pour en ajouter plusieurs.',
+        'Ce bien est défini comme « un seul lot louable » (villa, entrepôt entier, parcelle unique, etc.). Il ne peut avoir qu’une seule unité. Sur la fiche du bien, passez en « Immeuble / bâtiment multi-lots » ou « Terrain multi-lots » pour en ajouter plusieurs.',
       );
+    }
+
+    if (
+      building.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+      building.terrainLotCount != null &&
+      building.terrainLotCount > 0
+    ) {
+      if (building._count.units >= building.terrainLotCount) {
+        throw new BadRequestException(
+          `Ce terrain est limité à ${building.terrainLotCount} lot${building.terrainLotCount !== 1 ? 's' : ''} (nombre déclaré sur la fiche du bien). Supprimez une unité ou augmentez le nombre de lots dans « Organisation ».`,
+        );
+      }
+      if (dto.apartmentSlot == null) {
+        throw new BadRequestException(
+          'Indiquez le numéro d’unité / de lot (1 à N) pour chaque lot sur ce terrain multi-lots.',
+        );
+      }
     }
 
     if (dto.apartmentSlot != null) {
@@ -44,16 +61,29 @@ export class UnitsService {
         select: { id: true },
       });
       if (dup) {
+        const slotLabel =
+          building.structureKind === BuildingStructureKind.TERRAIN_LOTS ? 'de lot' : 'd’appartement';
         throw new BadRequestException(
-          `Le numéro d’appartement ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
+          `Le numéro ${slotLabel} ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
         );
       }
       if (
+        building.structureKind === BuildingStructureKind.IMMEUBLE &&
         building.apartmentCount != null &&
         (dto.apartmentSlot < 1 || dto.apartmentSlot > building.apartmentCount)
       ) {
         throw new BadRequestException(
           `Le numéro d’appartement doit être entre 1 et ${building.apartmentCount} (déclaré sur l’immeuble).`,
+        );
+      }
+      if (
+        building.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+        building.terrainLotCount != null &&
+        building.terrainLotCount > 0 &&
+        (dto.apartmentSlot < 1 || dto.apartmentSlot > building.terrainLotCount)
+      ) {
+        throw new BadRequestException(
+          `Le numéro de lot doit être entre 1 et ${building.terrainLotCount} (déclaré sur le terrain).`,
         );
       }
     }
@@ -98,14 +128,30 @@ export class UnitsService {
         select: { id: true },
       });
       if (dup) {
+        const slotLabel =
+          unit.building.structureKind === BuildingStructureKind.TERRAIN_LOTS ? 'de lot' : 'd’appartement';
         throw new BadRequestException(
-          `Le numéro d’appartement ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
+          `Le numéro ${slotLabel} ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
         );
       }
-      const ac = unit.building.apartmentCount;
-      if (ac != null && (dto.apartmentSlot < 1 || dto.apartmentSlot > ac)) {
+      const b = unit.building;
+      if (
+        b.structureKind === BuildingStructureKind.IMMEUBLE &&
+        b.apartmentCount != null &&
+        (dto.apartmentSlot < 1 || dto.apartmentSlot > b.apartmentCount)
+      ) {
         throw new BadRequestException(
-          `Le numéro d’appartement doit être entre 1 et ${ac} (déclaré sur l’immeuble).`,
+          `Le numéro d’appartement doit être entre 1 et ${b.apartmentCount} (déclaré sur l’immeuble).`,
+        );
+      }
+      if (
+        b.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+        b.terrainLotCount != null &&
+        b.terrainLotCount > 0 &&
+        (dto.apartmentSlot < 1 || dto.apartmentSlot > b.terrainLotCount)
+      ) {
+        throw new BadRequestException(
+          `Le numéro de lot doit être entre 1 et ${b.terrainLotCount} (déclaré sur le terrain).`,
         );
       }
     }

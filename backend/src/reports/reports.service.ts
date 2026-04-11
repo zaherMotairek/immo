@@ -43,6 +43,8 @@ function chargeCategoryFr(c: ChargeCategory | string): string {
     INSURANCE: 'Assurance',
     MAINTENANCE: 'Entretien / travaux',
     UTILITIES: 'Eau / énergie',
+    SECURITY: 'Sécurité / gardiennage',
+    PAYROLL: 'Salaires & personnel',
     OTHER: 'Autre',
   };
   return m[String(c)] ?? String(c);
@@ -97,6 +99,8 @@ export class ReportsService {
     doc.text(`Dont non réglées : ${this.fcfa(chargeSummary.unpaidCharges)}`);
     doc.text(`Impôts / taxes (catégorie TAX) : ${this.fcfa(chargeSummary.highlights.impotsEtTaxes)}`);
     doc.text(`Charges copro / honoraires (FEES) : ${this.fcfa(chargeSummary.highlights.chargesCoproEtHonoraires)}`);
+    doc.text(`Sécurité / gardiennage (SECURITY) : ${this.fcfa(chargeSummary.highlights.securite)}`);
+    doc.text(`Salaires & personnel (PAYROLL) : ${this.fcfa(chargeSummary.highlights.personnel)}`);
     doc.moveDown(1);
 
     doc.fontSize(12).text('Loyers encaissés (année)', { underline: true });
@@ -238,6 +242,8 @@ export class ReportsService {
           { label: 'Dont non réglées', value: chargeSummary.unpaidCharges, money: true },
           { label: 'Impôts / taxes', value: chargeSummary.highlights.impotsEtTaxes, money: true },
           { label: 'Copro / honoraires', value: chargeSummary.highlights.chargesCoproEtHonoraires, money: true },
+          { label: 'Sécurité / gardiennage', value: chargeSummary.highlights.securite, money: true },
+          { label: 'Salaires & personnel', value: chargeSummary.highlights.personnel, money: true },
         ],
       },
       {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, downloadPaymentReceipt } from '@/lib/api';
+import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
@@ -72,7 +72,6 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
     });
     await reloadRow();
     onUpdated?.();
-    downloadPaymentReceipt(p.id);
   }
 
   function openPartialModal(p: PaymentRow) {
@@ -106,9 +105,6 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       setPartialFor(null);
       await reloadRow();
       onUpdated?.();
-      if (n >= remaining - 0.01) {
-        downloadPaymentReceipt(id);
-      }
     } catch (e) {
       setPartialErr(e instanceof Error ? e.message : 'Enregistrement impossible.');
     } finally {

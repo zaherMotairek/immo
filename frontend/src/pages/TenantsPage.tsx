@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/lib/api';
 import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -56,13 +57,46 @@ export function TenantsPage() {
   const [editNotes, setEditNotes] = useState('');
   const [editErr, setEditErr] = useState<string | null>(null);
   const [addTenantOpen, setAddTenantOpen] = useState(false);
+  const [listSearch, setListSearch] = useState('');
   const addTenantFormRef = useRef<HTMLDivElement | null>(null);
+
+  const filteredRows = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((t) => {
+      const name = `${t.firstName} ${t.lastName}`.toLowerCase();
+      const email = (t.email ?? '').toLowerCase();
+      const phone = (t.phone ?? '').replace(/\s/g, '').toLowerCase();
+      const l = t.leases[0];
+      const occ = l
+        ? `${l.unit.building.name} ${l.unit.building.commune} ${l.unit.building.city} ${l.unit.label} ${unitKindLabel(l.unit.kind)}`.toLowerCase()
+        : '';
+      return (
+        name.includes(q) ||
+        email.includes(q) ||
+        (phone && q.replace(/\s/g, '').length > 0 && phone.includes(q.replace(/\s/g, ''))) ||
+        occ.includes(q)
+      );
+    });
+  }, [rows, listSearch]);
 
   function openAddTenantForm() {
     setAddTenantOpen(true);
     window.requestAnimationFrame(() => {
       addTenantFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
+
+  function resetNewTenantForm() {
+    setFullName('');
+    setEmail('');
+    setPhone('');
+    setErr(null);
+  }
+
+  function cancelNewTenant() {
+    resetNewTenantForm();
+    setAddTenantOpen(false);
   }
 
   function load() {
@@ -193,14 +227,13 @@ export function TenantsPage() {
           </button>
         </p>
       ) : null}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Locataires</h1>
-          <HelpHint
-            className="align-middle"
-            title="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
-          />
-        </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <AppPageTitle
+          className="max-w-3xl"
+          iconTo="/locataires"
+          title="Locataires"
+          hintTitle="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
+        />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
           <span className="text-base leading-none" aria-hidden>
             +
@@ -271,8 +304,8 @@ export function TenantsPage() {
                 {err && <p className="text-sm text-red-600 sm:col-span-2">{err}</p>}
                 <div className="sm:col-span-2 flex flex-wrap gap-2">
                   <Button type="submit">Enregistrer</Button>
-                  <Button type="button" variant="ghost" className="py-2 text-sm" onClick={() => setAddTenantOpen(false)}>
-                    Fermer
+                  <Button type="button" variant="secondary" className="py-2 text-sm" onClick={cancelNewTenant}>
+                    Annuler
                   </Button>
                 </div>
               </form>
@@ -281,164 +314,221 @@ export function TenantsPage() {
         </Card>
       </div>
 
-      <Card>
-        <h2 className="mb-3 font-semibold">Liste</h2>
-        <ul>
-          {rows.map((t) => {
-            const l = t.leases[0];
-            const isEditing = editingId === t.id;
-            return (
-              <li
-                key={t.id}
-                id={`tenant-row-${t.id}`}
-                className="flex flex-col gap-4 border-b border-slate-100 py-5 last:border-b-0 dark:border-slate-700/80 sm:flex-row sm:items-start sm:justify-between"
-              >
-                {isEditing ? (
-                  <div className="min-w-0 flex-1 space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-600/40 dark:bg-brand-950/20">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label htmlFor={`ef-${t.id}`}>Prénom</Label>
-                        <Input id={`ef-${t.id}`} value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
-                      </div>
-                      <div>
-                        <Label htmlFor={`el-${t.id}`}>Nom</Label>
-                        <Input id={`el-${t.id}`} value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
-                      </div>
-                      <div>
-                        <Label htmlFor={`ep-${t.id}`}>Téléphone</Label>
-                        <Input id={`ep-${t.id}`} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
-                      </div>
-                      <div>
-                        <Label htmlFor={`ee-${t.id}`}>E-mail</Label>
-                        <Input
-                          id={`ee-${t.id}`}
-                          value={editEmail}
-                          onChange={(e) => setEditEmail(e.target.value)}
-                          type="email"
-                          autoComplete="email"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label htmlFor={`en-${t.id}`}>Notes (optionnel)</Label>
-                        <Input
-                          id={`en-${t.id}`}
-                          value={editNotes}
-                          onChange={(e) => setEditNotes(e.target.value)}
-                          placeholder="Rappels internes…"
-                        />
-                      </div>
-                    </div>
-                    {editErr && <p className="text-sm text-red-600">{editErr}</p>}
-                    <TenantIdDocumentSection
-                      tenantId={t.id}
-                      idDocument={idDocumentMeta(t)}
-                      onChanged={load}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" className="py-2 text-xs" onClick={() => saveEdit(t.id)}>
-                        Enregistrer
-                      </Button>
-                      <Button type="button" variant="secondary" className="py-2 text-xs" onClick={cancelEdit}>
-                        Annuler
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex min-w-0 flex-1 gap-4">
-                      {t.idDocFileKey && (
-                        <TenantIdDocumentThumb tenantId={t.id} mimeType={t.idDocMime} />
-                      )}
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div>
-                          <p className="text-lg font-semibold leading-snug text-slate-900 dark:text-slate-100">
+      <Card className="overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
+        <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Liste des locataires</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              {filteredRows.length === rows.length
+                ? `${rows.length} fiche${rows.length !== 1 ? 's' : ''}`
+                : `${filteredRows.length} sur ${rows.length} affichée${filteredRows.length !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+          {rows.length > 0 ? (
+            <div className="relative w-full min-w-0 sm:max-w-xs">
+              <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-slate-400" aria-hidden>
+                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+                </svg>
+              </span>
+              <Input
+                type="search"
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                placeholder="Rechercher (nom, bien, ville…)"
+                className="w-full rounded-lg border-slate-200 py-2 pl-9 pr-8 text-sm dark:border-slate-600"
+                aria-label="Filtrer la liste des locataires"
+                autoComplete="off"
+              />
+              {listSearch.trim() ? (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 z-[1] -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                  onClick={() => setListSearch('')}
+                  aria-label="Effacer la recherche"
+                >
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Locataire</th>
+                <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Contact</th>
+                <th className="min-w-[12rem] px-4 py-2.5 sm:px-5">Bien & unité</th>
+                <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right sm:px-5"> </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filteredRows.map((t) => {
+                const l = t.leases[0];
+                const isEditing = editingId === t.id;
+                if (isEditing) {
+                  return (
+                    <tr key={t.id} id={`tenant-row-${t.id}`} className="bg-brand-50/60 dark:bg-brand-950/25">
+                      <td colSpan={4} className="px-4 py-4 sm:px-5">
+                        <div className="space-y-3 rounded-xl border border-brand-200/90 bg-white/90 p-4 shadow-sm dark:border-brand-700/40 dark:bg-slate-900/80">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label htmlFor={`ef-${t.id}`}>Prénom</Label>
+                              <Input id={`ef-${t.id}`} value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
+                            </div>
+                            <div>
+                              <Label htmlFor={`el-${t.id}`}>Nom</Label>
+                              <Input id={`el-${t.id}`} value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
+                            </div>
+                            <div>
+                              <Label htmlFor={`ep-${t.id}`}>Téléphone</Label>
+                              <Input id={`ep-${t.id}`} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                            </div>
+                            <div>
+                              <Label htmlFor={`ee-${t.id}`}>E-mail</Label>
+                              <Input
+                                id={`ee-${t.id}`}
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                type="email"
+                                autoComplete="email"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <Label htmlFor={`en-${t.id}`}>Notes (optionnel)</Label>
+                              <Input
+                                id={`en-${t.id}`}
+                                value={editNotes}
+                                onChange={(e) => setEditNotes(e.target.value)}
+                                placeholder="Rappels internes…"
+                              />
+                            </div>
+                          </div>
+                          {editErr && <p className="text-sm text-red-600">{editErr}</p>}
+                          <TenantIdDocumentSection tenantId={t.id} idDocument={idDocumentMeta(t)} onChanged={load} />
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" className="py-2 text-xs" onClick={() => saveEdit(t.id)}>
+                              Enregistrer
+                            </Button>
+                            <Button type="button" variant="secondary" className="py-2 text-xs" onClick={cancelEdit}>
+                              Annuler
+                            </Button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr
+                    key={t.id}
+                    id={`tenant-row-${t.id}`}
+                    className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
+                  >
+                    <td className="px-4 py-3 sm:px-5">
+                      <div className="flex items-start gap-3">
+                        {t.idDocFileKey ? <TenantIdDocumentThumb tenantId={t.id} mimeType={t.idDocMime} /> : null}
+                        <div className="min-w-0">
+                          <p className="font-semibold leading-snug text-slate-900 dark:text-slate-100">
                             {t.firstName} {t.lastName}
                           </p>
-                          <dl className="mt-2 space-y-1.5 text-sm">
-                            <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                              <dt className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Téléphone</dt>
-                              <dd className="min-w-0 font-medium text-slate-900 dark:text-slate-100">
-                                {t.phone?.trim() ? (
-                                  <a
-                                    href={`tel:${t.phone.replace(/\s/g, '')}`}
-                                    className="text-brand-800 hover:underline dark:text-brand-400"
-                                  >
-                                    {t.phone}
-                                  </a>
-                                ) : (
-                                  <span className="text-slate-400">Non renseigné</span>
-                                )}
-                              </dd>
-                            </div>
-                            <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                              <dt className="shrink-0 font-medium text-slate-500 dark:text-slate-400">E-mail</dt>
-                              <dd className="min-w-0 break-all font-medium text-slate-900 dark:text-slate-100">
-                                {t.email?.trim() ? (
-                                  <a href={`mailto:${t.email}`} className="text-brand-800 hover:underline dark:text-brand-400">
-                                    {t.email}
-                                  </a>
-                                ) : (
-                                  <span className="text-slate-400">Non renseigné</span>
-                                )}
-                              </dd>
-                            </div>
-                          </dl>
+                          {t.idDocFileKey ? (
+                            <button
+                              type="button"
+                              className="mt-1 text-left text-xs font-medium text-brand-700 hover:underline dark:text-brand-400"
+                              onClick={() => openTenantIdDocumentPreview(t.id)}
+                            >
+                              Pièce d’identité
+                            </button>
+                          ) : null}
                         </div>
-                        {l && (
-                          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-800/50">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Bail actif
-                            </p>
-                            <p className="mt-1 font-medium text-slate-900 dark:text-slate-100">{l.unit.building.name}</p>
-                            <p className="mt-0.5 text-slate-700 dark:text-slate-300">
-                              <span className="text-slate-500 dark:text-slate-400">Lieu :</span>{' '}
-                              {l.unit.building.commune}, {l.unit.building.city}
-                            </p>
-                            <p className="text-slate-700 dark:text-slate-300">
-                              <span className="text-slate-500 dark:text-slate-400">Unité :</span>{' '}
-                              {unitKindLabel(l.unit.kind)} · {l.unit.label}
-                            </p>
-                          </div>
-                        )}
-                        {!l && <p className="text-sm text-slate-500 dark:text-slate-400">Aucun bail actif lié pour l’instant.</p>}
-                        {t.idDocFileKey && (
-                          <button
-                            type="button"
-                            className="text-left text-sm font-medium text-brand-700 hover:underline dark:text-brand-400"
-                            onClick={() => openTenantIdDocumentPreview(t.id)}
-                          >
-                            Voir la pièce d’identité
-                          </button>
-                        )}
                       </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 self-start">
-                      <Button variant="secondary" className="py-2 text-xs" onClick={() => beginEdit(t)}>
-                        Modifier
-                      </Button>
-                      <Button variant="danger" className="py-2 text-xs" onClick={() => remove(t.id)}>
-                        Supprimer
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </li>
-            );
-          })}
-          {rows.length === 0 && (
-            <li className="py-8 text-center">
-              <p className="text-sm text-slate-500 dark:text-slate-400">Aucun locataire.</p>
-              <button
-                type="button"
-                className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
-                onClick={() => openAddTenantForm()}
-              >
-                Ajouter un premier locataire
-              </button>
-            </li>
-          )}
-        </ul>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                      <div className="max-w-[14rem] space-y-1">
+                        <p className="tabular-nums">
+                          {t.phone?.trim() ? (
+                            <a
+                              href={`tel:${t.phone.replace(/\s/g, '')}`}
+                              className="text-brand-800 hover:underline dark:text-brand-400"
+                            >
+                              {t.phone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </p>
+                        <p className="break-all text-xs leading-snug">
+                          {t.email?.trim() ? (
+                            <a href={`mailto:${t.email}`} className="text-brand-800 hover:underline dark:text-brand-400">
+                              {t.email}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                      {l ? (
+                        <div className="max-w-md space-y-0.5">
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{l.unit.building.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {l.unit.building.commune}, {l.unit.building.city}
+                          </p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            {unitKindLabel(l.unit.kind)} · {l.unit.label}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">Sans bail actif</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right sm:px-5">
+                      <div className="inline-flex flex-col items-end gap-1.5 sm:flex-row sm:items-center">
+                        <Button variant="secondary" className="py-1.5 text-xs" onClick={() => beginEdit(t)}>
+                          Modifier
+                        </Button>
+                        <Button variant="danger" className="py-1.5 text-xs" onClick={() => remove(t.id)}>
+                          Supprimer
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        ) : null}
+
+        {rows.length === 0 && (
+          <div className="border-t border-slate-200/80 px-4 py-12 text-center dark:border-slate-700">
+            <p className="text-sm text-slate-500 dark:text-slate-400">Aucun locataire.</p>
+            <button
+              type="button"
+              className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+              onClick={() => openAddTenantForm()}
+            >
+              Ajouter un premier locataire
+            </button>
+          </div>
+        )}
+        {rows.length > 0 && filteredRows.length === 0 && (
+          <div className="border-t border-slate-200/80 px-4 py-10 text-center dark:border-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Aucun résultat pour cette recherche.</p>
+            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => setListSearch('')}>
+              Effacer la recherche
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

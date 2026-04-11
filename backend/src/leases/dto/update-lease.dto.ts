@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsUUID, Max, Min, ValidateIf } from 'class-validator';
 
-/** Champs optionnels ; `null` pour `endDate` / `depositAmount` efface la valeur en base. */
 export class UpdateLeaseDto {
   @IsOptional()
   @IsUUID()
@@ -33,7 +32,6 @@ export class UpdateLeaseDto {
   @Min(0)
   depositAmount?: number | null;
 
-  /** Date d’encaissement de la caution, ou null pour réinitialiser. */
   @IsOptional()
   @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsDateString()

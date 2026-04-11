@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BuildingStructureKind, UnitKind } from '@prisma/client';
+import { BuildingStructureKind, Prisma, UnitKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
@@ -52,31 +52,46 @@ export class BuildingsService {
   }
 
   create(dto: CreateBuildingDto) {
-    return this.prisma.building.create({
-      data: {
-        name: dto.name,
-        city: dto.city,
-        commune: dto.commune,
-        address: dto.address ?? null,
-        postalCode: dto.postalCode ?? null,
-        country: dto.country ?? "Côte d'Ivoire",
-        notes: dto.notes,
-        structureKind: dto.structureKind ?? BuildingStructureKind.MONO_LOT,
-        floorCount: dto.floorCount ?? null,
-        apartmentCount: dto.apartmentCount ?? null,
-      },
-    });
+    const kind = dto.structureKind ?? BuildingStructureKind.MONO_LOT;
+    try {
+      return this.prisma.building.create({
+        data: {
+          name: dto.name,
+          city: dto.city,
+          commune: dto.commune,
+          address: dto.address ?? null,
+          postalCode: dto.postalCode ?? null,
+          country: dto.country ?? "Côte d'Ivoire",
+          notes: dto.notes,
+          structureKind: kind,
+          floorCount: kind === BuildingStructureKind.IMMEUBLE ? dto.floorCount ?? null : null,
+          apartmentCount: kind === BuildingStructureKind.IMMEUBLE ? dto.apartmentCount ?? null : null,
+          terrainLotCount: kind === BuildingStructureKind.TERRAIN_LOTS ? dto.terrainLotCount ?? null : null,
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientValidationError &&
+        /terrainLotCount|Unknown argument/i.test(e.message)
+      ) {
+        throw new BadRequestException(
+          'Le moteur Prisma est obsolète (schéma sans terrain_lot_count). Arrêtez l’API, puis dans le dossier backend exécutez : npx prisma generate — puis relancez npm run start:dev. Sous Windows, l’erreur EPERM disparaît une fois Node arrêté.',
+        );
+      }
+      throw e;
+    }
   }
 
   async update(id: string, dto: UpdateBuildingDto) {
     const existing = await this.prisma.building.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Bien introuvable');
     if (
-      existing.structureKind === BuildingStructureKind.IMMEUBLE &&
+      (existing.structureKind === BuildingStructureKind.IMMEUBLE ||
+        existing.structureKind === BuildingStructureKind.TERRAIN_LOTS) &&
       dto.structureKind === BuildingStructureKind.MONO_LOT
     ) {
       throw new BadRequestException(
-        'Ce bien est un immeuble : le type ne peut plus être repassé en « un seul lot ». Créez un autre bien pour une villa ou un local loué en entier.',
+        'Ce bien est en multi-lots (immeuble ou terrain parcelé) : le type ne peut plus être repassé en « un seul lot ». Créez un autre bien pour une villa ou un local loué en entier.',
       );
     }
     if (dto.structureKind === BuildingStructureKind.MONO_LOT) {

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Link, type LinkProps } from 'react-router-dom';
+import { Link, useLocation, type LinkProps } from 'react-router-dom';
+import { saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
 
 type Props = Omit<LinkProps, 'className'> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -7,7 +8,16 @@ type Props = Omit<LinkProps, 'className'> & {
   children: ReactNode;
 };
 
-export function LinkButton({ variant = 'secondary', className = '', children, ...props }: Props) {
+export function LinkButton({ variant = 'secondary', className = '', children, state, onClick, ...props }: Props) {
+  const loc = useLocation();
+  const mergedState: AppNavigateState = {
+    ...(state as object),
+    from: (state as AppNavigateState)?.from ?? loc.pathname + loc.search,
+  };
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    saveScrollForPath(loc.pathname + loc.search);
+    onClick?.(e);
+  };
   const base =
     'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
   const styles = {
@@ -18,7 +28,12 @@ export function LinkButton({ variant = 'secondary', className = '', children, ..
     danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600',
   };
   return (
-    <Link className={`${base} ${styles[variant]} ${className}`} {...props}>
+    <Link
+      className={`${base} ${styles[variant]} ${className}`}
+      {...props}
+      state={mergedState}
+      onClick={handleClick}
+    >
       {children}
     </Link>
   );

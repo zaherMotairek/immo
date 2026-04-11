@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { LinkButton } from '@/components/LinkButton';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { isMultiLotStructure } from '@/lib/buildingStructure';
 import { UNIT_KIND_OPTIONS, unitKindLabel, type UnitKindCode } from '@/lib/unitKind';
 
 type BuildingOpt = {
@@ -14,6 +17,7 @@ type BuildingOpt = {
   structureKind?: string;
   floorCount?: number | null;
   apartmentCount?: number | null;
+  terrainLotCount?: number | null;
   units: { id: string; label: string; kind: string; apartmentSlot?: number | null }[];
 };
 
@@ -41,16 +45,105 @@ type LeaseRow = {
 
 type StatusTab = 'active' | 'inactive' | 'all';
 
-/** Filtre d’affichage par type de local (nature d’unité). */
 type WellViewFilter = 'all' | UnitKindCode;
 
-function buildingGroupKey(l: LeaseRow) {
-  const { name, city, commune } = l.unit.building;
-  return `${name}\0${city}\0${commune ?? ''}`;
+type LeaseSortKey = 'building' | 'unit' | 'tenant' | 'rent' | 'start' | 'status';
+
+function compareLeaseRows(a: LeaseRow, b: LeaseRow, key: LeaseSortKey, dir: 'asc' | 'desc'): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case 'building':
+      c = a.unit.building.name.localeCompare(b.unit.building.name, 'fr', { sensitivity: 'base' });
+      if (c === 0) {
+        c = `${a.unit.building.commune ?? ''} ${a.unit.building.city}`.localeCompare(
+          `${b.unit.building.commune ?? ''} ${b.unit.building.city}`,
+          'fr',
+          { sensitivity: 'base' },
+        );
+      }
+      break;
+    case 'unit':
+      c = a.unit.label.localeCompare(b.unit.label, 'fr', { numeric: true });
+      if (c === 0) c = a.unit.kind.localeCompare(b.unit.kind);
+      break;
+    case 'tenant':
+      c = `${a.tenant.lastName} ${a.tenant.firstName}`.localeCompare(
+        `${b.tenant.lastName} ${b.tenant.firstName}`,
+        'fr',
+        { sensitivity: 'base' },
+      );
+      break;
+    case 'rent':
+      c = Number(a.monthlyRent) - Number(b.monthlyRent);
+      break;
+    case 'start':
+      c = a.startDate.localeCompare(b.startDate);
+      if (c === 0 && a.endDate && b.endDate) c = a.endDate.localeCompare(b.endDate);
+      break;
+    case 'status': {
+      const av = a.active ? 1 : 0;
+      const bv = b.active ? 1 : 0;
+      c = av - bv;
+      if (c === 0) c = a.startDate.localeCompare(b.startDate);
+      break;
+    }
+    default:
+      c = 0;
+  }
+  return c * sign;
+}
+
+function LeaseSortTh({
+  label,
+  columnKey,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  columnKey: LeaseSortKey;
+  activeKey: LeaseSortKey;
+  dir: 'asc' | 'desc';
+  onSort: (k: LeaseSortKey) => void;
+}) {
+  const active = activeKey === columnKey;
+  return (
+    <th scope="col" className="whitespace-nowrap px-4 py-2.5 sm:px-5">
+      <button
+        type="button"
+        onClick={() => onSort(columnKey)}
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-[11px] font-semibold uppercase tracking-[0.06em] transition hover:text-brand-700 dark:hover:text-brand-300 ${
+          active ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'
+        }`}
+        aria-label={`Trier par ${label}${active ? ` (${dir === 'asc' ? 'croissant' : 'décroissant'})` : ''}`}
+      >
+        <span>{label}</span>
+        <span className="select-none font-normal tabular-nums opacity-75" aria-hidden>
+          {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+/** Libellé dans la liste « Bien » : nom + type + nombre d’unités (aperçu avant choix du lot). */
+function formatBuildingChoiceLabel(b: BuildingOpt) {
+  const n = b.units?.length ?? 0;
+  const unitsFr = n === 0 ? 'aucune unité' : `${n} unité${n !== 1 ? 's' : ''}`;
+  const tag =
+    b.structureKind === 'IMMEUBLE'
+      ? 'Immeuble'
+      : b.structureKind === 'TERRAIN_LOTS'
+        ? 'Terrain parcelé'
+        : b.structureKind === 'MONO_LOT'
+          ? 'Mono-lot'
+          : null;
+  return tag ? `${b.name} — ${tag} · ${unitsFr}` : `${b.name} — ${unitsFr}`;
 }
 
 const filterPillBase =
-  'shrink-0 rounded-lg border px-3 py-2 text-left text-[13px] font-medium leading-snug whitespace-nowrap transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500';
+  'shrink-0 rounded-md border px-2 py-1 text-left text-[11px] font-medium leading-tight whitespace-nowrap transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500';
 const filterPillOn =
   'border-brand-600/90 bg-brand-50 text-brand-950 shadow-sm dark:border-brand-500/70 dark:bg-brand-950/35 dark:text-brand-100';
 const filterPillOff =
@@ -77,13 +170,41 @@ export function LeasesPage() {
   const [depositMonthsPreset, setDepositMonthsPreset] = useState<'0' | '1' | '2' | '3'>('0');
   const [err, setErr] = useState<string | null>(null);
   const [addLeaseOpen, setAddLeaseOpen] = useState(false);
+  const [leasesFiltersOpen, setLeasesFiltersOpen] = useState(false);
+  const [leaseSortKey, setLeaseSortKey] = useState<LeaseSortKey>('tenant');
+  const [leaseSortDir, setLeaseSortDir] = useState<'asc' | 'desc'>('asc');
   const addLeaseFormRef = useRef<HTMLDivElement | null>(null);
+
+  function toggleLeaseSort(key: LeaseSortKey) {
+    if (leaseSortKey === key) {
+      setLeaseSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setLeaseSortKey(key);
+      setLeaseSortDir('asc');
+    }
+  }
 
   function openAddLeaseForm() {
     setAddLeaseOpen(true);
     window.requestAnimationFrame(() => {
       addLeaseFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
+
+  function resetNewLeaseForm() {
+    setBuildingIdForLease('');
+    setUnitId('');
+    setTenantId('');
+    setStartDate('');
+    setMonthlyRent('');
+    setRentDueDay('1');
+    setDepositMonthsPreset('0');
+    setErr(null);
+  }
+
+  function cancelNewLease() {
+    resetNewLeaseForm();
+    setAddLeaseOpen(false);
   }
 
   const load = useCallback(() => {
@@ -126,13 +247,11 @@ export function LeasesPage() {
     return leasesByStatus.filter((l) => l.unit.kind === wellViewFilter);
   }, [leasesByStatus, wellViewFilter]);
 
-  /** Résumé lisible de la vue (évite de « perdre » le contexte des filtres). */
-  const filterSummary = useMemo(() => {
+  const filterSummaryShort = useMemo(() => {
     const statusFr =
-      statusTab === 'active' ? 'Baux actifs' : statusTab === 'inactive' ? 'Baux inactifs' : 'Tous les baux';
-    const wellFr =
-      wellViewFilter === 'all' ? ' · Tous les types de bien' : ` · ${unitKindLabel(wellViewFilter)} uniquement`;
-    return `${statusFr}${wellFr}. Année « Générer loyers » : ${genYear} (barre de filtres ci-dessus).`;
+      statusTab === 'active' ? 'Actifs' : statusTab === 'inactive' ? 'Inactifs' : 'Tous';
+    const wellFr = wellViewFilter === 'all' ? 'Tous types' : unitKindLabel(wellViewFilter);
+    return `${statusFr} · ${wellFr} · loyers ${genYear}`;
   }, [statusTab, wellViewFilter, genYear]);
 
   const leaseFocusSummary = useMemo(() => {
@@ -150,28 +269,10 @@ export function LeasesPage() {
     return { tenant: '', place: '' };
   }, [leaseIdFocus, leases, hintTenant, hintPlace]);
 
-  const groupedLeases = useMemo(() => {
-    const map = new Map<string, LeaseRow[]>();
-    for (const l of filteredLeases) {
-      const key = buildingGroupKey(l);
-      const arr = map.get(key);
-      if (arr) arr.push(l);
-      else map.set(key, [l]);
-    }
-    const entries = [...map.entries()].sort((a, b) =>
-      a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' }),
-    );
-    for (const [, rows] of entries) {
-      rows.sort((a, b) => {
-        const byUnit = a.unit.label.localeCompare(b.unit.label, 'fr', { numeric: true });
-        if (byUnit !== 0) return byUnit;
-        const na = `${a.tenant.lastName} ${a.tenant.firstName}`;
-        const nb = `${b.tenant.lastName} ${b.tenant.firstName}`;
-        return na.localeCompare(nb, 'fr', { sensitivity: 'base' });
-      });
-    }
-    return entries;
-  }, [filteredLeases]);
+  /** Baux visibles, triés selon la colonne choisie. */
+  const tableLeases = useMemo(() => {
+    return [...filteredLeases].sort((a, b) => compareLeaseRows(a, b, leaseSortKey, leaseSortDir));
+  }, [filteredLeases, leaseSortKey, leaseSortDir]);
 
   const appliedLeaseLinkRef = useRef<string | null>(null);
 
@@ -202,32 +303,24 @@ export function LeasesPage() {
   }, [leaseIdFocus, leases]);
 
   useLayoutEffect(() => {
-    if (!leaseIdFocus || groupedLeases.length === 0) return;
-    const idx = groupedLeases.findIndex(([, rows]) => rows.some((r) => r.id === leaseIdFocus));
-    if (idx < 0) return;
-    const detailsEl = document.querySelector(`details[data-lease-group-idx="${idx}"]`) as HTMLDetailsElement | null;
-    if (detailsEl) detailsEl.open = true;
+    if (!leaseIdFocus || tableLeases.length === 0) return;
+    if (!tableLeases.some((r) => r.id === leaseIdFocus)) return;
     const t = window.setTimeout(() => {
       const row = document.getElementById(`lease-row-${leaseIdFocus}`);
       if (!row) return;
       row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      row.classList.add('ring-2', 'ring-brand-500', 'ring-offset-2', 'rounded-xl', 'dark:ring-offset-slate-900');
+      row.classList.add('ring-2', 'ring-brand-500', 'ring-offset-2', 'dark:ring-offset-slate-900');
       window.setTimeout(
         () =>
-          row.classList.remove(
-            'ring-2',
-            'ring-brand-500',
-            'ring-offset-2',
-            'rounded-xl',
-            'dark:ring-offset-slate-900',
-          ),
+          row.classList.remove('ring-2', 'ring-brand-500', 'ring-offset-2', 'dark:ring-offset-slate-900'),
         2400,
       );
     }, 150);
     return () => clearTimeout(t);
-  }, [leaseIdFocus, groupedLeases]);
+  }, [leaseIdFocus, tableLeases]);
 
   const selectedBuilding = buildings.find((x) => x.id === buildingIdForLease);
+  const isMultiLotSelected = isMultiLotStructure(selectedBuilding?.structureKind);
 
   const unitsInSelectedBuilding = useMemo(() => {
     const b = selectedBuilding;
@@ -243,27 +336,85 @@ export function LeasesPage() {
     });
   }, [selectedBuilding]);
 
+  const nUnitsInBuilding = unitsInSelectedBuilding.length;
+
+  /** Immeuble / terrain : besoin d’unités sur la fiche bien. Mono-lot : choix si plusieurs unités (cas rare) ou une seule auto. */
+  const showLeaseUnitSelect =
+    !!selectedBuilding &&
+    nUnitsInBuilding > 0 &&
+    (isMultiLotSelected || nUnitsInBuilding > 1);
+
+  /** Multi-lots déclaré mais aucune unité encore créée sur la fiche Biens. */
+  const needsUnitsOnBuildingFirst =
+    !!selectedBuilding && isMultiLotSelected && nUnitsInBuilding === 0;
+
+  const monoLotBlocksLease =
+    !!selectedBuilding && !isMultiLotSelected && nUnitsInBuilding === 0;
+
+  const resolvedUnitIdForLease = useMemo(() => {
+    if (!selectedBuilding) return '';
+    if (showLeaseUnitSelect) return unitId;
+    if (unitsInSelectedBuilding.length === 1) return unitsInSelectedBuilding[0].id;
+    return '';
+  }, [selectedBuilding, showLeaseUnitSelect, unitsInSelectedBuilding, unitId]);
+
+  /** Multi-lots + une seule unité : pré-sélection pour éviter un select à une seule entrée sans défaut. */
+  useEffect(() => {
+    if (!showLeaseUnitSelect || nUnitsInBuilding !== 1) return;
+    const only = unitsInSelectedBuilding[0];
+    if (!only) return;
+    if (unitId === only.id) return;
+    setUnitId(only.id);
+  }, [showLeaseUnitSelect, nUnitsInBuilding, unitsInSelectedBuilding, unitId, buildingIdForLease]);
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
+    if (!buildingIdForLease) {
+      setErr('Choisissez le bien concerné.');
+      return;
+    }
+    if (needsUnitsOnBuildingFirst) {
+      setErr(
+        'Ce bien multi-lots n’a pas encore d’unité : créez chaque lot sur la fiche « Biens », puis revenez ici pour lier le bail.',
+      );
+      return;
+    }
+    if (!tenantId) {
+      setErr('Choisissez le locataire.');
+      return;
+    }
+    if (!startDate?.trim()) {
+      setErr('Indiquez la date de début du bail.');
+      return;
+    }
+    const rent = monthlyRent.replace(/\D/g, '');
+    if (!rent) {
+      setErr('Indiquez le loyer mensuel.');
+      return;
+    }
+    const uid = resolvedUnitIdForLease;
+    if (!uid) {
+      setErr(
+        monoLotBlocksLease
+          ? 'Ce bien n’a pas encore de lot : créez-le sur la fiche du bien avant d’ajouter un bail.'
+          : 'Choisissez l’unité louée.',
+      );
+      return;
+    }
     try {
       await api('/leases', {
         method: 'POST',
         json: {
-          unitId,
+          unitId: uid,
           tenantId,
           startDate,
-          monthlyRent: Number(monthlyRent),
+          monthlyRent: Number(rent),
           rentDueDay: Number(rentDueDay) || 1,
           ...(depositMonthsPreset !== '0' ? { depositMonths: Number(depositMonthsPreset) } : {}),
         },
       });
-      setBuildingIdForLease('');
-      setUnitId('');
-      setTenantId('');
-      setStartDate('');
-      setMonthlyRent('');
-      setDepositMonthsPreset('0');
+      resetNewLeaseForm();
       setAddLeaseOpen(false);
       load();
     } catch (e2) {
@@ -306,7 +457,15 @@ export function LeasesPage() {
         } · ${selectedBuilding.units.length} unité${selectedBuilding.units.length !== 1 ? 's' : ''} enregistrée${
           selectedBuilding.units.length !== 1 ? 's' : ''
         }.`
-      : '';
+      : selectedBuilding?.structureKind === 'TERRAIN_LOTS' && selectedBuilding
+        ? `Indicatif terrain : ${
+            selectedBuilding.terrainLotCount != null
+              ? `${selectedBuilding.terrainLotCount} lot${selectedBuilding.terrainLotCount !== 1 ? 's' : ''} déclaré${selectedBuilding.terrainLotCount !== 1 ? 's' : ''}`
+              : 'lots non renseignés'
+          } · ${selectedBuilding.units.length} unité${selectedBuilding.units.length !== 1 ? 's' : ''} enregistrée${
+            selectedBuilding.units.length !== 1 ? 's' : ''
+          }.`
+        : '';
 
   return (
     <div className="space-y-8 pb-10">
@@ -315,28 +474,17 @@ export function LeasesPage() {
       <header className="border-b border-slate-200/90 pb-6 dark:border-slate-700/80">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-[1.65rem]">
-                Baux & locations
-              </h1>
-              <HelpHint
-                className="shrink-0 align-middle"
-                title="Créez un bail en liant une unité à un locataire, puis générez les échéances pour une année donnée. Les filtres ci-dessous ne font que masquer des lignes à l’écran."
-              />
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              {leaseIdFocus ? (
-                <>
-                  <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue guidée :</strong> un bail précis est
-                  mis en avant ci-dessous (groupe ouvert, ligne surlignée). Les autres baux restent visibles dans la liste.
-                </>
-              ) : (
-                <>
-                  Parcourez vos baux par bien, filtrez par statut ou type de local, puis ouvrez une fiche pour agir (loyers,
-                  contrat, caution).
-                </>
-              )}
-            </p>
+            <AppPageTitle
+              iconTo="/baux"
+              title="Baux & locations"
+              hintTitle="Créez un bail en liant une unité à un locataire, puis générez les échéances pour une année donnée. Les filtres ci-dessous ne font que masquer des lignes à l’écran."
+            />
+            {leaseIdFocus ? (
+              <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue guidée :</strong> un bail précis est
+                mis en avant ci-dessous (groupe ouvert, ligne surlignée). Les autres baux restent visibles dans la liste.
+              </p>
+            ) : null}
             {leaseIdFocus ? (
               <div
                 className="mt-4 max-w-2xl rounded-xl border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3.5 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
@@ -364,12 +512,12 @@ export function LeasesPage() {
                   <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Chargement du contexte…</p>
                 )}
                 <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  <Link
+                  <SmartLink
                     to={`/locations/${leaseIdFocus}`}
                     className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                   >
                     ← Fiche location de ce bail
-                  </Link>
+                  </SmartLink>
                   <button
                     type="button"
                     className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
@@ -424,20 +572,11 @@ export function LeasesPage() {
 
           {addLeaseOpen ? (
             <div className="border-t border-slate-200/90 bg-slate-50/40 px-4 pb-5 pt-4 dark:border-slate-700 dark:bg-slate-900/25 sm:px-5">
-              <div className="mb-4 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 text-xs leading-snug text-slate-600 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-400">
-                <span className="font-semibold text-slate-800 dark:text-slate-200">Ordre recommandé : </span>
-                bien → unité louée → locataire → montant et dates. Les unités proviennent de la fiche « Biens » (à créer
-                au préalable si besoin).
-                <HelpHint
-                  className="ml-1 inline align-middle"
-                  title="Choisissez d’abord le bien (immeuble, villa…), puis l’unité exacte. Seules les unités déjà créées sur la fiche du bien sont proposées."
-                />
-              </div>
-        <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
+        <form noValidate onSubmit={create} className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <div className="mb-1 flex flex-wrap items-center gap-1.5">
               <Label htmlFor="lease-building" className="mb-0">
-                Bien / immeuble
+                Bien
               </Label>
               {immeubleIndicatifHint ? (
                 <HelpHint className="align-middle" title={immeubleIndicatifHint} />
@@ -457,31 +596,79 @@ export function LeasesPage() {
                 .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
                 .map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.name}
+                    {formatBuildingChoiceLabel(b)}
                   </option>
                 ))}
             </Select>
           </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="lease-unit">Appartement ou local (unité)</Label>
-            <Select
-              id="lease-unit"
-              value={unitId}
-              onChange={(e) => setUnitId(e.target.value)}
-              required
-              disabled={!buildingIdForLease}
-            >
-              <option value="">
-                {buildingIdForLease ? 'Choisir l&apos;unité…' : 'Choisissez d&apos;abord un bien'}
-              </option>
-              {unitsInSelectedBuilding.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {unitKindLabel(u.kind)} — {u.label}
-                  {u.apartmentSlot != null ? ` (n° ${u.apartmentSlot})` : ''}
+          {showLeaseUnitSelect ? (
+            <div className="sm:col-span-2">
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <Label htmlFor="lease-unit" className="mb-0">
+                  {isMultiLotSelected ? 'Lot / unité à louer' : 'Unité concernée'}
+                </Label>
+                {nUnitsInBuilding > 1 ? (
+                  <span className="rounded-md bg-brand-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-800 dark:bg-brand-500/20 dark:text-brand-200">
+                    {nUnitsInBuilding} lots sur ce bien
+                  </span>
+                ) : null}
+              </div>
+              <Select
+                id="lease-unit"
+                value={unitId}
+                onChange={(e) => setUnitId(e.target.value)}
+                required
+                disabled={!buildingIdForLease}
+              >
+                <option value="">
+                  {buildingIdForLease ? "Choisir l'unité ou le lot…" : "Choisissez d'abord un bien"}
                 </option>
-              ))}
-            </Select>
-          </div>
+                {unitsInSelectedBuilding.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {unitKindLabel(u.kind)} — {u.label}
+                    {u.apartmentSlot != null ? ` (n° ${u.apartmentSlot})` : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : needsUnitsOnBuildingFirst ? (
+            <div className="sm:col-span-2 rounded-xl border border-amber-300/90 bg-amber-50/95 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="font-semibold">Aucune unité enregistrée sur ce bien multi-lots.</p>
+              <p className="mt-1 leading-snug">
+                Créez d’abord les lots (unités) sur la fiche « Biens », puis revenez pour attacher le bail au bon lot.
+              </p>
+              {selectedBuilding ? (
+                <SmartLink
+                  className="mt-2 inline-flex font-semibold text-amber-900 underline-offset-2 hover:underline dark:text-amber-200"
+                  to={`/biens/${selectedBuilding.id}`}
+                >
+                  Ouvrir la fiche du bien « {selectedBuilding.name} »
+                </SmartLink>
+              ) : null}
+            </div>
+          ) : selectedBuilding && !isMultiLotSelected ? (
+            <div className="sm:col-span-2 rounded-lg border border-slate-200/90 bg-white/80 px-3 py-2.5 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-300">
+              {monoLotBlocksLease ? (
+                <>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">Aucun lot sur ce bien.</span>{' '}
+                  Créez l’unité (villa, parcelle, local unique…) sur la{' '}
+                  <SmartLink className="font-semibold text-brand-600 underline hover:text-brand-700 dark:text-brand-400" to={`/biens/${selectedBuilding.id}`}>
+                    fiche du bien
+                  </SmartLink>
+                  , puis enregistrez le bail.
+                </>
+              ) : unitsInSelectedBuilding.length === 1 ? (
+                <>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">Bail sur l’unique lot :</span>{' '}
+                  {unitKindLabel(unitsInSelectedBuilding[0].kind)} — {unitsInSelectedBuilding[0].label}
+                  {unitsInSelectedBuilding[0].apartmentSlot != null
+                    ? ` (n° ${unitsInSelectedBuilding[0].apartmentSlot})`
+                    : ''}
+                  .
+                </>
+              ) : null}
+            </div>
+          ) : null}
           <div className="sm:col-span-2">
             <Label>Locataire</Label>
             <Select value={tenantId} onChange={(e) => setTenantId(e.target.value)} required>
@@ -508,7 +695,7 @@ export function LeasesPage() {
               </Label>
               <HelpHint
                 className="align-middle"
-                title="Indique 1, 2 ou 3 mois de loyer comme caution : le montant est calculé automatiquement (loyer × mois). Laisser « Aucune » si pas de caution contractuelle."
+                title="Caution = loyer × le nombre de mois choisi. « Aucune » si pas de dépôt contractuel."
               />
             </div>
             <Select
@@ -528,9 +715,11 @@ export function LeasesPage() {
           </div>
           {err && <p className="text-sm text-red-600 sm:col-span-2">{err}</p>}
           <div className="sm:col-span-2 flex flex-wrap gap-2">
-            <Button type="submit">Créer le bail</Button>
-            <Button type="button" variant="ghost" className="py-2 text-sm" onClick={() => setAddLeaseOpen(false)}>
-              Fermer
+            <Button type="submit" disabled={monoLotBlocksLease || needsUnitsOnBuildingFirst}>
+              Créer le bail
+            </Button>
+            <Button type="button" variant="secondary" className="py-2 text-sm" onClick={cancelNewLease}>
+              Annuler
             </Button>
           </div>
         </form>
@@ -539,24 +728,53 @@ export function LeasesPage() {
         </Card>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <Card
           id="filtres-baux"
-          className="scroll-mt-24 overflow-hidden !p-0 shadow-[0_1px_3px_rgba(0,0,0,0.06)] ring-1 ring-slate-900/[0.06] dark:shadow-none dark:ring-slate-600/40"
+          className="scroll-mt-24 overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.06] dark:shadow-none dark:ring-slate-600/40"
         >
-          <div className="border-b border-slate-200/90 bg-gradient-to-b from-slate-50 to-white px-4 py-3 sm:px-5 dark:border-slate-700 dark:from-slate-900 dark:to-slate-900/95">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Filtres</p>
-            <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-50">
-              Affiner la liste avant d’ouvrir un bien
-            </p>
-          </div>
-          <div className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
-            <fieldset className="border-0 p-0">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 border-b border-slate-200/90 bg-slate-50/90 px-3 py-2 text-left transition hover:bg-slate-100/90 dark:border-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800/90 sm:px-4"
+            aria-expanded={leasesFiltersOpen}
+            aria-controls="leases-filters-panel"
+            onClick={() => setLeasesFiltersOpen((o) => !o)}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  Filtres
+                </span>
+                {!leasesFiltersOpen ? (
+                  <span className="truncate text-xs text-slate-600 dark:text-slate-300">{filterSummaryShort}</span>
+                ) : null}
+              </div>
+            </div>
+            <span className="shrink-0 text-[10px] font-medium text-brand-600 dark:text-brand-400">
+              {leasesFiltersOpen ? 'Réduire' : 'Afficher'}
+            </span>
+            <svg
+              className={`size-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${leasesFiltersOpen ? 'rotate-180' : ''}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <div
+            id="leases-filters-panel"
+            className="grid gap-3 px-3 pb-3 pt-2 sm:px-4 lg:grid-cols-12 lg:items-start lg:gap-x-4 lg:gap-y-2"
+            hidden={!leasesFiltersOpen}
+          >
+            <fieldset className="border-0 p-0 lg:col-span-3">
               <legend className="sr-only">Filtrer par statut du bail</legend>
-              <p className="mb-2 border-l-2 border-brand-600 py-0.5 pl-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:border-brand-500 dark:text-slate-400">
-                Statut du bail
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Statut
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {(
                   [
                     { id: 'active' as const, label: 'Actifs', count: leaseStats.active },
@@ -570,10 +788,12 @@ export function LeasesPage() {
                       key={t.id}
                       type="button"
                       onClick={() => setStatusTab(t.id)}
-                      className={`${filterPillBase} inline-flex items-center gap-2 ${on ? filterPillOn : filterPillOff}`}
+                      className={`${filterPillBase} inline-flex items-center gap-1.5 ${on ? filterPillOn : filterPillOff}`}
                     >
                       <span>{t.label}</span>
-                      <span className={`tabular-nums text-xs ${on ? 'text-brand-800/80 dark:text-brand-200/90' : 'text-slate-400 dark:text-slate-500'}`}>
+                      <span
+                        className={`tabular-nums text-[10px] ${on ? 'text-brand-800/80 dark:text-brand-200/90' : 'text-slate-400 dark:text-slate-500'}`}
+                      >
                         {t.count}
                       </span>
                     </button>
@@ -582,18 +802,18 @@ export function LeasesPage() {
               </div>
             </fieldset>
 
-            <fieldset className="border-0 p-0">
+            <fieldset className="min-w-0 border-0 p-0 lg:col-span-6">
               <legend className="sr-only">Filtrer par nature du local</legend>
-              <div className="mb-2 flex flex-wrap items-center gap-2 border-l-2 border-slate-300 py-0.5 pl-3 dark:border-slate-600">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:text-slate-400">
+              <div className="mb-1.5 flex flex-wrap items-center gap-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Nature du local
                 </p>
                 <HelpHint
-                  className="shrink-0 [&_button]:opacity-75"
+                  className="shrink-0 [&_button]:size-5 [&_button]:opacity-70"
                   title="Chaque bail est relié à une unité déclarée sur la fiche Bien. Filtrez par type (appartement, maison, bureau…)."
                 />
               </div>
-              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 pt-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+              <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
                 {[
                   { id: 'all' as const, label: 'Tous types', countKey: 'all' as const },
                   ...UNIT_KIND_OPTIONS.map((o) => ({
@@ -609,10 +829,12 @@ export function LeasesPage() {
                       key={t.id}
                       type="button"
                       onClick={() => setWellViewFilter(t.id)}
-                      className={`${filterPillBase} inline-flex items-center gap-2 ${on ? filterPillOn : filterPillOff}`}
+                      className={`${filterPillBase} inline-flex items-center gap-1.5 ${on ? filterPillOn : filterPillOff}`}
                     >
                       <span>{t.label}</span>
-                      <span className={`tabular-nums text-xs ${on ? 'text-brand-800/80 dark:text-brand-200/90' : 'text-slate-400 dark:text-slate-500'}`}>
+                      <span
+                        className={`tabular-nums text-[10px] ${on ? 'text-brand-800/80 dark:text-brand-200/90' : 'text-slate-400 dark:text-slate-500'}`}
+                      >
                         {count}
                       </span>
                     </button>
@@ -621,27 +843,31 @@ export function LeasesPage() {
               </div>
             </fieldset>
 
-            <div className="flex flex-col gap-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-              <div>
-                <p className="mb-2 border-l-2 border-slate-300 py-0.5 pl-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-600 dark:border-slate-600 dark:text-slate-400">
-                  Génération des loyers
-                </p>
-                <Label htmlFor="leases-gen-year" className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                  Année utilisée par le bouton « Générer loyers » sur chaque bail
-                </Label>
+            <div className="flex flex-col gap-2 border-t border-slate-100 pt-2 dark:border-slate-800 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between lg:col-span-3 lg:border-t-0 lg:pt-0">
+              <div className="min-w-0 sm:flex-1">
+                <div className="mb-1 flex flex-wrap items-center gap-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Loyers
+                  </p>
+                  <HelpHint
+                    className="shrink-0 [&_button]:size-5 [&_button]:opacity-70"
+                    title="Année utilisée par le bouton « Générer loyers » sur chaque fiche bail."
+                  />
+                </div>
                 <Input
                   id="leases-gen-year"
-                  className="mt-1.5 max-w-[8rem] border-slate-200 shadow-sm dark:border-slate-600"
+                  className="h-8 max-w-[5.5rem] border-slate-200 text-sm shadow-sm dark:border-slate-600"
                   value={genYear}
                   onChange={(e) => setGenYear(e.target.value)}
                   inputMode="numeric"
+                  aria-label="Année pour générer les loyers"
                 />
               </div>
               <a
                 href="#liste-des-baux"
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                Aller à la liste
+                Liste
                 <span aria-hidden className="text-slate-400">↓</span>
               </a>
             </div>
@@ -650,192 +876,143 @@ export function LeasesPage() {
 
         <section id="liste-des-baux" className="min-w-0 scroll-mt-24">
           <Card className="overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
-            <div className="border-b border-slate-200/90 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900/85 sm:px-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
+            <div className="border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:px-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Vos baux, regroupés par bien</h2>
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Liste des baux</h2>
                     <HelpHint
                       className="shrink-0 align-middle"
-                      title="Ouvrez un bien pour voir ses baux. Actions : fiche location, génération des loyers (année définie dans les filtres ci-dessus), pièce jointe du contrat."
+                      title="Une ligne par bail (locataire en premier). Fiche location, génération des loyers (année dans les filtres), contrat, activation."
                     />
                   </div>
-                  <p className="mt-2 rounded-lg border border-slate-200/80 bg-slate-50/90 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
-                    {filterSummary}
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {tableLeases.length} bail{tableLeases.length !== 1 ? 'x' : ''}
                   </p>
                 </div>
-                <div className="shrink-0 rounded-xl border border-slate-200/90 bg-slate-50 px-4 py-3 text-center dark:border-slate-600 dark:bg-slate-800/80">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Lignes visibles</p>
-                  <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-50">{filteredLeases.length}</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    bail{filteredLeases.length !== 1 ? 'x' : ''} dans cette vue
-                  </p>
+                <div className="shrink-0 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-center dark:border-slate-600 dark:bg-slate-800/80">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Lignes</p>
+                  <p className="text-xl font-bold tabular-nums text-slate-900 dark:text-slate-50">{tableLeases.length}</p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3 bg-slate-50/50 p-4 dark:bg-slate-950/20 sm:p-5">
-          {groupedLeases.map(([gKey, rows], groupIdx) => {
-            const head = rows[0]!;
-            const { name: bName, commune, city } = head.unit.building;
-            return (
-              <details
-                key={gKey}
-                data-lease-group-idx={groupIdx}
-                className="group rounded-xl border border-slate-200/90 bg-white shadow-sm open:ring-2 open:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900/40 dark:open:bg-slate-900/90"
-              >
-                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 text-sm marker:hidden [&::-webkit-details-marker]:hidden sm:px-4">
-                  <span
-                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-slate-50 text-slate-500 transition group-open:rotate-180 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                    aria-hidden
-                  >
-                    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-slate-900 dark:text-slate-100">{bName}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-                      {commune}, {city}
-                      {rows.length > 1 ? (
-                        <span className="ml-2 inline-block rounded-md bg-brand-100/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-900 dark:bg-brand-500/25 dark:text-brand-100">
-                          {rows.length} unités sur ce bien
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="mt-1 block text-[11px] text-slate-400 dark:text-slate-500">
-                      Cliquer pour afficher ou masquer les baux de ce bien
-                    </span>
-                  </span>
-                  <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1.5 text-center dark:bg-slate-800/90">
-                    <span className="block text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">{rows.length}</span>
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      {rows.length === 1 ? 'bail' : 'baux'}
-                    </span>
-                  </span>
-                </summary>
-                <ul
-                  className={`border-t border-slate-100/90 bg-slate-50/95 dark:border-slate-700 dark:bg-slate-950/40 ${
-                    rows.length > 1
-                      ? 'divide-none space-y-4 p-3 sm:p-4'
-                      : 'divide-y divide-slate-100 dark:divide-slate-700/80'
-                  }`}
-                >
-                  {rows.map((l, rowIdx) => {
-                    const multiLot = rows.length > 1;
-                    const stripeClass =
-                      rowIdx % 3 === 0
-                        ? 'border-l-brand-500'
-                        : rowIdx % 3 === 1
-                          ? 'border-l-violet-500'
-                          : 'border-l-teal-500';
-                    return (
-                    <li
+            {leases.length > 0 && filteredLeases.length > 0 && tableLeases.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
+                    <LeaseSortTh
+                      label="Locataire"
+                      columnKey="tenant"
+                      activeKey={leaseSortKey}
+                      dir={leaseSortDir}
+                      onSort={toggleLeaseSort}
+                    />
+                    <LeaseSortTh
+                      label="Bien"
+                      columnKey="building"
+                      activeKey={leaseSortKey}
+                      dir={leaseSortDir}
+                      onSort={toggleLeaseSort}
+                    />
+                    <LeaseSortTh
+                      label="Unité"
+                      columnKey="unit"
+                      activeKey={leaseSortKey}
+                      dir={leaseSortDir}
+                      onSort={toggleLeaseSort}
+                    />
+                    <LeaseSortTh
+                      label="Loyer"
+                      columnKey="rent"
+                      activeKey={leaseSortKey}
+                      dir={leaseSortDir}
+                      onSort={toggleLeaseSort}
+                    />
+                    <LeaseSortTh
+                      label="Début"
+                      columnKey="start"
+                      activeKey={leaseSortKey}
+                      dir={leaseSortDir}
+                      onSort={toggleLeaseSort}
+                    />
+                    <LeaseSortTh
+                      label="Statut"
+                      columnKey="status"
+                      activeKey={leaseSortKey}
+                      dir={leaseSortDir}
+                      onSort={toggleLeaseSort}
+                    />
+                    <th className="min-w-[10rem] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:px-5 dark:text-slate-400">
+                      Contrat
+                    </th>
+                    <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {tableLeases.map((l) => (
+                    <tr
                       key={l.id}
                       id={`lease-row-${l.id}`}
-                      className={
-                        multiLot
-                          ? `flex flex-col gap-3 overflow-hidden rounded-xl border border-slate-200/95 border-l-4 bg-white/95 shadow-md shadow-slate-900/[0.06] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-900/85 dark:shadow-black/25 dark:ring-slate-700/30 ${stripeClass} lg:flex-row lg:items-start lg:justify-between`
-                          : 'flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-start lg:justify-between'
-                      }
+                      className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
                     >
-                      <div className={`min-w-0 flex-1 space-y-3 ${multiLot ? 'px-4 pb-4 pt-0 sm:px-5 sm:pb-5' : ''}`}>
-                        {multiLot ? (
-                          <div className="-mx-4 mb-1 flex flex-wrap items-center gap-2 border-b border-slate-200/90 bg-gradient-to-r from-slate-100/95 via-brand-50/40 to-slate-50/90 px-4 py-2.5 sm:-mx-5 sm:px-5 dark:border-slate-600 dark:from-slate-800/90 dark:via-brand-950/35 dark:to-slate-900/90">
-                            <span
-                              className={`flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white shadow-sm ${rowIdx % 3 === 0 ? 'bg-brand-600 dark:bg-brand-500' : rowIdx % 3 === 1 ? 'bg-violet-600 dark:bg-violet-500' : 'bg-teal-600 dark:bg-teal-500'}`}
-                              title={`Unité ${rowIdx + 1} sur ${rows.length}`}
-                            >
-                              {rowIdx + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                Unité
-                              </p>
-                              <p className="text-base font-bold leading-tight text-slate-900 dark:text-slate-50">
-                                {unitKindLabel(l.unit.kind)} — {l.unit.label}
-                              </p>
-                            </div>
-                          </div>
-                        ) : null}
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Locataire</p>
-                          <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            {l.tenant.firstName} {l.tenant.lastName}
-                          </p>
-                        </div>
-                        <div
-                          className={`rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/50 ${multiLot ? 'border-slate-200/80 dark:border-slate-600/80' : ''}`}
-                        >
-                          {!multiLot ? (
-                          <p className="font-medium text-slate-900 dark:text-slate-100">
-                            {unitKindLabel(l.unit.kind)} — {l.unit.label}
-                          </p>
-                          ) : (
-                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                              Détail financier
-                            </p>
-                          )}
-                          <p className={`text-sm ${multiLot ? 'mt-1.5' : 'mt-2'}`}>
-                            <span className="font-medium text-slate-500">Loyer :</span>{' '}
-                            <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                              {fcfa(Number(l.monthlyRent))}
-                            </span>
-                            <span className="text-slate-600 dark:text-slate-400"> / mois · échéance le {l.rentDueDay}</span>
-                          </p>
-                          {l.depositAmount != null && Number(l.depositAmount) > 0 ? (
-                            <p className="mt-1.5 text-sm">
-                              <span className="font-medium text-slate-500">Caution :</span>{' '}
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                {fcfa(Number(l.depositAmount))}
-                              </span>
-                              {l.depositPaidAt ? (
-                                <span className="text-emerald-700 dark:text-emerald-400">
-                                  {' '}
-                                  · encaissée le {l.depositPaidAt.slice(0, 10)}
-                                </span>
-                              ) : (
-                                <span className="text-amber-800 dark:text-amber-300"> · non marquée encaissée</span>
-                              )}
-                            </p>
-                          ) : null}
-                        </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          Bail : du {l.startDate.slice(0, 10)}
-                          {l.endDate ? ` au ${l.endDate.slice(0, 10)}` : ' (sans fin indiquée)'} ·{' '}
-                          <span
-                            className={`font-semibold ${l.active ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}
-                          >
-                            {l.active ? 'Actif' : 'Inactif'}
-                          </span>
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100 sm:px-5">
+                        {l.tenant.firstName} {l.tenant.lastName}
+                      </td>
+                      <td className="px-4 py-3 text-slate-800 dark:text-slate-200 sm:px-5">
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{l.unit.building.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {l.unit.building.commune}, {l.unit.building.city}
                         </p>
-                        <details className="rounded-lg border border-slate-200 bg-slate-50/60 dark:border-slate-600 dark:bg-slate-800/40">
-                          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 marker:hidden select-none dark:text-slate-400 [&::-webkit-details-marker]:hidden">
-                            <span className="inline-flex flex-wrap items-center gap-2">
-                              Contrat de bail
-                              {l.contractFileKey ? (
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-normal text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200">
-                                  Fichier
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-normal text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
-                                  Aucun
-                                </span>
-                              )}
-                              <span
-                                className="inline-flex"
-                                onClick={(e) => e.stopPropagation()}
-                                onKeyDown={(e) => e.stopPropagation()}
-                                role="presentation"
-                              >
-                                <HelpHint
-                                  className="!size-5 [&_svg]:!size-3"
-                                  title="Cliquez sur la ligne pour déplier. Joignez un PDF ou une photo du contrat (15 Mo max) ; un nouveau fichier remplace l’ancien."
-                                />
-                              </span>
-                            </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{unitKindLabel(l.unit.kind)}</span>
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{l.unit.label}</p>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200 sm:px-5">
+                        <p className="font-semibold">{fcfa(Number(l.monthlyRent))}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">/ mois · le {l.rentDueDay}</p>
+                        {l.depositAmount != null && Number(l.depositAmount) > 0 ? (
+                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                            Caution {fcfa(Number(l.depositAmount))}
+                            {l.depositPaidAt ? (
+                              <span className="text-emerald-700 dark:text-emerald-400"> · enc.</span>
+                            ) : (
+                              <span className="text-amber-800 dark:text-amber-300"> · non enc.</span>
+                            )}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                        <p className="text-xs tabular-nums">{l.startDate.slice(0, 10)}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {l.endDate ? `fin ${l.endDate.slice(0, 10)}` : 'sans fin'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 sm:px-5">
+                        <span
+                          className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            l.active
+                              ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200'
+                              : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {l.active ? 'Actif' : 'Inactif'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 sm:px-5">
+                        <details className="max-w-[14rem] rounded-lg border border-slate-200 bg-slate-50/80 dark:border-slate-600 dark:bg-slate-800/50">
+                          <summary className="cursor-pointer list-none px-2.5 py-1.5 text-xs font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                            {l.contractFileKey ? (
+                              <span className="text-emerald-700 dark:text-emerald-400">Fichier joint</span>
+                            ) : (
+                              <span className="text-slate-500">Ajouter un PDF…</span>
+                            )}
                           </summary>
-                          <div className="border-t border-slate-100 px-3 py-3 dark:border-slate-600">
+                          <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-600">
                             <LeaseContractSection
                               leaseId={l.id}
                               compact
@@ -853,28 +1030,26 @@ export function LeasesPage() {
                             />
                           </div>
                         </details>
-                      </div>
-                      <div
-                        className={`flex flex-wrap gap-2 ${multiLot ? 'px-4 pb-4 sm:px-5 sm:pb-5 lg:items-start lg:pt-5 lg:pb-5' : ''}`}
-                      >
-                        <LinkButton to={`/locations/${l.id}`} variant="secondary" className="py-2 text-xs">
-                          Fiche location
-                        </LinkButton>
-                        <Button variant="secondary" className="py-2 text-xs" onClick={() => generatePayments(l.id)}>
-                          Générer loyers {genYear}
-                        </Button>
-                        <Button variant="ghost" className="py-2 text-xs" onClick={() => toggleActive(l)}>
-                          {l.active ? 'Désactiver' : 'Réactiver'}
-                        </Button>
-                      </div>
-                    </li>
-                    );
-                  })}
-                </ul>
-              </details>
-            );
-          })}
-        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right sm:px-5">
+                        <div className="inline-flex flex-col items-end gap-1.5">
+                          <LinkButton to={`/locations/${l.id}`} variant="secondary" className="py-1.5 text-xs">
+                            Fiche
+                          </LinkButton>
+                          <Button variant="secondary" className="py-1.5 text-xs" onClick={() => generatePayments(l.id)}>
+                            Loyers {genYear}
+                          </Button>
+                          <Button variant="ghost" className="py-1.5 text-xs" onClick={() => toggleActive(l)}>
+                            {l.active ? 'Désactiver' : 'Réactiver'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            ) : null}
 
             {leases.length === 0 && (
               <div className="border-t border-slate-200/80 bg-white px-4 py-12 text-center dark:border-slate-700 dark:bg-slate-900/40 sm:px-6">

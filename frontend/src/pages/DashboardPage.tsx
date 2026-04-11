@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
@@ -27,9 +28,7 @@ type Overview = {
     units: number;
     tenants: number;
     expectedMonthlyRent: number;
-    /** Loyers encaissés sur les échéances du mois (hors cautions). */
     collectedThisMonth: number;
-    /** Somme des cautions dont la date d’encaissement enregistrée tombe dans le mois. */
     depositsCollectedThisMonth: number;
     overdueCount: number;
     overdueAmount: number;
@@ -43,7 +42,6 @@ type Overview = {
     dueDate: string;
     amountDue: number;
     amountPaid?: number;
-    /** Solde restant (loyer dû − déjà encaissé). */
     amountRemaining?: number;
     status: string;
     period: string;
@@ -60,7 +58,6 @@ function alertRemaining(a: Overview['alerts'][number]) {
   return a.amountRemaining ?? a.amountDue;
 }
 
-/** Même règle que la page Paiements : retard explicite ou échéance dépassée encore PENDING. */
 function dashboardAlertOverdue(a: Overview['alerts'][number]) {
   if (a.status === 'LATE') return true;
   if (a.status !== 'PENDING') return false;
@@ -91,7 +88,7 @@ export function DashboardPage() {
       .then(setData)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'));
   }, []);
-            
+
   const [zoomAlertPaymentId, setZoomAlertPaymentId] = useState<string | null>(null);
 
   const [collapsedAlertMonths, setCollapsedAlertMonths] = useState(() => new Set<string>());
@@ -133,13 +130,12 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Tableau de bord</h1>
-        <HelpHint
-          className="align-middle"
-          title="Loyers encaissés ce mois = uniquement les échéances loyer (page Paiements). Les cautions sont suivies à part sur chaque fiche location et résumées ci-dessous."
-        />
-      </div>
+      <AppPageTitle
+        className="max-w-3xl"
+        iconTo="/"
+        title="Tableau de bord"
+        hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link

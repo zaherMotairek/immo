@@ -17,7 +17,6 @@ export class DashboardService {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
-    /** Bornes du mois calendaire en UTC (cohérent avec les dates d’échéance loyer). */
     const monthStartUtc = new Date(Date.UTC(y, m - 1, 1));
     const nextMonthStartUtc = new Date(Date.UTC(y, m, 1));
 
@@ -61,7 +60,6 @@ export class DashboardService {
       }),
     ]);
 
-    /** Montants encaissés sur les échéances loyer du mois uniquement (sans caution). */
     const collectedThisMonth = paymentsThisMonth.reduce((s, p) => {
       const enc = p.amountPaid?.toNumber() ?? (p.status === PaymentStatus.PAID ? p.amountDue.toNumber() : 0);
       return s + enc;

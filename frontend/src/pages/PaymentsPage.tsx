@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api, downloadPaymentReceipt } from '@/lib/api';
+import { SmartLink } from '@/components/SmartLink';
+import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
+import { AppPageTitle } from '@/components/AppPageTitle';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { ReturnNavigation } from '@/components/ReturnNavigation';
-import { AmountFcfaInput, Button, Card, HelpHint, Label, Select } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, Label, Select } from '@/components/ui';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { unitKindLabel } from '@/lib/unitKind';
 
@@ -59,7 +61,6 @@ export function PaymentsPage() {
       const n = Number(monthParam);
       if (Number.isInteger(n) && n >= 1 && n <= 12) return n;
     }
-    /* Sans paramètre : mois calendaire en cours. Les vues « impayés seuls » sans mois explicite restent sur tous les mois. */
     if (overdueOnly) return 'all';
     return new Date().getMonth() + 1;
   }, [monthParam, overdueOnly]);
@@ -70,9 +71,7 @@ export function PaymentsPage() {
   const [partialAmount, setPartialAmount] = useState('');
   const [partialErr, setPartialErr] = useState('');
   const [partialSubmitting, setPartialSubmitting] = useState(false);
-  /** Mois repliés : seuls titre + synthèse visibles. Par défaut : tous repliés. */
   const [collapsedMonthKeys, setCollapsedMonthKeys] = useState(() => new Set<string>());
-  /** Échéance affichée en modal « vue agrandie » (une ligne, pas tout le mois). */
   const [zoomPaymentId, setZoomPaymentId] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -141,7 +140,6 @@ export function PaymentsPage() {
         return a.dueDate.localeCompare(b.dueDate);
       });
     }
-    /** Ordre calendaire : janvier → décembre, puis années croissantes (ex. 2025-01 … 2026-12). */
     return [...map.entries()].sort(([ka], [kb]) => ka.localeCompare(kb));
   }, [rows]);
 
@@ -185,7 +183,6 @@ export function PaymentsPage() {
     return `${y} · ${m}`;
   }, [yearFilter, monthFilter]);
 
-  /** Libellé locataire + logement pour le filtre « un bail » (données chargées en priorité, sinon paramètres URL depuis la fiche location). */
   const leaseFocusSummary = useMemo(() => {
     if (!leaseIdFilter) return null;
     if (rows.length > 0) {
@@ -224,7 +221,6 @@ export function PaymentsPage() {
       },
     });
     load();
-    downloadPaymentReceipt(p.id);
   }
 
   function openPartialModal(p: PaymentRow) {
@@ -257,9 +253,6 @@ export function PaymentsPage() {
       });
       setPartialFor(null);
       load();
-      if (n >= remaining - 0.01) {
-        downloadPaymentReceipt(paymentId);
-      }
     } catch (e) {
       setPartialErr(e instanceof Error ? e.message : 'Enregistrement impossible.');
     } finally {
@@ -372,27 +365,19 @@ export function PaymentsPage() {
       <header className="border-b border-slate-200/90 pb-6 dark:border-slate-700/80">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 md:text-[1.65rem]">
-                Paiements
-              </h1>
-              <HelpHint
-                className="align-middle"
-                title="Uniquement les loyers (échéances mensuelles). La caution / dépôt de garantie n’apparaît pas ici : elle est sur la fiche location. Échéances dans l’ordre du calendrier. Relances : e-mail et WhatsApp avec numéro international (ex. +225)."
-              />
-            </div>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            <AppPageTitle
+              iconTo="/paiements"
+              title="Paiements"
+              hintTitle="Échéances de loyer uniquement (hors dépôt de garantie). Caution : fiche location. Relances e-mail et WhatsApp."
+            />
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               {leaseIdFilter ? (
                 <>
-                  <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue restreinte :</strong> uniquement les
-                  loyers (échéances) du bail indiqué ci-dessous — pas les autres locations. La caution reste sur la fiche
-                  location.
+                  <strong className="font-semibold text-slate-800 dark:text-slate-200">Ce bail uniquement</strong> — échéances
+                  filtrées. La caution se gère sur la fiche location.
                 </>
               ) : (
-                <>
-                  Suivi des loyers et encaissements sur les échéances mensuelles — hors caution (voir fiche location). Relances
-                  incluses.
-                </>
+                <>Échéances mensuelles, encaissements et relances.</>
               )}
             </p>
             {leaseIdFilter ? (
@@ -422,12 +407,12 @@ export function PaymentsPage() {
                   </p>
                 )}
                 <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  <Link
+                  <SmartLink
                     to={`/locations/${leaseIdFilter}`}
                     className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                   >
                     ← Fiche location de ce bail
-                  </Link>
+                  </SmartLink>
                   <button
                     type="button"
                     className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
@@ -443,38 +428,34 @@ export function PaymentsPage() {
       </header>
 
       <Card className="overflow-hidden !p-0 shadow-[0_1px_3px_rgb(0_0_0/0.06),0_8px_24px_rgb(0_0_0/0.06)] ring-1 ring-slate-900/[0.04] dark:shadow-[0_1px_3px_rgb(0_0_0/0.2)] dark:ring-slate-600/40">
-        <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-gradient-to-r from-slate-50/98 via-white to-slate-50/95 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900/98 dark:to-slate-900/95">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-              <IconCalendar className="size-[1.125rem]" />
+        <div className="flex flex-col gap-1 border-b border-slate-200/90 bg-gradient-to-r from-slate-50/98 via-white to-slate-50/95 px-2 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:px-3 sm:py-2 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900/98 dark:to-slate-900/95">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand-600/10 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+              <IconCalendar className="size-3.5" />
             </span>
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Critères d’affichage</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Période et filtre de statut appliqués à la liste</p>
-            </div>
+            <p className="truncate text-[12px] font-semibold leading-tight text-slate-900 dark:text-slate-100">
+              Critères d’affichage
+            </p>
           </div>
-          <p className="text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400 sm:text-right">
-            <span className="text-slate-400 dark:text-slate-500">Vue courante · </span>
+          <p className="min-w-0 truncate text-[10px] font-medium tabular-nums text-slate-500 dark:text-slate-400 sm:max-w-[55%] sm:text-right">
+            <span className="text-slate-400 dark:text-slate-500">Vue · </span>
             {periodSummaryLabel}
             {overdueOnly ? (
-              <span className="mt-0.5 block text-amber-700 dark:text-amber-400">Impayés / retard uniquement</span>
+              <span className="text-amber-700 dark:text-amber-400"> · impayés / retard</span>
             ) : null}
           </p>
         </div>
 
-        <div className="grid gap-8 p-4 sm:p-6 lg:grid-cols-12 lg:gap-6 lg:items-end">
+        <div className="grid gap-2 p-2 sm:p-2.5 lg:grid-cols-12 lg:items-end lg:gap-3">
           <div className="lg:col-span-7">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-              Période
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
               <div>
-                <Label htmlFor="payments-year" className="!mb-1.5 !text-[11px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
+                <Label htmlFor="payments-year" className="!mb-0.5 !text-[10px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
                   Année comptable
                 </Label>
                 <Select
                   id="payments-year"
-                  className="min-h-[2.875rem] border-slate-200 bg-white py-2.5 pl-3 pr-10 text-[15px] font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950/80"
+                  className="min-h-[2rem] border-slate-200 bg-white py-1.5 pl-2.5 pr-9 text-xs font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950/80"
                   value={yearFilter === 'all' ? 'all' : String(yearFilter)}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -495,12 +476,12 @@ export function PaymentsPage() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="payments-month" className="!mb-1.5 !text-[11px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
+                <Label htmlFor="payments-month" className="!mb-0.5 !text-[10px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
                   Mois de facturation
                 </Label>
                 <Select
                   id="payments-month"
-                  className="min-h-[2.875rem] border-slate-200 bg-white py-2.5 pl-3 pr-10 text-[15px] font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950/80"
+                  className="min-h-[2rem] border-slate-200 bg-white py-1.5 pl-2.5 pr-9 text-xs font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950/80"
                   value={monthFilter === 'all' ? 'all' : String(monthFilter)}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -522,15 +503,15 @@ export function PaymentsPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-6 dark:border-slate-800 lg:col-span-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-            <div className="mb-3 flex items-center gap-2">
-              <IconLayoutList className="size-4 text-slate-400 dark:text-slate-500" />
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                Statut des échéances
+          <div className="border-t border-slate-100 pt-2.5 dark:border-slate-800 lg:col-span-5 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+            <div className="mb-1 flex items-center gap-1">
+              <IconLayoutList className="size-3 text-slate-400 dark:text-slate-500" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+                Statut
               </p>
             </div>
             <div
-              className="flex w-full rounded-2xl border border-slate-200/95 bg-slate-100/90 p-1 shadow-[inset_0_1px_2px_rgb(0_0_0/0.05)] dark:border-slate-600 dark:bg-slate-800/95"
+              className="flex w-full rounded-lg border border-slate-200/95 bg-slate-100/90 p-px shadow-[inset_0_1px_2px_rgb(0_0_0/0.05)] dark:border-slate-600 dark:bg-slate-800/95"
               role="group"
               aria-label="Filtrer par statut de paiement"
             >
@@ -543,7 +524,7 @@ export function PaymentsPage() {
                     return q;
                   });
                 }}
-                className={`min-h-[2.75rem] flex-1 rounded-[0.875rem] px-4 py-2.5 text-center text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:flex-initial ${
+                className={`min-h-[2rem] flex-1 rounded-[0.45rem] px-2 py-1 text-center text-[10px] font-semibold leading-tight transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:flex-initial ${
                   !overdueOnly
                     ? 'bg-white text-brand-800 shadow-md ring-1 ring-slate-200/90 dark:bg-brand-600 dark:text-white dark:ring-brand-500/50'
                     : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
@@ -560,7 +541,7 @@ export function PaymentsPage() {
                     return q;
                   });
                 }}
-                className={`min-h-[2.75rem] flex-1 rounded-[0.875rem] px-3 py-2.5 text-center text-xs font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 sm:flex-initial sm:px-4 ${
+                className={`min-h-[2rem] flex-1 rounded-[0.45rem] px-2 py-1 text-center text-[10px] font-semibold leading-tight transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 sm:flex-initial ${
                   overdueOnly
                     ? 'bg-white text-amber-950 shadow-md ring-1 ring-amber-200/90 dark:bg-amber-600 dark:text-white dark:ring-amber-400/40'
                     : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
@@ -569,14 +550,12 @@ export function PaymentsPage() {
                 Impayés & retard
               </button>
             </div>
-            <p className="mt-2.5 text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-              Limite la liste aux échéances en retard ou impayées (hors soldées).
-            </p>
+            <span className="sr-only">En mode impayés, la liste exclut les échéances soldées.</span>
           </div>
         </div>
 
         {leaseIdFilter ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/90 bg-slate-50/60 px-4 py-3.5 sm:px-6 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/90 bg-slate-50/60 px-2 py-2 sm:px-3 dark:border-slate-700 dark:bg-slate-800/40">
             <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
               <span className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200/95 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-600">
                 <span aria-hidden className="size-2 shrink-0 rounded-full bg-brand-500" />
@@ -610,40 +589,40 @@ export function PaymentsPage() {
 
       {rows.length > 0 && (
         <div>
-          <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
             Synthèse (filtre actif)
           </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="relative !overflow-hidden !border-slate-200/90 !p-4 !pt-5 dark:!border-slate-600/80">
-              <span className="absolute left-0 right-0 top-0 h-0.5 bg-slate-400/80 dark:bg-slate-500" aria-hidden />
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Échéances</p>
-              <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="relative !overflow-hidden !border-slate-200/90 !p-5 !pt-6 shadow-sm dark:!border-slate-600/80">
+              <span className="absolute left-0 right-0 top-0 h-1 bg-slate-400/80 dark:bg-slate-500" aria-hidden />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Échéances</p>
+              <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
                 {stats.total}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Lignes affichées</p>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Lignes affichées</p>
             </Card>
-            <Card className="relative !overflow-hidden !border-slate-200/90 !p-4 !pt-5 dark:!border-slate-600/80">
-              <span className="absolute left-0 right-0 top-0 h-0.5 bg-amber-500" aria-hidden />
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reste à encaisser (loyers)</p>
-              <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-amber-950 dark:text-amber-100">
+            <Card className="relative !overflow-hidden !border-slate-200/90 !p-5 !pt-6 shadow-sm dark:!border-slate-600/80">
+              <span className="absolute left-0 right-0 top-0 h-1 bg-amber-500" aria-hidden />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reste à encaisser (loyers)</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums leading-tight tracking-tight text-amber-950 dark:text-amber-100 sm:text-3xl">
                 {fcfa(stats.aEncaisser)}
               </p>
               {stats.retards > 0 ? (
-                <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{stats.retards} en retard</p>
+                <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400">{stats.retards} en retard</p>
               ) : (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Aucun retard dans cette vue</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Aucun retard dans cette vue</p>
               )}
             </Card>
-            <Card className="relative !overflow-hidden !border-slate-200/90 !p-4 !pt-5 dark:!border-slate-600/80">
-              <span className="absolute left-0 right-0 top-0 h-0.5 bg-emerald-500" aria-hidden />
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Encaissé (loyers)</p>
-              <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-emerald-950 dark:text-emerald-100">
+            <Card className="relative !overflow-hidden !border-slate-200/90 !p-5 !pt-6 shadow-sm dark:!border-slate-600/80">
+              <span className="absolute left-0 right-0 top-0 h-1 bg-emerald-500" aria-hidden />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Encaissé (loyers)</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums leading-tight tracking-tight text-emerald-950 dark:text-emerald-100 sm:text-3xl">
                 {fcfa(stats.encaisse)}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                 {stats.payees} soldée{stats.payees !== 1 ? 's' : ''}
                 {stats.partialLines > 0 ? ` · ${stats.partialLines} acompte${stats.partialLines !== 1 ? 's' : ''}` : ''}
-                <span className="mt-0.5 block">
+                <span className="mt-1 block">
                   Hors caution —{' '}
                   <Link to="/cautions" className="font-semibold text-brand-700 hover:underline dark:text-brand-400">
                     cautions encaissées
@@ -652,13 +631,13 @@ export function PaymentsPage() {
                 </span>
               </p>
             </Card>
-            <Card className="relative !overflow-hidden !border-slate-200/90 !p-4 !pt-5 dark:!border-slate-600/80">
-              <span className="absolute left-0 right-0 top-0 h-0.5 bg-brand-500" aria-hidden />
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Regroupement</p>
-              <p className="mt-1.5 text-xl font-bold text-slate-900 dark:text-slate-50">
+            <Card className="relative !overflow-hidden !border-slate-200/90 !p-5 !pt-6 shadow-sm dark:!border-slate-600/80">
+              <span className="absolute left-0 right-0 top-0 h-1 bg-brand-500" aria-hidden />
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Regroupement</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
                 {monthGroups.length} mois
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Par mois de facturation</p>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Par mois de facturation</p>
             </Card>
           </div>
         </div>
@@ -695,7 +674,6 @@ export function PaymentsPage() {
 
           return (
             <Card key={key} className="!p-0 overflow-hidden">
-              {/** Pas de sticky ici : dans une Card overflow-hidden, sticky peut provoquer des chevauchements de lignes sur certains navigateurs. */}
               <button
                 type="button"
                 aria-expanded={!monthCollapsed}

@@ -1,16 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { ChargeCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { UpdateChargeDto } from './dto/update-charge.dto';
+
+/** `month` : 1–12 = filtre ce mois pour l’année donnée ; `'all'` = toute l’année (y compris charges sans mois). */
+export type ChargeListMonth = number | 'all';
 
 @Injectable()
 export class ChargesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(year?: number) {
-    const where = year ? { periodYear: year } : {};
+  list(year?: number, month: ChargeListMonth = 'all') {
+    const where: { periodYear?: number; periodMonth?: number } = {};
+    if (year != null) where.periodYear = year;
+    if (month !== 'all' && Number.isInteger(month) && month >= 1 && month <= 12) {
+      where.periodMonth = month;
+    }
+    const hasFilter = Object.keys(where).length > 0;
     return this.prisma.charge.findMany({
-      where,
+      where: hasFilter ? where : {},
       orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }, { createdAt: 'desc' }],
       include: {
         building: true,
@@ -19,9 +28,13 @@ export class ChargesService {
     });
   }
 
-  async summary(year: number) {
+  async summary(year: number, month: ChargeListMonth = 'all') {
+    const where: { periodYear: number; periodMonth?: number } = { periodYear: year };
+    if (month !== 'all' && Number.isInteger(month) && month >= 1 && month <= 12) {
+      where.periodMonth = month;
+    }
     const rows = await this.prisma.charge.findMany({
-      where: { periodYear: year },
+      where,
       select: { category: true, amount: true, paid: true },
     });
     const byCategory: Record<string, number> = {};
@@ -35,14 +48,20 @@ export class ChargesService {
     }
     const taxTotal = byCategory['TAX'] || 0;
     const feesTotal = byCategory['FEES'] || 0;
+    const securiteTotal = byCategory['SECURITY'] || 0;
+    const personnelTotal = byCategory['PAYROLL'] || 0;
     return {
       year,
+      month: month === 'all' ? null : month,
+      scope: month === 'all' ? ('year' as const) : ('month' as const),
       totalCharges: total,
       unpaidCharges: unpaid,
       byCategory,
       highlights: {
         impotsEtTaxes: taxTotal,
         chargesCoproEtHonoraires: feesTotal,
+        securite: securiteTotal,
+        personnel: personnelTotal,
       },
     };
   }
@@ -63,7 +82,7 @@ export class ChargesService {
       data: {
         buildingId: dto.buildingId,
         unitId: dto.unitId,
-        category: dto.category,
+        category: dto.category as ChargeCategory,
         label: dto.label,
         amount: dto.amount,
         periodYear: dto.periodYear,
@@ -81,7 +100,10 @@ export class ChargesService {
     if (dto.unitId && dto.buildingId) await this.ensureUnitInBuilding(dto.unitId, dto.buildingId);
     return this.prisma.charge.update({
       where: { id },
-      data: dto,
+      data: {
+        ...dto,
+        ...(dto.category != null ? { category: dto.category as ChargeCategory } : {}),
+      },
       include: { building: true, unit: true },
     });
   }
