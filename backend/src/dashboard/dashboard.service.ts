@@ -11,7 +11,7 @@ export class DashboardService {
     private readonly payments: PaymentsService,
   ) {}
 
-  async overview() {
+  async overview(organizationId: string) {
     await this.payments.syncLateStatuses();
 
     const now = new Date();
@@ -20,45 +20,53 @@ export class DashboardService {
     const monthStartUtc = new Date(Date.UTC(y, m - 1, 1));
     const nextMonthStartUtc = new Date(Date.UTC(y, m, 1));
 
+    const leaseInOrg = { unit: { building: { organizationId } } };
+
     const [buildings, units, tenants, paymentsThisMonth, overduePayments, expectedRent, depositLeasesThisMonth] =
       await Promise.all([
-      this.prisma.building.count(),
-      this.prisma.unit.count(),
-      this.prisma.tenant.count(),
-      this.prisma.payment.findMany({
-        where: { periodYear: y, periodMonth: m },
-        select: { amountPaid: true, amountDue: true, status: true },
-      }),
-      this.prisma.payment.findMany({
-        where: {
-          OR: [
-            { status: PaymentStatus.LATE },
-            { status: PaymentStatus.PENDING, dueDate: { lt: startOfTodayUtc() } },
-          ],
-        },
-        include: {
-          lease: {
-            include: {
-              tenant: true,
-              unit: { include: { building: true } },
+        this.prisma.building.count({ where: { organizationId } }),
+        this.prisma.unit.count({ where: { building: { organizationId } } }),
+        this.prisma.tenant.count({ where: { organizationId } }),
+        this.prisma.payment.findMany({
+          where: {
+            periodYear: y,
+            periodMonth: m,
+            lease: leaseInOrg,
+          },
+          select: { amountPaid: true, amountDue: true, status: true },
+        }),
+        this.prisma.payment.findMany({
+          where: {
+            lease: leaseInOrg,
+            OR: [
+              { status: PaymentStatus.LATE },
+              { status: PaymentStatus.PENDING, dueDate: { lt: startOfTodayUtc() } },
+            ],
+          },
+          include: {
+            lease: {
+              include: {
+                tenant: true,
+                unit: { include: { building: true } },
+              },
             },
           },
-        },
-        orderBy: { dueDate: 'asc' },
-        take: 50,
-      }),
-      this.prisma.lease.aggregate({
-        where: { active: true },
-        _sum: { monthlyRent: true },
-      }),
-      this.prisma.lease.findMany({
-        where: {
-          depositPaidAt: { gte: monthStartUtc, lt: nextMonthStartUtc },
-          depositAmount: { not: null, gt: 0 },
-        },
-        select: { depositAmount: true },
-      }),
-    ]);
+          orderBy: { dueDate: 'asc' },
+          take: 50,
+        }),
+        this.prisma.lease.aggregate({
+          where: { active: true, ...leaseInOrg },
+          _sum: { monthlyRent: true },
+        }),
+        this.prisma.lease.findMany({
+          where: {
+            ...leaseInOrg,
+            depositPaidAt: { gte: monthStartUtc, lt: nextMonthStartUtc },
+            depositAmount: { not: null, gt: 0 },
+          },
+          select: { depositAmount: true },
+        }),
+      ]);
 
     const collectedThisMonth = paymentsThisMonth.reduce((s, p) => {
       const enc = p.amountPaid?.toNumber() ?? (p.status === PaymentStatus.PAID ? p.amountDue.toNumber() : 0);
@@ -90,26 +98,26 @@ export class DashboardService {
         const paidN = p.amountPaid?.toNumber() ?? 0;
         const amountRemaining = Math.max(0, dueN - paidN);
         return {
-        paymentId: p.id,
-        tenantId: p.lease.tenantId,
-        dueDate: p.dueDate,
-        amountDue: dueN,
-        amountPaid: paidN,
-        amountRemaining,
-        status: p.status,
-        period: `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`,
-        tenant: p.lease.tenant
-          ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`
-          : '',
-        tenantFirstName: p.lease.tenant?.firstName ?? '',
-        tenantEmail: p.lease.tenant?.email ?? null,
-        tenantPhone: p.lease.tenant?.phone ?? null,
-        unit: p.lease.unit?.label,
-        unitKind: p.lease.unit?.kind,
-        building: p.lease.unit?.building?.name,
-        commune: p.lease.unit?.building?.commune,
-        city: p.lease.unit?.building?.city,
-      };
+          paymentId: p.id,
+          tenantId: p.lease.tenantId,
+          dueDate: p.dueDate,
+          amountDue: dueN,
+          amountPaid: paidN,
+          amountRemaining,
+          status: p.status,
+          period: `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`,
+          tenant: p.lease.tenant
+            ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`
+            : '',
+          tenantFirstName: p.lease.tenant?.firstName ?? '',
+          tenantEmail: p.lease.tenant?.email ?? null,
+          tenantPhone: p.lease.tenant?.phone ?? null,
+          unit: p.lease.unit?.label,
+          unitKind: p.lease.unit?.kind,
+          building: p.lease.unit?.building?.name,
+          commune: p.lease.unit?.building?.commune,
+          city: p.lease.unit?.building?.city,
+        };
       }),
     };
   }

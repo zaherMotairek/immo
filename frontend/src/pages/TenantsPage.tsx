@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/lib/api';
 import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
 
@@ -42,6 +42,7 @@ function splitFullName(input: string): { firstName: string; lastName: string } {
 }
 
 export function TenantsPage() {
+  useRegisterRootSectionFallback();
   const [params, setParams] = useSearchParams();
   const [rows, setRows] = useState<Tenant[]>([]);
   const [fullName, setFullName] = useState('');
@@ -215,7 +216,6 @@ export function TenantsPage() {
 
   return (
     <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
       {editParam ? (
         <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
           <button

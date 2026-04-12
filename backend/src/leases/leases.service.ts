@@ -16,6 +16,10 @@ import {
   LEASE_CONTRACT_MIME_TO_EXT,
 } from './lease-contract.constants';
 
+function leaseBelongsToOrg(organizationId: string) {
+  return { unit: { building: { organizationId } } };
+}
+
 function paymentStatusFr(s: PaymentStatus | undefined): string {
   if (!s) return '—';
   switch (s) {
@@ -37,8 +41,9 @@ export class LeasesService {
     private readonly payments: PaymentsService,
   ) {}
 
-  list() {
+  list(organizationId: string) {
     return this.prisma.lease.findMany({
+      where: leaseBelongsToOrg(organizationId),
       orderBy: { startDate: 'desc' },
       include: {
         tenant: true,
@@ -48,14 +53,17 @@ export class LeasesService {
   }
 
   /** Liste synthétique pour cartes « locations » (tableau de bord métier). */
-  async listOverview(activeOnly = true) {
+  async listOverview(organizationId: string, activeOnly = true) {
     await this.payments.syncLateStatuses();
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
 
     const leases = await this.prisma.lease.findMany({
-      where: activeOnly ? { active: true } : {},
+      where: {
+        ...leaseBelongsToOrg(organizationId),
+        ...(activeOnly ? { active: true } : {}),
+      },
       orderBy: { startDate: 'desc' },
       include: {
         tenant: true,
@@ -91,9 +99,10 @@ export class LeasesService {
     });
   }
 
-  async listDepositsCollected() {
+  async listDepositsCollected(organizationId: string) {
     const leases = await this.prisma.lease.findMany({
       where: {
+        ...leaseBelongsToOrg(organizationId),
         depositPaidAt: { not: null },
         depositAmount: { not: null, gt: 0 },
       },
@@ -121,10 +130,10 @@ export class LeasesService {
     });
   }
 
-  async getFiche(id: string) {
+  async getFiche(id: string, organizationId: string) {
     await this.payments.syncLateStatuses();
-    const l = await this.prisma.lease.findUnique({
-      where: { id },
+    const l = await this.prisma.lease.findFirst({
+      where: { id, ...leaseBelongsToOrg(organizationId) },
       include: {
         tenant: true,
         unit: { include: { building: true } },
@@ -199,9 +208,9 @@ export class LeasesService {
     };
   }
 
-  async get(id: string) {
-    const l = await this.prisma.lease.findUnique({
-      where: { id },
+  async get(id: string, organizationId: string) {
+    const l = await this.prisma.lease.findFirst({
+      where: { id, ...leaseBelongsToOrg(organizationId) },
       include: {
         tenant: true,
         unit: { include: { building: true } },
@@ -212,7 +221,16 @@ export class LeasesService {
     return l;
   }
 
-  async create(dto: CreateLeaseDto) {
+  async create(dto: CreateLeaseDto, organizationId: string) {
+    const unit = await this.prisma.unit.findFirst({
+      where: { id: dto.unitId, building: { organizationId } },
+    });
+    if (!unit) throw new BadRequestException('Unité introuvable ou hors de votre organisation.');
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: dto.tenantId, organizationId },
+    });
+    if (!tenant) throw new BadRequestException('Locataire introuvable ou hors de votre organisation.');
+
     const activeCount = await this.prisma.lease.count({
       where: { unitId: dto.unitId, active: true },
     });
@@ -243,8 +261,8 @@ export class LeasesService {
     });
   }
 
-  async update(id: string, dto: UpdateLeaseDto) {
-    await this.ensure(id);
+  async update(id: string, organizationId: string, dto: UpdateLeaseDto) {
+    await this.ensure(id, organizationId);
     const data: Record<string, unknown> = {};
     if (dto.unitId !== undefined) data.unitId = dto.unitId;
     if (dto.tenantId !== undefined) data.tenantId = dto.tenantId;
@@ -257,6 +275,18 @@ export class LeasesService {
     }
     if (dto.rentDueDay !== undefined) data.rentDueDay = dto.rentDueDay;
     if (dto.active !== undefined) data.active = dto.active;
+    if (dto.unitId !== undefined) {
+      const u = await this.prisma.unit.findFirst({
+        where: { id: dto.unitId, building: { organizationId } },
+      });
+      if (!u) throw new BadRequestException('Unité introuvable ou hors de votre organisation.');
+    }
+    if (dto.tenantId !== undefined) {
+      const t = await this.prisma.tenant.findFirst({
+        where: { id: dto.tenantId, organizationId },
+      });
+      if (!t) throw new BadRequestException('Locataire introuvable ou hors de votre organisation.');
+    }
     const updated = await this.prisma.lease.update({
       where: { id },
       data,
@@ -275,8 +305,10 @@ export class LeasesService {
     return updated;
   }
 
-  async remove(id: string) {
-    const lease = await this.prisma.lease.findUnique({ where: { id } });
+  async remove(id: string, organizationId: string) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id, ...leaseBelongsToOrg(organizationId) },
+    });
     if (!lease) throw new NotFoundException('Bail introuvable');
     await this.removeContractFileFromDisk(lease.contractFileKey);
     await this.prisma.lease.delete({ where: { id } });
@@ -298,7 +330,7 @@ export class LeasesService {
     }
   }
 
-  async saveContract(leaseId: string, file: Express.Multer.File) {
+  async saveContract(leaseId: string, organizationId: string, file: Express.Multer.File) {
     if (!LEASE_CONTRACT_ALLOWED_MIMES.has(file.mimetype)) {
       throw new BadRequestException(
         'Format non accepté. Utilisez un PDF ou une image (JPEG, PNG, WebP).',
@@ -310,7 +342,9 @@ export class LeasesService {
     const ext = LEASE_CONTRACT_MIME_TO_EXT[file.mimetype];
     if (!ext) throw new BadRequestException('Extension non reconnue pour ce type MIME.');
 
-    const lease = await this.prisma.lease.findUnique({ where: { id: leaseId } });
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
     if (!lease) throw new NotFoundException('Bail introuvable');
 
     const dir = this.contractUploadDir();
@@ -343,8 +377,10 @@ export class LeasesService {
     };
   }
 
-  async getContractStream(leaseId: string) {
-    const lease = await this.prisma.lease.findUnique({ where: { id: leaseId } });
+  async getContractStream(leaseId: string, organizationId: string) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
     if (!lease?.contractFileKey || !lease.contractFileMime) {
       throw new NotFoundException('Aucun contrat de bail n’a été enregistré pour ce bail.');
     }
@@ -358,8 +394,10 @@ export class LeasesService {
     });
   }
 
-  async removeContract(leaseId: string) {
-    const lease = await this.prisma.lease.findUnique({ where: { id: leaseId } });
+  async removeContract(leaseId: string, organizationId: string) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
     if (!lease) throw new NotFoundException('Bail introuvable');
     if (!lease.contractFileKey) {
       return { ok: true, removed: false };
@@ -378,8 +416,10 @@ export class LeasesService {
     return { ok: true, removed: true };
   }
 
-  async generatePayments(leaseId: string, year: number) {
-    const lease = await this.prisma.lease.findUnique({ where: { id: leaseId } });
+  async generatePayments(leaseId: string, organizationId: string, year: number) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
     if (!lease) throw new NotFoundException('Bail introuvable');
 
     const created: string[] = [];
@@ -408,12 +448,14 @@ export class LeasesService {
    * Enregistre le paiement des N prochaines échéances impayées (loyer), dans l’ordre chronologique.
    * Utile quand le locataire paie plusieurs mois d’avance.
    */
-  async prepayNextMonths(leaseId: string, months: number) {
+  async prepayNextMonths(leaseId: string, organizationId: string, months: number) {
     if (!Number.isInteger(months) || months < 1 || months > 12) {
       throw new BadRequestException('Nombre de mois invalide (indiquer un entier entre 1 et 12).');
     }
     await this.payments.syncLateStatuses();
-    const lease = await this.prisma.lease.findUnique({ where: { id: leaseId } });
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
     if (!lease) throw new NotFoundException('Bail introuvable');
 
     const unpaid = await this.prisma.payment.findMany({
@@ -454,8 +496,8 @@ export class LeasesService {
     };
   }
 
-  private async ensure(id: string) {
-    const n = await this.prisma.lease.count({ where: { id } });
+  private async ensure(id: string, organizationId: string) {
+    const n = await this.prisma.lease.count({ where: { id, ...leaseBelongsToOrg(organizationId) } });
     if (!n) throw new NotFoundException('Bail introuvable');
   }
 }

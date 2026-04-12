@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint } from '@/components/ui';
 
 type OverviewRow = {
@@ -45,6 +45,7 @@ function LeaseCardIcon({ active }: { active: boolean }) {
 }
 
 export function LocationsPage() {
+  useRegisterRootSectionFallback();
   const [rows, setRows] = useState<OverviewRow[]>([]);
   const [showAll, setShowAll] = useState(false);
 
@@ -70,7 +71,6 @@ export function LocationsPage() {
 
   return (
     <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <AppPageTitle
           className="max-w-3xl"

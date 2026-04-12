@@ -8,8 +8,8 @@ import { UpdateUnitDto } from './dto/update-unit.dto';
 export class UnitsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listByBuilding(buildingId: string) {
-    await this.ensureBuilding(buildingId);
+  async listByBuilding(buildingId: string, organizationId: string) {
+    await this.ensureBuilding(buildingId, organizationId);
     return this.prisma.unit.findMany({
       where: { buildingId },
       orderBy: { label: 'asc' },
@@ -23,9 +23,9 @@ export class UnitsService {
     });
   }
 
-  async create(buildingId: string, dto: CreateUnitDto) {
-    const building = await this.prisma.building.findUnique({
-      where: { id: buildingId },
+  async create(buildingId: string, dto: CreateUnitDto, organizationId: string) {
+    const building = await this.prisma.building.findFirst({
+      where: { id: buildingId, organizationId },
       include: { _count: { select: { units: true } } },
     });
     if (!building) throw new NotFoundException('Bien introuvable');
@@ -111,9 +111,9 @@ export class UnitsService {
     return this.prisma.unit.create({ data });
   }
 
-  async update(unitId: string, dto: UpdateUnitDto) {
-    const unit = await this.prisma.unit.findUnique({
-      where: { id: unitId },
+  async update(unitId: string, organizationId: string, dto: UpdateUnitDto) {
+    const unit = await this.prisma.unit.findFirst({
+      where: { id: unitId, building: { organizationId } },
       include: { building: true },
     });
     if (!unit) throw new NotFoundException('Unité introuvable');
@@ -178,19 +178,21 @@ export class UnitsService {
     return this.prisma.unit.update({ where: { id: unitId }, data });
   }
 
-  async remove(unitId: string) {
-    await this.ensureUnit(unitId);
+  async remove(unitId: string, organizationId: string) {
+    await this.ensureUnit(unitId, organizationId);
     await this.prisma.unit.delete({ where: { id: unitId } });
     return { ok: true };
   }
 
-  private async ensureBuilding(id: string) {
-    const n = await this.prisma.building.count({ where: { id } });
+  private async ensureBuilding(id: string, organizationId: string) {
+    const n = await this.prisma.building.count({ where: { id, organizationId } });
     if (!n) throw new NotFoundException('Bien introuvable');
   }
 
-  private async ensureUnit(id: string) {
-    const n = await this.prisma.unit.count({ where: { id } });
+  private async ensureUnit(id: string, organizationId: string) {
+    const n = await this.prisma.unit.count({
+      where: { id, building: { organizationId } },
+    });
     if (!n) throw new NotFoundException('Unité introuvable');
   }
 }

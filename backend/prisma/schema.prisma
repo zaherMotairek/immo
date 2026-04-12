@@ -7,13 +7,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/** Cloisonnement : chaque client (cabinet / propriétaire) a ses propres biens et locataires. */
+model Organization {
+  id        String   @id @default(uuid())
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  users     User[]
+  buildings Building[]
+  tenants   Tenant[]
+
+  @@map("organizations")
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  name         String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id             String       @id @default(uuid())
+  email          String       @unique
+  passwordHash   String       @map("password_hash")
+  name           String?
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
 }
 
 enum BuildingStructureKind {
@@ -27,6 +44,8 @@ enum BuildingStructureKind {
 
 model Building {
   id             String                 @id @default(uuid())
+  organizationId String                 @map("organization_id")
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   name           String
   city           String
   commune        String
@@ -46,6 +65,7 @@ model Building {
   units          Unit[]
   charges        Charge[]
 
+  @@index([organizationId])
   @@map("buildings")
 }
 
@@ -85,7 +105,9 @@ model Unit {
 }
 
 model Tenant {
-  id        String   @id @default(uuid())
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   firstName String   @map("first_name")
   lastName  String   @map("last_name")
   email     String?
@@ -101,6 +123,7 @@ model Tenant {
   updatedAt DateTime @updatedAt @map("updated_at")
   leases    Lease[]
 
+  @@index([organizationId])
   @@map("tenants")
 }
 

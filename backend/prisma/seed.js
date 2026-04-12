@@ -4,10 +4,19 @@ const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
 
+/** Même identifiant que la migration `organization_scope` — client par défaut. */
+const DEFAULT_ORG_ID = '00000000-0000-4000-8000-000000000001';
+
 async function seedAdmin() {
   const email = process.env.SEED_ADMIN_EMAIL || 'admin@immopilot.local';
   const password = process.env.SEED_ADMIN_PASSWORD || 'AdminImmo2026!';
   const hash = await bcrypt.hash(password, 12);
+
+  await prisma.organization.upsert({
+    where: { id: DEFAULT_ORG_ID },
+    create: { id: DEFAULT_ORG_ID, name: 'Par défaut' },
+    update: {},
+  });
 
   await prisma.user.upsert({
     where: { email },
@@ -15,9 +24,11 @@ async function seedAdmin() {
       email,
       passwordHash: hash,
       name: 'Administrateur',
+      organizationId: DEFAULT_ORG_ID,
     },
     update: {
       passwordHash: hash,
+      organizationId: DEFAULT_ORG_ID,
     },
   });
 
@@ -49,6 +60,7 @@ async function seedDemoIvoryCoast() {
 
   const b1 = await prisma.building.create({
     data: {
+      organizationId: DEFAULT_ORG_ID,
       name: 'Résidence Les Palmiers',
       city: 'Abidjan',
       commune: 'Cocody',
@@ -62,6 +74,7 @@ async function seedDemoIvoryCoast() {
 
   const b2 = await prisma.building.create({
     data: {
+      organizationId: DEFAULT_ORG_ID,
       name: 'Immeuble Ranga',
       city: 'Abidjan',
       commune: 'Marcory',
@@ -75,6 +88,7 @@ async function seedDemoIvoryCoast() {
 
   const b3 = await prisma.building.create({
     data: {
+      organizationId: DEFAULT_ORG_ID,
       name: 'Villa Lagune',
       city: 'Grand-Bassam',
       commune: 'Quartier France',
@@ -136,6 +150,7 @@ async function seedDemoIvoryCoast() {
 
   const t1 = await prisma.tenant.create({
     data: {
+      organizationId: DEFAULT_ORG_ID,
       firstName: 'Amadou',
       lastName: 'Koné',
       phone: '+225 07 08 12 34 56',
@@ -145,6 +160,7 @@ async function seedDemoIvoryCoast() {
 
   const t2 = await prisma.tenant.create({
     data: {
+      organizationId: DEFAULT_ORG_ID,
       firstName: 'Fatou',
       lastName: 'Diabaté',
       phone: '+225 05 11 22 33 44',
@@ -154,6 +170,7 @@ async function seedDemoIvoryCoast() {
 
   const t3 = await prisma.tenant.create({
     data: {
+      organizationId: DEFAULT_ORG_ID,
       firstName: 'Koffi',
       lastName: 'Yao',
       phone: '+225 01 99 88 77 66',

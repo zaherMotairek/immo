@@ -114,13 +114,13 @@ export function Layout() {
       </aside>
       <main className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 dark:text-slate-100">
         <MiniAssistantPanel />
-        <div className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/90 px-4 pb-3.5 pt-3.5 shadow-[0_4px_20px_rgb(15_23_42/0.04)] backdrop-blur-lg dark:border-slate-700/80 dark:bg-slate-900/92 dark:shadow-[0_4px_24px_rgb(0_0_0/0.2)] sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl">
+        <div className="sticky top-0 z-30 border-b border-slate-300/80 bg-slate-100/90 px-4 pb-3.5 pt-3.5 shadow-[0_4px_24px_rgb(15_23_42/0.07)] backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/92 dark:shadow-[0_4px_24px_rgb(0_0_0/0.2)] sm:px-6 lg:px-6 xl:px-8">
+          <div className="mx-auto w-full max-w-[min(100%,96rem)]">
             <GlobalSearchBar />
           </div>
         </div>
-        <div className="flex-1 p-4 sm:p-6 lg:px-8 lg:pb-12 lg:pt-8">
-          <div className="mx-auto max-w-6xl">
+        <div className="flex-1 p-4 sm:p-6 lg:px-6 lg:pb-12 lg:pt-6 xl:px-8 xl:pt-8">
+          <div className="mx-auto w-full max-w-[min(100%,96rem)]">
             <NavigationProvider>
               <ScrollRestoration />
               <Outlet />

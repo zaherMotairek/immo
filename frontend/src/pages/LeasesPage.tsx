@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { LinkButton } from '@/components/LinkButton';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
@@ -150,6 +150,7 @@ const filterPillOff =
   'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/75 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800';
 
 export function LeasesPage() {
+  useRegisterRootSectionFallback();
   const [params, setParams] = useSearchParams();
   const leaseIdFocus = params.get('leaseId')?.trim() ?? '';
   const hintTenant = params.get('hintTenant')?.trim() ?? '';
@@ -174,6 +175,8 @@ export function LeasesPage() {
   const [leaseSortKey, setLeaseSortKey] = useState<LeaseSortKey>('tenant');
   const [leaseSortDir, setLeaseSortDir] = useState<'asc' | 'desc'>('asc');
   const addLeaseFormRef = useRef<HTMLDivElement | null>(null);
+  /** Évite de réappliquer le préremplissage tant que l’URL n’a pas changé. */
+  const newLeasePrefillAppliedRef = useRef<string | null>(null);
 
   function toggleLeaseSort(key: LeaseSortKey) {
     if (leaseSortKey === key) {
@@ -223,6 +226,43 @@ export function LeasesPage() {
     }
   }, []);
 
+  /** Lien depuis la fiche bien (liste des unités) : ?buildingId=&unitId= → ouvre le formulaire avec bien + lot déjà choisis. */
+  useEffect(() => {
+    const bid = params.get('buildingId')?.trim() ?? '';
+    const uid = params.get('unitId')?.trim() ?? '';
+    if (!bid) {
+      newLeasePrefillAppliedRef.current = null;
+      return;
+    }
+    if (buildings.length === 0) return;
+    const bg = buildings.find((x) => x.id === bid);
+    if (!bg) return;
+    if (uid) {
+      const unitOk = bg.units.some((x) => x.id === uid);
+      if (!unitOk) return;
+    }
+    const key = `${bid}|${uid}`;
+    if (newLeasePrefillAppliedRef.current === key) return;
+    newLeasePrefillAppliedRef.current = key;
+
+    setBuildingIdForLease(bid);
+    if (uid) setUnitId(uid);
+    setAddLeaseOpen(true);
+    setErr(null);
+    setParams(
+      (prev) => {
+        const q = new URLSearchParams(prev);
+        q.delete('buildingId');
+        q.delete('unitId');
+        return q;
+      },
+      { replace: true },
+    );
+    window.requestAnimationFrame(() => {
+      addLeaseFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [buildings, params, setParams]);
+
   const leaseStats = useMemo(() => {
     const active = leases.filter((l) => l.active).length;
     return { active, inactive: leases.length - active, total: leases.length };
@@ -251,7 +291,7 @@ export function LeasesPage() {
     const statusFr =
       statusTab === 'active' ? 'Actifs' : statusTab === 'inactive' ? 'Inactifs' : 'Tous';
     const wellFr = wellViewFilter === 'all' ? 'Tous types' : unitKindLabel(wellViewFilter);
-    return `${statusFr} · ${wellFr} · loyers ${genYear}`;
+    return `${statusFr} · ${wellFr} · échéances ${genYear}`;
   }, [statusTab, wellViewFilter, genYear]);
 
   const leaseFocusSummary = useMemo(() => {
@@ -468,10 +508,8 @@ export function LeasesPage() {
         : '';
 
   return (
-    <div className="space-y-8 pb-10">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
-
-      <header className="border-b border-slate-200/90 pb-6 dark:border-slate-700/80">
+    <div className="space-y-6 pb-10">
+      <header className="border-b border-slate-200/90 pb-4 dark:border-slate-700/80">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 max-w-2xl">
             <AppPageTitle
@@ -491,7 +529,7 @@ export function LeasesPage() {
                 role="status"
               >
                 <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">
-                  Baux & génération loyers — ce bail est sélectionné
+                  Baux & échéances — ce bail est sélectionné
                 </p>
                 {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
                   <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
@@ -847,11 +885,11 @@ export function LeasesPage() {
               <div className="min-w-0 sm:flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Loyers
+                    Année des échéances
                   </p>
                   <HelpHint
                     className="shrink-0 [&_button]:size-5 [&_button]:opacity-70"
-                    title="Année utilisée par le bouton « Générer loyers » sur chaque fiche bail."
+                    title="Année cible pour le bouton « Générer les échéances » sur chaque ligne du tableau (création des lignes de loyer / paiements attendus)."
                   />
                 </div>
                 <Input
@@ -860,7 +898,7 @@ export function LeasesPage() {
                   value={genYear}
                   onChange={(e) => setGenYear(e.target.value)}
                   inputMode="numeric"
-                  aria-label="Année pour générer les loyers"
+                  aria-label="Année pour la génération des échéances"
                 />
               </div>
               <a
@@ -883,7 +921,7 @@ export function LeasesPage() {
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Liste des baux</h2>
                     <HelpHint
                       className="shrink-0 align-middle"
-                      title="Une ligne par bail (locataire en premier). Fiche location, génération des loyers (année dans les filtres), contrat, activation."
+                      title="Une ligne par bail (locataire en premier). Fiche location, génération des échéances (année dans les filtres), pièce jointe du contrat, activation."
                     />
                   </div>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -1007,9 +1045,9 @@ export function LeasesPage() {
                         <details className="max-w-[14rem] rounded-lg border border-slate-200 bg-slate-50/80 dark:border-slate-600 dark:bg-slate-800/50">
                           <summary className="cursor-pointer list-none px-2.5 py-1.5 text-xs font-medium marker:hidden [&::-webkit-details-marker]:hidden">
                             {l.contractFileKey ? (
-                              <span className="text-emerald-700 dark:text-emerald-400">Fichier joint</span>
+                              <span className="text-emerald-700 dark:text-emerald-400">Contrat joint</span>
                             ) : (
-                              <span className="text-slate-500">Ajouter un PDF…</span>
+                              <span className="text-slate-600 dark:text-slate-300">Joindre le contrat</span>
                             )}
                           </summary>
                           <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-600">
@@ -1031,18 +1069,33 @@ export function LeasesPage() {
                           </div>
                         </details>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right sm:px-5">
-                        <div className="inline-flex flex-col items-end gap-1.5">
-                          <LinkButton to={`/locations/${l.id}`} variant="secondary" className="py-1.5 text-xs">
-                            Fiche
-                          </LinkButton>
-                          <Button variant="secondary" className="py-1.5 text-xs" onClick={() => generatePayments(l.id)}>
-                            Loyers {genYear}
-                          </Button>
-                          <Button variant="ghost" className="py-1.5 text-xs" onClick={() => toggleActive(l)}>
-                            {l.active ? 'Désactiver' : 'Réactiver'}
-                          </Button>
-                        </div>
+                      <td className="px-4 py-3 text-right align-top sm:px-5">
+                        <details className="ml-auto inline-block min-w-[8.5rem] max-w-[14rem] rounded-lg border border-slate-200 bg-slate-50/80 text-left dark:border-slate-600 dark:bg-slate-800/50">
+                          <summary className="cursor-pointer list-none px-2.5 py-1.5 text-xs font-medium text-slate-700 marker:hidden [&::-webkit-details-marker]:hidden dark:text-slate-200">
+                            Actions
+                          </summary>
+                          <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-600">
+                            <div className="flex flex-col gap-1.5">
+                              <LinkButton to={`/locations/${l.id}`} variant="secondary" className="w-full justify-center py-1.5 text-xs">
+                                Fiche location
+                              </LinkButton>
+                              <Button
+                                variant="secondary"
+                                className="w-full flex-col gap-0.5 py-2 text-xs leading-snug"
+                                title={`Crée les lignes de loyer et d’échéances pour l’année ${genYear} (identique au champ « Année des échéances » dans les filtres).`}
+                                onClick={() => generatePayments(l.id)}
+                              >
+                                <span className="font-semibold">Générer les échéances</span>
+                                <span className="text-[10px] font-medium tabular-nums text-slate-500 dark:text-slate-400">
+                                  Année {genYear}
+                                </span>
+                              </Button>
+                              <Button variant="ghost" className="w-full justify-center py-1.5 text-xs" onClick={() => toggleActive(l)}>
+                                {l.active ? 'Désactiver le bail' : 'Réactiver le bail'}
+                              </Button>
+                            </div>
+                          </div>
+                        </details>
                       </td>
                     </tr>
                   ))}

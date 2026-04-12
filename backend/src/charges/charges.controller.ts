@@ -1,4 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChargesService, type ChargeListMonth } from './charges.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
@@ -10,18 +12,18 @@ export class ChargesController {
   constructor(private readonly charges: ChargesService) {}
 
   @Get()
-  list(@Query('year') year?: string, @Query('month') month?: string) {
+  list(@CurrentUser() user: JwtAuthUser, @Query('year') year?: string, @Query('month') month?: string) {
     const y = year ? parseInt(year, 10) : undefined;
     const m = this.parseMonthQuery(month);
-    return this.charges.list(Number.isFinite(y) ? y : undefined, m);
+    return this.charges.list(user.organizationId, Number.isFinite(y) ? y : undefined, m);
   }
 
   @Get('summary')
-  summary(@Query('year') year?: string, @Query('month') month?: string) {
+  summary(@CurrentUser() user: JwtAuthUser, @Query('year') year?: string, @Query('month') month?: string) {
     const yRaw = year ? parseInt(year, 10) : NaN;
     const y = Number.isFinite(yRaw) ? yRaw : new Date().getFullYear();
     const m = this.parseMonthQuery(month);
-    return this.charges.summary(y, m);
+    return this.charges.summary(user.organizationId, y, m);
   }
 
   /** `all` ou absent = toute l’année ; 1–12 = mois précis. */
@@ -33,22 +35,22 @@ export class ChargesController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.charges.get(id);
+  get(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.charges.get(id, user.organizationId);
   }
 
   @Post()
-  create(@Body() dto: CreateChargeDto) {
-    return this.charges.create(dto);
+  create(@CurrentUser() user: JwtAuthUser, @Body() dto: CreateChargeDto) {
+    return this.charges.create(dto, user.organizationId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateChargeDto) {
-    return this.charges.update(id, dto);
+  update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateChargeDto) {
+    return this.charges.update(id, user.organizationId, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.charges.remove(id);
+  remove(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.charges.remove(id, user.organizationId);
   }
 }

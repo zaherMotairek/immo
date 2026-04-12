@@ -8,10 +8,16 @@ import { UpdateBuildingDto } from './dto/update-building.dto';
 export class BuildingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** @param unitKind Si défini : biens qui ont au moins une unité de ce type (liste Baux / Charges utilise sans filtre). */
-  list(unitKind?: UnitKind) {
+  /**
+   * @param unitKind Si défini : biens qui ont au moins une unité de ce type.
+   * @param structureKind Si défini : biens dont le genre (structure) correspond.
+   */
+  list(organizationId: string, unitKind?: UnitKind, structureKind?: BuildingStructureKind) {
+    const where: Prisma.BuildingWhereInput = { organizationId };
+    if (structureKind) where.structureKind = structureKind;
+    if (unitKind) where.units = { some: { kind: unitKind } };
     return this.prisma.building.findMany({
-      where: unitKind ? { units: { some: { kind: unitKind } } } : undefined,
+      where,
       orderBy: { name: 'asc' },
       include: {
         _count: {
@@ -27,9 +33,9 @@ export class BuildingsService {
     });
   }
 
-  async get(id: string) {
-    const b = await this.prisma.building.findUnique({
-      where: { id },
+  async get(id: string, organizationId: string) {
+    const b = await this.prisma.building.findFirst({
+      where: { id, organizationId },
       include: {
         units: {
           orderBy: { label: 'asc' },
@@ -39,6 +45,7 @@ export class BuildingsService {
               orderBy: { startDate: 'desc' },
               take: 1,
               select: {
+                id: true,
                 monthlyRent: true,
                 tenant: { select: { firstName: true, lastName: true } },
               },
@@ -51,11 +58,12 @@ export class BuildingsService {
     return b;
   }
 
-  create(dto: CreateBuildingDto) {
+  create(dto: CreateBuildingDto, organizationId: string) {
     const kind = dto.structureKind ?? BuildingStructureKind.MONO_LOT;
     try {
       return this.prisma.building.create({
         data: {
+          organizationId,
           name: dto.name,
           city: dto.city,
           commune: dto.commune,
@@ -82,8 +90,8 @@ export class BuildingsService {
     }
   }
 
-  async update(id: string, dto: UpdateBuildingDto) {
-    const existing = await this.prisma.building.findUnique({ where: { id } });
+  async update(id: string, organizationId: string, dto: UpdateBuildingDto) {
+    const existing = await this.prisma.building.findFirst({ where: { id, organizationId } });
     if (!existing) throw new NotFoundException('Bien introuvable');
     if (
       (existing.structureKind === BuildingStructureKind.IMMEUBLE ||
@@ -105,14 +113,14 @@ export class BuildingsService {
     return this.prisma.building.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string) {
-    await this.ensureExists(id);
+  async remove(id: string, organizationId: string) {
+    await this.ensureExists(id, organizationId);
     await this.prisma.building.delete({ where: { id } });
     return { ok: true };
   }
 
-  private async ensureExists(id: string) {
-    const n = await this.prisma.building.count({ where: { id } });
+  private async ensureExists(id: string, organizationId: string) {
+    const n = await this.prisma.building.count({ where: { id, organizationId } });
     if (!n) throw new NotFoundException('Bien introuvable');
   }
 }

@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { chargeCategoryLabel, chargeCategoryOptions } from '@/lib/chargeCategories';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -64,6 +64,7 @@ const MOIS_LONGS = Array.from({ length: 12 }, (_, i) =>
 );
 
 export function ChargesPage() {
+  useRegisterRootSectionFallback();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const focusChargeId = searchParams.get('focus');
@@ -215,7 +216,6 @@ export function ChargesPage() {
 
   return (
     <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
       {focusChargeId ? (
         <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
           <button

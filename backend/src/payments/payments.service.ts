@@ -25,10 +25,19 @@ export class PaymentsService {
     return { updated: res.count };
   }
 
-  async list(filters?: { overdueOnly?: boolean; leaseId?: string; periodYear?: number; periodMonth?: number }) {
+  async list(
+    organizationId: string,
+    filters?: { overdueOnly?: boolean; leaseId?: string; periodYear?: number; periodMonth?: number },
+  ) {
     await this.syncLateStatuses();
-    const where: Record<string, unknown> = {};
-    if (filters?.leaseId) where.leaseId = filters.leaseId;
+    const where: Record<string, unknown> = {
+      /** Échéances des baux actifs uniquement (baux désactivés = historique hors vue liste). */
+      lease: {
+        active: true,
+        ...(filters?.leaseId ? { id: filters.leaseId } : {}),
+        unit: { building: { organizationId } },
+      },
+    };
     if (filters?.periodYear !== undefined && Number.isInteger(filters.periodYear)) {
       where.periodYear = filters.periodYear;
     }
@@ -57,9 +66,12 @@ export class PaymentsService {
     });
   }
 
-  async get(id: string) {
-    const p = await this.prisma.payment.findUnique({
-      where: { id },
+  async get(id: string, organizationId: string) {
+    const p = await this.prisma.payment.findFirst({
+      where: {
+        id,
+        lease: { unit: { building: { organizationId } } },
+      },
       include: {
         lease: { include: { tenant: true, unit: { include: { building: true } } } },
       },
@@ -69,10 +81,10 @@ export class PaymentsService {
   }
 
   /** Relance locataire par e-mail pour une échéance en retard (LATE ou PENDING dépassé). */
-  async sendOverdueReminder(id: string) {
+  async sendOverdueReminder(id: string, organizationId: string) {
     await this.syncLateStatuses();
-    const p = await this.prisma.payment.findUnique({
-      where: { id },
+    const p = await this.prisma.payment.findFirst({
+      where: { id, lease: { unit: { building: { organizationId } } } },
       include: {
         lease: { include: { tenant: true, unit: { include: { building: true } } } },
       },
@@ -123,8 +135,8 @@ export class PaymentsService {
     }
   }
 
-  async update(id: string, dto: UpdatePaymentDto) {
-    await this.ensure(id);
+  async update(id: string, organizationId: string, dto: UpdatePaymentDto) {
+    await this.ensure(id, organizationId);
 
     if (dto.addAmountPaid !== undefined && dto.amountPaid !== undefined) {
       throw new BadRequestException(
@@ -205,8 +217,10 @@ export class PaymentsService {
     });
   }
 
-  private async ensure(id: string) {
-    const n = await this.prisma.payment.count({ where: { id } });
+  private async ensure(id: string, organizationId: string) {
+    const n = await this.prisma.payment.count({
+      where: { id, lease: { unit: { building: { organizationId } } } },
+    });
     if (!n) throw new NotFoundException('Paiement introuvable');
   }
 
@@ -221,13 +235,16 @@ export class PaymentsService {
   /**
    * Reçu PDF (1 à 24 échéances) : loyer soldé ou acompte (dès qu’un encaissement est enregistré). Reçu groupé = même bail uniquement.
    */
-  async buildReceiptPdf(paymentIds: string[]): Promise<Buffer> {
+  async buildReceiptPdf(paymentIds: string[], organizationId: string): Promise<Buffer> {
     if (!paymentIds.length || paymentIds.length > 24) {
       throw new BadRequestException('Indiquez entre 1 et 24 échéances.');
     }
     const uniqueIds = [...new Set(paymentIds)];
     const payments = await this.prisma.payment.findMany({
-      where: { id: { in: uniqueIds } },
+      where: {
+        id: { in: uniqueIds },
+        lease: { unit: { building: { organizationId } } },
+      },
       include: { lease: { include: { tenant: true, unit: { include: { building: true } } } } },
       orderBy: [{ periodYear: 'asc' }, { periodMonth: 'asc' }],
     });

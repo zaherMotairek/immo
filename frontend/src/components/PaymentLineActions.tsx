@@ -12,6 +12,8 @@ export type PaymentLineActionsProps = {
   zoomed: boolean;
   /** Une seule rangée, boutons plus compacts (liste Paiements). */
   compact?: boolean;
+  /** Boutons empilés pleine largeur (menu Actions du tableau Paiements). */
+  stacked?: boolean;
   sendingId: string | null;
   onSendReminder: (p: PaymentRow) => void | Promise<void>;
   onOpenPartial: (p: PaymentRow) => void;
@@ -22,17 +24,26 @@ export function PaymentLineActions({
   p,
   zoomed,
   compact = false,
+  stacked = false,
   sendingId,
   onSendReminder,
   onOpenPartial,
   onMarkPaid,
 }: PaymentLineActionsProps) {
-  const bp = zoomed ? 'py-3 text-sm min-h-[2.75rem]' : compact ? 'shrink-0 py-1.5 px-2.5 text-[11px] font-semibold leading-tight' : 'py-2 text-xs';
+  const bp = zoomed
+    ? 'py-3 text-sm min-h-[2.75rem]'
+    : stacked
+      ? 'w-full justify-center py-2 text-xs'
+      : compact
+        ? 'shrink-0 py-1.5 px-2.5 text-[11px] font-semibold leading-tight'
+        : 'py-2 text-xs';
   const waBp = zoomed
     ? 'px-5 py-3 text-sm'
-    : compact
-      ? 'shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold leading-tight'
-      : 'px-4 py-2 text-xs';
+    : stacked
+      ? 'w-full justify-center rounded-xl px-3 py-2 text-xs font-semibold'
+      : compact
+        ? 'shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold leading-tight'
+        : 'px-4 py-2 text-xs';
 
   const contactHint =
     'Ajoutez un e-mail ou un n° avec indicatif (ex. +225…) dans Locataires pour relancer.';
@@ -41,7 +52,7 @@ export function PaymentLineActions({
     <>
       {isOverduePayment(p) && p.lease.tenant.email && (
         <Button variant="secondary" className={bp} disabled={sendingId !== null} onClick={() => void onSendReminder(p)}>
-          {sendingId === p.id ? 'Envoi…' : compact ? 'Relance' : 'Relance e-mail'}
+          {sendingId === p.id ? 'Envoi…' : compact && !stacked ? 'Relance' : 'Relance e-mail'}
         </Button>
       )}
       {isOverduePayment(p) &&
@@ -73,36 +84,41 @@ export function PaymentLineActions({
       {isOverduePayment(p) && !p.lease.tenant.email && !formatPhoneForWhatsApp(p.lease.tenant.phone) && (
         <span
           className={
-            compact
-              ? 'shrink-0 rounded-md border border-amber-200/90 bg-amber-50/90 px-1.5 py-1 text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
-              : zoomed
-                ? 'w-full py-1 text-sm text-amber-800 dark:text-amber-200'
-                : 'max-w-[14rem] py-2 text-xs text-amber-800'
+            stacked
+              ? 'w-full rounded-md border border-amber-200/90 bg-amber-50/90 px-2 py-1.5 text-center text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
+              : compact
+                ? 'shrink-0 rounded-md border border-amber-200/90 bg-amber-50/90 px-1.5 py-1 text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
+                : zoomed
+                  ? 'w-full py-1 text-sm text-amber-800 dark:text-amber-200'
+                  : 'max-w-[14rem] py-2 text-xs text-amber-800'
           }
-          title={compact ? contactHint : undefined}
+          title={compact || stacked ? contactHint : undefined}
         >
-          {compact ? 'Coord.' : contactHint}
+          {compact && !stacked ? 'Coord.' : stacked ? 'Coordonnées manquantes' : contactHint}
         </span>
       )}
       {(p.status === 'PENDING' || p.status === 'LATE') && (
         <>
           <Button variant="primarySoft" className={bp} onClick={() => onOpenPartial(p)}>
-            {compact ? 'Partiel' : 'Versement partiel'}
+            {compact && !stacked ? 'Partiel' : 'Versement partiel'}
           </Button>
           <Button className={bp} onClick={() => void onMarkPaid(p)}>
-            {compact ? 'Payé' : 'Marquer payé'}
+            {compact && !stacked ? 'Payé' : 'Marquer payé'}
           </Button>
         </>
       )}
       {(p.status === 'PAID' ||
         ((p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0)) && (
         <Button variant="secondary" className={bp} onClick={() => downloadPaymentReceipt(p.id)}>
-          {compact ? 'PDF' : 'Reçu PDF'}
+          {compact && !stacked ? 'PDF' : 'Reçu PDF'}
         </Button>
       )}
     </>
   );
 
+  if (stacked) {
+    return <div className="flex w-full flex-col gap-1.5">{nodes}</div>;
+  }
   if (compact) {
     return <div className="flex min-w-0 flex-nowrap items-center gap-1">{nodes}</div>;
   }

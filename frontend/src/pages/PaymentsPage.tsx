@@ -7,7 +7,7 @@ import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } fr
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { AmountFcfaInput, Button, Card, Label, Select } from '@/components/ui';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -38,6 +38,7 @@ function IconLayoutList({ className = '' }: { className?: string }) {
 }
 
 export function PaymentsPage() {
+  useRegisterRootSectionFallback();
   const [params, setParams] = useSearchParams();
   const overdueOnly = params.get('overdue') === '1' || params.get('overdue') === 'true';
   const leaseIdFilter = params.get('leaseId')?.trim() || '';
@@ -275,73 +276,8 @@ export function PaymentsPage() {
     }
   }
 
-  function paymentLineItems(items: PaymentRow[]) {
-    return items.map((p, rowIdx) => (
-      <li
-        key={p.id}
-        id={`payment-${p.id}`}
-        className={`grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-3 sm:gap-y-2 sm:px-5 ${
-          rowIdx < items.length - 1
-            ? 'border-b border-slate-200/95 dark:border-slate-600/70'
-            : ''
-        }`}
-      >
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-slate-900 dark:text-slate-100">
-              {p.lease.tenant.firstName} {p.lease.tenant.lastName}
-            </p>
-            <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(p.status)}`}>
-              {statusLabel(p.status)}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {p.lease.unit.building.commune}, {p.lease.unit.building.city} · {p.lease.unit.building.name} —{' '}
-            {unitKindLabel(p.lease.unit.kind)} — {p.lease.unit.label}
-          </p>
-          <p className="mt-1 text-sm">
-            <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">Loyer {fcfa(Number(p.amountDue))}</span>
-            {(p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0 && (
-              <span className="ml-2 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                · encaissé {fcfa(Number(p.amountPaid))} · reste {fcfa(paymentRemaining(p))}
-              </span>
-            )}
-            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">échéance {p.dueDate.slice(0, 10)}</span>
-            {p.status === 'PAID' && p.paidAt && (
-              <span className="ml-2 text-xs text-emerald-700 dark:text-emerald-400">· payé le {p.paidAt.slice(0, 10)}</span>
-            )}
-          </p>
-        </div>
-        <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 self-start overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:justify-end sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <button
-            type="button"
-            title="Vue agrandie — cette échéance"
-            aria-label={`Agrandir l'échéance de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
-            onClick={() => setZoomPaymentId(p.id)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-500/40 bg-brand-50/90 text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
-          >
-            <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <PaymentLineActions
-            p={p}
-            zoomed={false}
-            compact
-            sendingId={sendingId}
-            onSendReminder={sendReminderEmail}
-            onOpenPartial={openPartialModal}
-            onMarkPaid={markPaid}
-          />
-        </div>
-      </li>
-    ));
-  }
-
   return (
-    <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
+    <div className="space-y-6 pb-10">
       {focusPaymentId ? (
         <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
           <button
@@ -362,7 +298,7 @@ export function PaymentsPage() {
           </button>
         </p>
       ) : null}
-      <header className="border-b border-slate-200/90 pb-6 dark:border-slate-700/80">
+      <header className="border-b border-slate-200/90 pb-4 dark:border-slate-700/80">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
             <AppPageTitle
@@ -704,7 +640,7 @@ export function PaymentsPage() {
                     )}
                   </p>
                   <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-500">
-                    Cliquer pour déplier · Zoom sur chaque ligne (icône loupe)
+                    Cliquer pour afficher ou masquer le tableau du mois
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 self-start">
@@ -723,9 +659,129 @@ export function PaymentsPage() {
                   </svg>
                 </div>
               </button>
-              <ul id={`payments-month-body-${key}`} className="list-none" hidden={monthCollapsed}>
-                {paymentLineItems(items)}
-              </ul>
+              <div id={`payments-month-body-${key}`} className="overflow-x-auto" hidden={monthCollapsed}>
+                <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
+                      <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                        Locataire
+                      </th>
+                      <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                        Bien / unité
+                      </th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                        Montant
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                        Période & échéance
+                      </th>
+                      <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                        Statut
+                      </th>
+                      <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {items.map((p) => (
+                      <tr
+                        key={p.id}
+                        id={`payment-${p.id}`}
+                        className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
+                      >
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100 sm:px-5">
+                          {p.leaseId ? (
+                            <SmartLink
+                              to={`/locations/${p.leaseId}`}
+                              className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                            >
+                              {p.lease.tenant.firstName} {p.lease.tenant.lastName}
+                            </SmartLink>
+                          ) : (
+                            <span>
+                              {p.lease.tenant.firstName} {p.lease.tenant.lastName}
+                            </span>
+                          )}
+                        </td>
+                        <td className="max-w-[22rem] px-4 py-3 text-slate-800 dark:text-slate-200 sm:px-5">
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{p.lease.unit.building.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {p.lease.unit.building.commune}, {p.lease.unit.building.city}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+                            {unitKindLabel(p.lease.unit.kind)} — {p.lease.unit.label}
+                          </p>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-800 dark:text-slate-200 sm:px-5">
+                          <span className="font-semibold">{fcfa(Number(p.amountDue))}</span>
+                          {(p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0 ? (
+                            <span className="mt-1 block text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                              Encaissé {fcfa(Number(p.amountPaid))} · Reste {fcfa(paymentRemaining(p))}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300 sm:px-5">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Facturation {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
+                          </p>
+                          <p className="text-sm">Échéance {p.dueDate.slice(0, 10)}</p>
+                          {p.status === 'PAID' && p.paidAt ? (
+                            <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">Payé le {p.paidAt.slice(0, 10)}</p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 sm:px-5">
+                          <span
+                            className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(p.status)}`}
+                          >
+                            {statusLabel(p.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right align-top sm:px-5">
+                          <details className="ml-auto inline-block min-w-[8.5rem] max-w-[15rem] rounded-lg border border-slate-200 bg-slate-50/80 text-left dark:border-slate-600 dark:bg-slate-800/50">
+                            <summary className="cursor-pointer list-none px-2.5 py-1.5 text-xs font-medium text-slate-700 marker:hidden [&::-webkit-details-marker]:hidden dark:text-slate-200">
+                              Actions
+                            </summary>
+                            <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-600">
+                              <div className="flex flex-col gap-1.5">
+                                <button
+                                  type="button"
+                                  title="Vue agrandie — détail de l’échéance"
+                                  aria-label={`Agrandir l'échéance de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
+                                  onClick={() => setZoomPaymentId(p.id)}
+                                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-500/40 bg-brand-50/90 px-3 py-2 text-xs font-semibold text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
+                                >
+                                  <svg
+                                    className="size-4 shrink-0"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    aria-hidden
+                                  >
+                                    <circle cx="11" cy="11" r="8" />
+                                    <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                  Vue agrandie
+                                </button>
+                                <PaymentLineActions
+                                  p={p}
+                                  zoomed={false}
+                                  stacked
+                                  sendingId={sendingId}
+                                  onSendReminder={sendReminderEmail}
+                                  onOpenPartial={openPartialModal}
+                                  onMarkPaid={markPaid}
+                                />
+                              </div>
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </Card>
           );
         })}

@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -12,6 +14,7 @@ export class PaymentsController {
 
   @Get()
   list(
+    @CurrentUser() user: JwtAuthUser,
     @Query('overdue') overdue?: string,
     @Query('leaseId') leaseId?: string,
     /** Filtre optionnel par année de période (loyer facturé pour cette année). */
@@ -30,18 +33,18 @@ export class PaymentsController {
       const m = Number(monthRaw);
       if (Number.isInteger(m) && m >= 1 && m <= 12) periodMonth = m;
     }
-    return this.payments.list({ overdueOnly, leaseId, periodYear, periodMonth });
+    return this.payments.list(user.organizationId, { overdueOnly, leaseId, periodYear, periodMonth });
   }
 
   @Post(':id/send-reminder')
-  sendReminder(@Param('id') id: string) {
-    return this.payments.sendOverdueReminder(id);
+  sendReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.payments.sendOverdueReminder(id, user.organizationId);
   }
 
   /** Reçu PDF pour une échéance déjà marquée payée (impression / archivage). */
   @Get(':id/receipt')
-  async receipt(@Param('id') id: string, @Res() res: Response) {
-    const buf = await this.payments.buildReceiptPdf([id]);
+  async receipt(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Res() res: Response) {
+    const buf = await this.payments.buildReceiptPdf([id], user.organizationId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="recu-loyer-${id.slice(0, 8)}.pdf"`);
     res.send(buf);
@@ -49,20 +52,20 @@ export class PaymentsController {
 
   /** Reçu PDF unique pour plusieurs loyers payés (même bail), ex. après prépaiement de plusieurs mois. */
   @Post('receipts/bulk')
-  async bulkReceipt(@Body() dto: BulkReceiptDto, @Res() res: Response) {
-    const buf = await this.payments.buildReceiptPdf(dto.paymentIds);
+  async bulkReceipt(@CurrentUser() user: JwtAuthUser, @Body() dto: BulkReceiptDto, @Res() res: Response) {
+    const buf = await this.payments.buildReceiptPdf(dto.paymentIds, user.organizationId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="recu-loyers-${Date.now()}.pdf"`);
     res.send(buf);
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.payments.get(id);
+  get(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.payments.get(id, user.organizationId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdatePaymentDto) {
-    return this.payments.update(id, dto);
+  update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdatePaymentDto) {
+    return this.payments.update(id, user.organizationId, dto);
   }
 }

@@ -11,15 +11,14 @@ export type ChargeListMonth = number | 'all';
 export class ChargesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(year?: number, month: ChargeListMonth = 'all') {
-    const where: { periodYear?: number; periodMonth?: number } = {};
+  list(organizationId: string, year?: number, month: ChargeListMonth = 'all') {
+    const where: Record<string, unknown> = { building: { organizationId } };
     if (year != null) where.periodYear = year;
     if (month !== 'all' && Number.isInteger(month) && month >= 1 && month <= 12) {
       where.periodMonth = month;
     }
-    const hasFilter = Object.keys(where).length > 0;
     return this.prisma.charge.findMany({
-      where: hasFilter ? where : {},
+      where,
       orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }, { createdAt: 'desc' }],
       include: {
         building: true,
@@ -28,8 +27,11 @@ export class ChargesService {
     });
   }
 
-  async summary(year: number, month: ChargeListMonth = 'all') {
-    const where: { periodYear: number; periodMonth?: number } = { periodYear: year };
+  async summary(organizationId: string, year: number, month: ChargeListMonth = 'all') {
+    const where: Record<string, unknown> = {
+      periodYear: year,
+      building: { organizationId },
+    };
     if (month !== 'all' && Number.isInteger(month) && month >= 1 && month <= 12) {
       where.periodMonth = month;
     }
@@ -66,18 +68,18 @@ export class ChargesService {
     };
   }
 
-  async get(id: string) {
-    const c = await this.prisma.charge.findUnique({
-      where: { id },
+  async get(id: string, organizationId: string) {
+    const c = await this.prisma.charge.findFirst({
+      where: { id, building: { organizationId } },
       include: { building: true, unit: true },
     });
     if (!c) throw new NotFoundException('Charge introuvable');
     return c;
   }
 
-  async create(dto: CreateChargeDto) {
-    await this.ensureBuilding(dto.buildingId);
-    if (dto.unitId) await this.ensureUnitInBuilding(dto.unitId, dto.buildingId);
+  async create(dto: CreateChargeDto, organizationId: string) {
+    await this.ensureBuilding(dto.buildingId, organizationId);
+    if (dto.unitId) await this.ensureUnitInBuilding(dto.unitId, dto.buildingId, organizationId);
     return this.prisma.charge.create({
       data: {
         buildingId: dto.buildingId,
@@ -94,10 +96,10 @@ export class ChargesService {
     });
   }
 
-  async update(id: string, dto: UpdateChargeDto) {
-    await this.ensure(id);
-    if (dto.buildingId) await this.ensureBuilding(dto.buildingId);
-    if (dto.unitId && dto.buildingId) await this.ensureUnitInBuilding(dto.unitId, dto.buildingId);
+  async update(id: string, organizationId: string, dto: UpdateChargeDto) {
+    await this.ensure(id, organizationId);
+    if (dto.buildingId) await this.ensureBuilding(dto.buildingId, organizationId);
+    if (dto.unitId && dto.buildingId) await this.ensureUnitInBuilding(dto.unitId, dto.buildingId, organizationId);
     return this.prisma.charge.update({
       where: { id },
       data: {
@@ -108,24 +110,26 @@ export class ChargesService {
     });
   }
 
-  async remove(id: string) {
-    await this.ensure(id);
+  async remove(id: string, organizationId: string) {
+    await this.ensure(id, organizationId);
     await this.prisma.charge.delete({ where: { id } });
     return { ok: true };
   }
 
-  private async ensure(id: string) {
-    const n = await this.prisma.charge.count({ where: { id } });
+  private async ensure(id: string, organizationId: string) {
+    const n = await this.prisma.charge.count({ where: { id, building: { organizationId } } });
     if (!n) throw new NotFoundException('Charge introuvable');
   }
 
-  private async ensureBuilding(id: string) {
-    const n = await this.prisma.building.count({ where: { id } });
+  private async ensureBuilding(id: string, organizationId: string) {
+    const n = await this.prisma.building.count({ where: { id, organizationId } });
     if (!n) throw new NotFoundException('Bien introuvable');
   }
 
-  private async ensureUnitInBuilding(unitId: string, buildingId: string) {
-    const u = await this.prisma.unit.findFirst({ where: { id: unitId, buildingId } });
+  private async ensureUnitInBuilding(unitId: string, buildingId: string, organizationId: string) {
+    const u = await this.prisma.unit.findFirst({
+      where: { id: unitId, buildingId, building: { organizationId } },
+    });
     if (!u) throw new NotFoundException('Unité introuvable pour ce bien');
   }
 }

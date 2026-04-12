@@ -23,8 +23,9 @@ import {
 export class TenantsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
+  list(organizationId: string) {
     return this.prisma.tenant.findMany({
+      where: { organizationId },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       include: {
         leases: {
@@ -36,9 +37,9 @@ export class TenantsService {
     });
   }
 
-  async get(id: string) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id },
+  async get(id: string, organizationId: string) {
+    const t = await this.prisma.tenant.findFirst({
+      where: { id, organizationId },
       include: {
         leases: {
           orderBy: { startDate: 'desc' },
@@ -50,12 +51,12 @@ export class TenantsService {
     return t;
   }
 
-  create(dto: CreateTenantDto) {
-    return this.prisma.tenant.create({ data: dto });
+  create(dto: CreateTenantDto, organizationId: string) {
+    return this.prisma.tenant.create({ data: { ...dto, organizationId } });
   }
 
-  async update(id: string, dto: UpdateTenantDto) {
-    await this.ensure(id);
+  async update(id: string, organizationId: string, dto: UpdateTenantDto) {
+    await this.ensure(id, organizationId);
     const data: Prisma.TenantUpdateInput = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName.trim();
     if (dto.lastName !== undefined) data.lastName = dto.lastName.trim();
@@ -65,8 +66,8 @@ export class TenantsService {
     return this.prisma.tenant.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
-    await this.ensure(id);
+  async remove(id: string, organizationId: string) {
+    await this.ensure(id, organizationId);
     const t = await this.prisma.tenant.findUnique({ where: { id } });
     if (t?.idDocFileKey) await this.removeIdDocFromDisk(t.idDocFileKey);
     try {
@@ -82,8 +83,8 @@ export class TenantsService {
     return { ok: true };
   }
 
-  private async ensure(id: string) {
-    const n = await this.prisma.tenant.count({ where: { id } });
+  private async ensure(id: string, organizationId: string) {
+    const n = await this.prisma.tenant.count({ where: { id, organizationId } });
     if (!n) throw new NotFoundException('Locataire introuvable');
   }
 
@@ -102,7 +103,7 @@ export class TenantsService {
     }
   }
 
-  async saveIdDocument(tenantId: string, file: Express.Multer.File) {
+  async saveIdDocument(tenantId: string, organizationId: string, file: Express.Multer.File) {
     if (!TENANT_ID_DOC_ALLOWED_MIMES.has(file.mimetype)) {
       throw new BadRequestException(
         'Format non accepté. Utilisez un PDF ou une image (JPEG, PNG, WebP).',
@@ -114,7 +115,7 @@ export class TenantsService {
     const ext = TENANT_ID_DOC_MIME_TO_EXT[file.mimetype];
     if (!ext) throw new BadRequestException('Extension non reconnue pour ce type MIME.');
 
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
     if (!tenant) throw new NotFoundException('Locataire introuvable');
 
     const dir = this.idDocUploadDir();
@@ -148,8 +149,8 @@ export class TenantsService {
     };
   }
 
-  async getIdDocumentStream(tenantId: string) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+  async getIdDocumentStream(tenantId: string, organizationId: string) {
+    const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
     if (!tenant?.idDocFileKey || !tenant.idDocMime) {
       throw new NotFoundException('Aucune pièce d’identité n’a été enregistrée pour ce locataire.');
     }
@@ -173,8 +174,8 @@ export class TenantsService {
     });
   }
 
-  async removeIdDocument(tenantId: string) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+  async removeIdDocument(tenantId: string, organizationId: string) {
+    const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
     if (!tenant) throw new NotFoundException('Locataire introuvable');
     if (!tenant.idDocFileKey) {
       return { ok: true, removed: false };

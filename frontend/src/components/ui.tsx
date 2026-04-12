@@ -16,7 +16,7 @@ export function Card({
   return (
     <div
       {...rest}
-      className={`rounded-2xl border border-slate-200/95 bg-white p-4 text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_4px_16px_rgb(15_23_42/0.05)] ring-1 ring-slate-900/[0.025] sm:p-5 dark:border-slate-700/75 dark:bg-slate-900/92 dark:text-slate-100 dark:shadow-[0_2px_8px_rgb(0_0_0/0.25)] dark:ring-white/[0.05] ${className}`}
+      className={`rounded-2xl border border-slate-300/90 bg-white p-4 text-slate-900 shadow-[0_1px_3px_rgb(15_23_42/0.07),0_8px_28px_rgb(15_23_42/0.08)] ring-1 ring-slate-900/[0.04] sm:p-5 dark:border-slate-700/75 dark:bg-slate-900/92 dark:text-slate-100 dark:shadow-[0_2px_8px_rgb(0_0_0/0.25)] dark:ring-white/[0.05] ${className}`}
     >
       {children}
     </div>

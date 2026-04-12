@@ -1,4 +1,5 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { useAppNavigation } from '@/context/NavigationContext';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { LinkButton } from '@/components/LinkButton';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
@@ -99,10 +100,15 @@ export function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const { setReturnFallback } = useAppNavigation();
   const back = useMemo(
     () => resolveReturnTarget(routerLocation.state, { fallbackHref: '/locations', fallbackLabel: 'Locations' }),
     [routerLocation.state],
   );
+  useEffect(() => {
+    setReturnFallback(back.href);
+    return () => setReturnFallback('/');
+  }, [back.href, setReturnFallback]);
   const [data, setData] = useState<Fiche | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [savingLease, setSavingLease] = useState(false);

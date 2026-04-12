@@ -58,13 +58,15 @@ export class ReportsService {
     private readonly charges: ChargesService,
   ) {}
 
-  async buildPdf(year: number): Promise<Buffer> {
+  async buildPdf(year: number, organizationId: string): Promise<Buffer> {
     await this.payments.syncLateStatuses();
+    const leaseInOrg = { unit: { building: { organizationId } } };
     const [chargeSummary, overdue, allPaidYear] = await Promise.all([
-      this.charges.summary(year),
+      this.charges.summary(organizationId, year),
       this.prisma.payment.findMany({
         where: {
           periodYear: year,
+          lease: leaseInOrg,
           OR: [
             { status: PaymentStatus.LATE },
             { status: PaymentStatus.PENDING, dueDate: { lt: startOfTodayUtc() } },
@@ -76,7 +78,7 @@ export class ReportsService {
         orderBy: { dueDate: 'asc' },
       }),
       this.prisma.payment.findMany({
-        where: { periodYear: year, status: PaymentStatus.PAID },
+        where: { periodYear: year, status: PaymentStatus.PAID, lease: leaseInOrg },
         include: {
           lease: { include: { tenant: true, unit: { include: { building: true } } } },
         },
@@ -136,34 +138,37 @@ export class ReportsService {
     return Buffer.concat(chunks);
   }
 
-  async buildExcel(year: number): Promise<Buffer> {
+  async buildExcel(year: number, organizationId: string): Promise<Buffer> {
     await this.payments.syncLateStatuses();
     const today = startOfTodayUtc();
+    const leaseInOrg = { unit: { building: { organizationId } } };
 
     const [chargeSummary, payments, chargeRows, tenants, leaseList, buildings] = await Promise.all([
-      this.charges.summary(year),
+      this.charges.summary(organizationId, year),
       this.prisma.payment.findMany({
-        where: { periodYear: year },
+        where: { periodYear: year, lease: leaseInOrg },
         orderBy: [{ dueDate: 'asc' }],
         include: {
           lease: { include: { tenant: true, unit: { include: { building: true } } } },
         },
       }),
       this.prisma.charge.findMany({
-        where: { periodYear: year },
+        where: { periodYear: year, building: { organizationId } },
         include: { building: true, unit: true },
         orderBy: [{ buildingId: 'asc' }, { periodMonth: 'asc' }],
       }),
       this.prisma.tenant.findMany({
+        where: { organizationId },
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
         include: {
           leases: {
-            where: { active: true },
+            where: { active: true, ...leaseInOrg },
             include: { unit: { include: { building: true } } },
           },
         },
       }),
       this.prisma.lease.findMany({
+        where: leaseInOrg,
         orderBy: [{ active: 'desc' }, { startDate: 'desc' }],
         include: {
           tenant: true,
@@ -171,6 +176,7 @@ export class ReportsService {
         },
       }),
       this.prisma.building.findMany({
+        where: { organizationId },
         orderBy: { name: 'asc' },
         include: {
           units: {

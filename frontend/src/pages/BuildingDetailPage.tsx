@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useAppNavigation } from '@/context/NavigationContext';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
@@ -19,6 +21,7 @@ type Unit = {
   rooms: number | null;
   description?: string | null;
   leases?: Array<{
+    id: string;
     monthlyRent?: unknown;
     tenant: { firstName: string; lastName: string };
   }>;
@@ -44,23 +47,6 @@ const ORG_SECTION_HINT =
 
 const UNIT_SECTION_HINT =
   'Pour chaque lot ou local : choisissez d’abord la nature (appartement, maison, bureau, entrepôt, commerce, terrain…), puis l’emplacement (étage, n° de lot). Un même immeuble peut mélanger plusieurs types.';
-
-/** Bordure gauche des cartes unité selon la nature du local. */
-const UNIT_KIND_BORDER: Record<string, string> = {
-  APARTMENT: 'border-l-sky-500 dark:border-l-sky-400',
-  HOUSE: 'border-l-amber-500 dark:border-l-amber-400',
-  LAND: 'border-l-lime-600 dark:border-l-lime-500',
-  OFFICE: 'border-l-violet-500 dark:border-l-violet-400',
-  WAREHOUSE: 'border-l-orange-500 dark:border-l-orange-400',
-  COMMERCIAL: 'border-l-fuchsia-500 dark:border-l-fuchsia-400',
-  GARAGE: 'border-l-slate-500 dark:border-l-slate-400',
-  OTHER: 'border-l-slate-400 dark:border-l-slate-500',
-};
-
-function unitKindBorderClass(kind: string | undefined | null) {
-  if (!kind) return 'border-l-slate-400 dark:border-l-slate-500';
-  return UNIT_KIND_BORDER[kind] ?? 'border-l-slate-400 dark:border-l-slate-500';
-}
 
 function unitIsOccupied(u: Unit) {
   return (u.leases?.length ?? 0) > 0;
@@ -127,6 +113,7 @@ export function BuildingDetailPage() {
   const hintUnitLabel = params.get('hintUnitLabel')?.trim() ?? '';
   const returnLocation = params.get('returnLocation')?.trim() ?? '';
   const location = useLocation();
+  const { setReturnFallback } = useAppNavigation();
   const back = useMemo(
     () =>
       resolveReturnTarget(
@@ -136,6 +123,10 @@ export function BuildingDetailPage() {
       ),
     [location.state, returnLocation],
   );
+  useEffect(() => {
+    setReturnFallback(back.href);
+    return () => setReturnFallback('/');
+  }, [back.href, setReturnFallback]);
   const [b, setB] = useState<Building | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -158,6 +149,7 @@ export function BuildingDetailPage() {
   /** Numéro de lot 1…N sur terrain multi-lots (carnet déclaré). */
   const [terrainLotNo, setTerrainLotNo] = useState('');
   const [unitListFilter, setUnitListFilter] = useState<'all' | 'vacant' | 'occupied'>('all');
+  const [unitListSearch, setUnitListSearch] = useState('');
   const [addUnitFormOpen, setAddUnitFormOpen] = useState(false);
   const addUnitFormRef = useRef<HTMLDivElement | null>(null);
 
@@ -285,6 +277,27 @@ export function BuildingDetailPage() {
     return sortedUnits;
   }, [sortedUnits, unitListFilter]);
 
+  const tableUnits = useMemo(() => {
+    const q = unitListSearch.trim().toLowerCase();
+    if (!q) return filteredUnits;
+    return filteredUnits.filter((u) => {
+      const lease0 = u.leases?.[0];
+      const tenant = lease0?.tenant;
+      const tenantLine = tenant ? `${tenant.firstName} ${tenant.lastName}`.toLowerCase() : '';
+      const hay = [
+        u.label,
+        u.apartmentSlot != null ? String(u.apartmentSlot) : '',
+        unitKindLabel(u.kind),
+        u.description ?? '',
+        tenantLine,
+        floorLabel(u.floor) ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [filteredUnits, unitListSearch]);
+
   const unitFocusTitle = useMemo(() => {
     if (!focusUnitId || !b?.units?.length) return hintUnitLabel || '';
     const u = b.units.find((x) => x.id === focusUnitId);
@@ -307,6 +320,7 @@ export function BuildingDetailPage() {
   useEffect(() => {
     if (!focusUnitId) return;
     setUnitListFilter('all');
+    setUnitListSearch('');
   }, [focusUnitId]);
 
   useLayoutEffect(() => {
@@ -314,7 +328,7 @@ export function BuildingDetailPage() {
     const unit = b.units.find((u) => u.id === focusUnitId);
     if (!unit) return;
     const t = window.setTimeout(() => {
-      const el = document.getElementById(`unit-card-${focusUnitId}`);
+      const el = document.getElementById(`unit-row-${focusUnitId}`);
       if (!el) return;
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       el.classList.add('ring-2', 'ring-brand-500', 'ring-offset-2', 'rounded-2xl', 'dark:ring-offset-slate-900');
@@ -331,7 +345,7 @@ export function BuildingDetailPage() {
       );
     }, 200);
     return () => clearTimeout(t);
-  }, [id, b?.id, b?.units, focusUnitId, filteredUnits]);
+  }, [id, b?.id, b?.units, focusUnitId, filteredUnits, tableUnits]);
 
   useEffect(() => {
     if (!immeubleFloorPickerActive || kind !== 'APARTMENT') return;
@@ -1162,162 +1176,231 @@ export function BuildingDetailPage() {
         </Card>
       </div>
 
-      <Card id="fiche-unites" className="scroll-mt-24">
-        <div className="mb-4 flex flex-col gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Unités</h2>
-            <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
-              Tri par étage et n° de lot. Filtrez libre / loué, modifiez la nature ou supprimez une unité.
-            </p>
-            {b.units.length > 0 && buildingStats ? (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">{b.units.length}</span> au total ·{' '}
-                <span className="text-emerald-700 dark:text-emerald-400">{buildingStats.occupied} louée{buildingStats.occupied !== 1 ? 's' : ''}</span>
-                {' · '}
-                <span className="text-slate-600 dark:text-slate-400">{buildingStats.vacant} libre{buildingStats.vacant !== 1 ? 's' : ''}</span>
+      <Card
+        id="fiche-unites"
+        className="scroll-mt-24 overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35"
+      >
+        <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Liste des unités</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Tri par étage et n° de lot. Modifiez la nature du local dans la colonne dédiée.
               </p>
+              {b.units.length > 0 && buildingStats ? (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {tableUnits.length === filteredUnits.length
+                    ? `${filteredUnits.length} unité${filteredUnits.length !== 1 ? 's' : ''} affichée${filteredUnits.length !== 1 ? 's' : ''}`
+                    : `${tableUnits.length} sur ${filteredUnits.length} affichée${tableUnits.length !== 1 ? 's' : ''}`}
+                  {' · '}
+                  <span className="text-emerald-700 dark:text-emerald-400">{buildingStats.occupied} louée{buildingStats.occupied !== 1 ? 's' : ''}</span>
+                  {' · '}
+                  <span>{buildingStats.vacant} libre{buildingStats.vacant !== 1 ? 's' : ''}</span>
+                </p>
+              ) : null}
+            </div>
+            {b.units.length > 0 ? (
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer les unités">
+                {(
+                  [
+                    { key: 'all' as const, label: 'Toutes' },
+                    { key: 'vacant' as const, label: 'Libres' },
+                    { key: 'occupied' as const, label: 'Louées' },
+                  ] as const
+                ).map(({ key, label: lbl }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setUnitListFilter(key)}
+                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                      unitListFilter === key
+                        ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
+                        : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
           {b.units.length > 0 ? (
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer les unités">
-              {(
-                [
-                  { key: 'all' as const, label: 'Toutes' },
-                  { key: 'vacant' as const, label: 'Libres' },
-                  { key: 'occupied' as const, label: 'Louées' },
-                ] as const
-              ).map(({ key, label: lbl }) => (
+            <div className="relative w-full min-w-0 sm:max-w-xs">
+              <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-slate-400" aria-hidden>
+                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+                </svg>
+              </span>
+              <Input
+                type="search"
+                value={unitListSearch}
+                onChange={(e) => setUnitListSearch(e.target.value)}
+                placeholder="Rechercher (libellé, lot, locataire…)"
+                className="w-full rounded-lg border-slate-200 py-2 pl-9 pr-8 text-sm dark:border-slate-600"
+                aria-label="Filtrer la liste des unités"
+                autoComplete="off"
+              />
+              {unitListSearch.trim() ? (
                 <button
-                  key={key}
                   type="button"
-                  onClick={() => setUnitListFilter(key)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                    unitListFilter === key
-                      ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500'
-                  }`}
+                  className="absolute right-2 top-1/2 z-[1] -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                  onClick={() => setUnitListSearch('')}
+                  aria-label="Effacer la recherche"
                 >
-                  {lbl}
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
                 </button>
-              ))}
+              ) : null}
             </div>
           ) : null}
         </div>
-        <ul className="grid list-none gap-4 sm:grid-cols-2">
-          {filteredUnits.map((u) => {
-            const lease0 = u.leases?.[0];
-            const tenant = lease0?.tenant;
-            const rawRent = lease0?.monthlyRent;
-            const rent =
-              rawRent != null && rawRent !== ''
-                ? Number(rawRent)
-                : null;
-            const occupied = unitIsOccupied(u);
-            const fl = floorLabel(u.floor);
-            return (
-              <li
-                key={u.id}
-                id={`unit-card-${u.id}`}
-                className={`flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 border-l-4 bg-gradient-to-b from-slate-50/98 to-slate-100/25 shadow-sm dark:border-slate-700 dark:from-slate-900/75 dark:to-slate-900/30 ${unitKindBorderClass(u.kind)}`}
-              >
-                <div className="flex flex-1 flex-col p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {u.apartmentSlot != null ? `Lot n° ${u.apartmentSlot}` : 'Unité'}
-                        </p>
-                      <p className="font-semibold leading-snug text-slate-900 dark:text-slate-100">{u.label}</p>
-                      <span className="mt-1.5 inline-flex rounded-md bg-slate-200/80 px-2 py-0.5 text-[11px] font-semibold text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                        {unitKindLabel(u.kind)}
-                      </span>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                        occupied
-                          ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
-                          : 'bg-slate-200/90 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                      }`}
+
+        {b.units.length > 0 && tableUnits.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                  <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Unité</th>
+                  <th className="min-w-[11rem] whitespace-nowrap px-4 py-2.5 sm:px-5">Nature du local</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Étage</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Surface</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Pièces</th>
+                  <th className="min-w-[10rem] px-4 py-2.5 sm:px-5">Locataire</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Loyer</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Statut</th>
+                  <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right sm:px-5"> </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {tableUnits.map((u) => {
+                  const lease0 = u.leases?.[0];
+                  const tenant = lease0?.tenant;
+                  const rawRent = lease0?.monthlyRent;
+                  const rent =
+                    rawRent != null && rawRent !== ''
+                      ? Number(rawRent)
+                      : null;
+                  const occupied = unitIsOccupied(u);
+                  const fl = floorLabel(u.floor);
+                  return (
+                    <tr
+                      key={u.id}
+                      id={`unit-row-${u.id}`}
+                      className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
                     >
-                      {occupied ? 'Loué' : 'Libre'}
-                    </span>
-                  </div>
+                      <td className="px-4 py-3 sm:px-5">
+                        <div className="min-w-0 max-w-[14rem]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {u.apartmentSlot != null ? `Lot n° ${u.apartmentSlot}` : 'Unité'}
+                          </p>
+                          <p className="font-semibold leading-snug text-slate-900 dark:text-slate-100">{u.label}</p>
+                          {u.description ? (
+                            <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{u.description}</p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 sm:px-5">
+                        <Select
+                          id={`unit-kind-${u.id}`}
+                          value={u.kind ?? 'APARTMENT'}
+                          onChange={(e) => void updateUnitKind(u.id, e.target.value)}
+                          className="min-w-[10rem] text-xs"
+                        >
+                          {UNIT_KIND_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">{fl ?? '—'}</td>
+                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300 sm:px-5">
+                        {u.surfaceM2 != null ? `${Number(u.surfaceM2)} m²` : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300 sm:px-5">
+                        {u.rooms != null ? u.rooms : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                        {tenant ? (
+                          <span className="font-medium text-slate-900 dark:text-slate-100">
+                            {tenant.firstName} {tenant.lastName}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200 sm:px-5">
+                        {rent != null && Number.isFinite(rent) ? fcfa(rent) : '—'}
+                      </td>
+                      <td className="px-4 py-3 sm:px-5">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                            occupied
+                              ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
+                              : 'bg-slate-200/90 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                          }`}
+                        >
+                          {occupied ? 'Loué' : 'Libre'}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right sm:px-5">
+                        <div className="inline-flex flex-col items-end gap-1.5 sm:flex-row sm:items-center">
+                          {lease0?.id ? (
+                            <SmartLink
+                              to={`/locations/${lease0.id}`}
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-300/90 bg-slate-100/85 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                            >
+                              Fiche location
+                            </SmartLink>
+                          ) : (
+                            <SmartLink
+                              to={`/baux?buildingId=${encodeURIComponent(b.id)}&unitId=${encodeURIComponent(u.id)}#nouveau-bail`}
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-300/90 bg-slate-100/85 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                              title="Ouvrir la création de bail avec ce bien et cette unité déjà sélectionnés"
+                            >
+                              Baux
+                            </SmartLink>
+                          )}
+                          <Button variant="danger" className="py-1.5 text-xs" onClick={() => removeUnit(u.id)}>
+                            Supprimer
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {fl ? (
-                      <span className="inline-flex rounded-lg bg-white/90 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
-                        {fl}
-                      </span>
-                    ) : null}
-                    <span className="inline-flex rounded-lg bg-white/90 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
-                      {u.surfaceM2 != null ? `${Number(u.surfaceM2)} m²` : 'Surface —'}
-                    </span>
-                    <span className="inline-flex rounded-lg bg-white/90 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
-                      {u.rooms != null ? `${u.rooms} p.` : 'Pièces —'}
-                    </span>
-                    {rent != null && Number.isFinite(rent) ? (
-                      <span className="inline-flex rounded-lg bg-brand-500/10 px-2 py-1 text-[11px] font-semibold tabular-nums text-brand-900 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-200 dark:ring-brand-500/30">
-                        {fcfa(rent)}
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-lg bg-slate-100/80 px-2 py-1 text-[11px] text-slate-500 ring-1 ring-slate-200/60 dark:bg-slate-800/50 dark:text-slate-400">
-                        Loyer —
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-3 rounded-lg border border-slate-200/70 bg-slate-50/80 p-2.5 dark:border-slate-600/60 dark:bg-slate-800/40">
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" htmlFor={`unit-kind-${u.id}`}>
-                      Nature du local
-                    </label>
-                    <Select
-                      id={`unit-kind-${u.id}`}
-                      value={u.kind ?? 'APARTMENT'}
-                      onChange={(e) => void updateUnitKind(u.id, e.target.value)}
-                      className="text-xs"
-                    >
-                      {UNIT_KIND_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  {u.description ? (
-                    <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{u.description}</p>
-                  ) : null}
-                  {tenant ? (
-                    <p className="mt-3 rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-2.5 py-2 text-xs font-medium text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-950/45 dark:text-emerald-200">
-                      Locataire (bail actif) : {tenant.firstName} {tenant.lastName}
-                    </p>
-                  ) : (
-                    <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-500">Pas de bail actif sur cette unité.</p>
-                  )}
-                  <Button variant="danger" className="mt-4 w-full py-2 text-xs sm:w-auto sm:self-end" onClick={() => removeUnit(u.id)}>
-                    Supprimer l&apos;unité
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-          {b.units.length === 0 && (
-            <li className="col-span-full rounded-xl border border-dashed border-slate-300/90 py-10 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
-              <p>Aucune unité pour ce bien.</p>
-              <button
-                type="button"
-                className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
-                onClick={openAddUnitForm}
-              >
-                Ajouter une unité
-              </button>
-            </li>
-          )}
-          {b.units.length > 0 && filteredUnits.length === 0 && (
-            <li className="col-span-full rounded-xl border border-dashed border-amber-200/90 bg-amber-50/40 py-8 text-center text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/25 dark:text-amber-200/90">
-              Aucune unité dans cette vue — choisissez « Toutes » ou un autre filtre.
-            </li>
-          )}
-        </ul>
+        {b.units.length === 0 && (
+          <div className="border-t border-slate-200/80 px-4 py-12 text-center dark:border-slate-700">
+            <p className="text-sm text-slate-500 dark:text-slate-400">Aucune unité pour ce bien.</p>
+            <button
+              type="button"
+              className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+              onClick={openAddUnitForm}
+            >
+              Ajouter une unité
+            </button>
+          </div>
+        )}
+        {b.units.length > 0 && filteredUnits.length === 0 && (
+          <div className="border-t border-slate-200/80 px-4 py-10 text-center dark:border-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Aucune unité dans cette vue — choisissez « Toutes » ou un autre filtre.</p>
+          </div>
+        )}
+        {b.units.length > 0 && filteredUnits.length > 0 && tableUnits.length === 0 && (
+          <div className="border-t border-slate-200/80 px-4 py-10 text-center dark:border-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Aucun résultat pour cette recherche.</p>
+            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => setUnitListSearch('')}>
+              Effacer la recherche
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

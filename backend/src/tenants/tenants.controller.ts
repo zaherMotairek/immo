@@ -13,6 +13,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -28,14 +30,14 @@ export class TenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
   @Get()
-  list() {
-    return this.tenants.list();
+  list(@CurrentUser() user: JwtAuthUser) {
+    return this.tenants.list(user.organizationId);
   }
 
   /** Téléchargement / affichage CNI ou passeport (PDF ou image), protégé par JWT. */
   @Get(':id/id-document')
-  downloadIdDocument(@Param('id') id: string) {
-    return this.tenants.getIdDocumentStream(id);
+  downloadIdDocument(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.tenants.getIdDocumentStream(id, user.organizationId);
   }
 
   @Post(':id/id-document')
@@ -51,33 +53,37 @@ export class TenantsController {
       },
     }),
   )
-  uploadIdDocument(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+  uploadIdDocument(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     if (!file) throw new BadRequestException('Fichier manquant (formulaire : champ « file »).');
-    return this.tenants.saveIdDocument(id, file);
+    return this.tenants.saveIdDocument(id, user.organizationId, file);
   }
 
   @Delete(':id/id-document')
-  deleteIdDocument(@Param('id') id: string) {
-    return this.tenants.removeIdDocument(id);
+  deleteIdDocument(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.tenants.removeIdDocument(id, user.organizationId);
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.tenants.get(id);
+  get(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.tenants.get(id, user.organizationId);
   }
 
   @Post()
-  create(@Body() dto: CreateTenantDto) {
-    return this.tenants.create(dto);
+  create(@CurrentUser() user: JwtAuthUser, @Body() dto: CreateTenantDto) {
+    return this.tenants.create(dto, user.organizationId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateTenantDto) {
-    return this.tenants.update(id, dto);
+  update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
+    return this.tenants.update(id, user.organizationId, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.tenants.remove(id);
+  remove(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.tenants.remove(id, user.organizationId);
   }
 }

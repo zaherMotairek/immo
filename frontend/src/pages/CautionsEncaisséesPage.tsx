@@ -4,7 +4,7 @@ import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Card } from '@/components/ui';
 
 type DepositRow = {
@@ -30,6 +30,7 @@ function cautionMoisLabel(monthlyRent: number, depositAmount: number): string {
 }
 
 export function CautionsEncaisséesPage() {
+  useRegisterRootSectionFallback();
   const [rows, setRows] = useState<DepositRow[]>([]);
 
   useEffect(() => {
@@ -45,7 +46,6 @@ export function CautionsEncaisséesPage() {
 
   return (
     <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/paiements" fallbackLabel="Paiements" />
       <AppPageTitle
         className="max-w-3xl"
         iconTo="/cautions"

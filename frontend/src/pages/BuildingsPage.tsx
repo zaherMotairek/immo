@@ -4,7 +4,7 @@ import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { BUILDING_STRUCTURE_OPTIONS, type BuildingStructureValue } from '@/lib/buildingStructure';
 
@@ -21,21 +21,12 @@ type BuildingRow = {
   _count: { units: number };
 };
 
-const KIND_QUERY_VALUES = ['APARTMENT', 'HOUSE', 'LAND', 'WAREHOUSE'] as const;
-type AllowedKind = (typeof KIND_QUERY_VALUES)[number] | '';
+const STRUCTURE_QUERY_VALUES = ['IMMEUBLE', 'TERRAIN_LOTS', 'MONO_LOT'] as const satisfies readonly BuildingStructureValue[];
 
-const BIEN_TYPE_FILTERS: { kind: AllowedKind; label: string; hint: string }[] = [
-  { kind: '', label: 'Tous les biens', hint: 'Tout le patrimoine' },
-  { kind: 'APARTMENT', label: 'Immeubles', hint: 'Copropriété, appartements' },
-  { kind: 'HOUSE', label: 'Maisons & villas', hint: 'Maisons individuelles' },
-  { kind: 'LAND', label: 'Terrains', hint: 'Parcelles nues ou à bâtir' },
-  { kind: 'WAREHOUSE', label: 'Entrepôts', hint: 'Locaux industriels & stockage' },
-];
-
-function normalizeKindParam(raw: string | null): AllowedKind {
-  if (!raw?.trim()) return '';
+function normalizeGenreParam(raw: string | null): BuildingStructureValue | null {
+  if (!raw?.trim()) return null;
   const k = raw.trim().toUpperCase();
-  return (KIND_QUERY_VALUES as readonly string[]).includes(k) ? (k as AllowedKind) : '';
+  return (STRUCTURE_QUERY_VALUES as readonly string[]).includes(k) ? (k as BuildingStructureValue) : null;
 }
 
 function structureKindShort(k?: BuildingStructureValue | string | null) {
@@ -75,15 +66,29 @@ function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructure
 }
 
 export function BuildingsPage() {
+  useRegisterRootSectionFallback();
   const [searchParams, setSearchParams] = useSearchParams();
-  const kindFilter = useMemo(() => normalizeKindParam(searchParams.get('kind')), [searchParams]);
+  /** Filtre par genre de bien (structure), aligné sur le formulaire « Genre de bien ». */
+  const genreFilter = useMemo(() => normalizeGenreParam(searchParams.get('genre')), [searchParams]);
 
-  function setKindFilter(next: AllowedKind) {
+  function selectGenreFilter(next: BuildingStructureValue) {
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev);
-        if (!next) p.delete('kind');
-        else p.set('kind', next);
+        p.delete('kind');
+        p.set('genre', next);
+        return p;
+      },
+      { replace: true },
+    );
+  }
+
+  function clearGenreFilter() {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.delete('genre');
+        p.delete('kind');
         return p;
       },
       { replace: true },
@@ -135,7 +140,7 @@ export function BuildingsPage() {
   }
 
   const load = useCallback(() => {
-    const q = kindFilter ? `?unitKind=${encodeURIComponent(kindFilter)}` : '';
+    const q = genreFilter ? `?structureKind=${encodeURIComponent(genreFilter)}` : '';
     setListErr(null);
     api<BuildingRow[]>(`/buildings${q}`)
       .then((data) => {
@@ -150,7 +155,7 @@ export function BuildingsPage() {
             : 'Impossible de charger les biens. Vérifiez la connexion et que l’API répond (terminal backend).',
         );
       });
-  }, [kindFilter]);
+  }, [genreFilter]);
 
   useEffect(() => {
     load();
@@ -234,15 +239,14 @@ export function BuildingsPage() {
     }
   }
 
-  const filterHint = kindFilter
-    ? 'Sites ayant au moins une unité de ce type. Le nombre d’unités affiché compte uniquement celles du filtre.'
-    : 'Vue complète : tous les sites, avec le nombre total d’unités par bien.';
+  const filterHint = genreFilter
+    ? 'Filtre par genre de bien (structure) : immeuble multi-lots, terrain parcelé ou un seul lot — comme dans « Nouveau bien ».'
+    : '« Tous les biens » : aucun filtre. Choisissez un genre pour restreindre la liste.';
 
   const totalUnits = useMemo(() => rows.reduce((s, b) => s + b._count.units, 0), [rows]);
 
   return (
     <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <AppPageTitle
           className="max-w-3xl"
@@ -264,21 +268,33 @@ export function BuildingsPage() {
           <HelpHint className="align-middle" title={filterHint} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {BIEN_TYPE_FILTERS.map((f) => {
-            const active = kindFilter === f.kind;
+          <button
+            type="button"
+            title="Tout le patrimoine, tous les genres de biens"
+            onClick={() => clearGenreFilter()}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+              !genreFilter
+                ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
+                : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
+            }`}
+          >
+            Tous les biens
+          </button>
+          {BUILDING_STRUCTURE_OPTIONS.map((opt) => {
+            const active = genreFilter === opt.value;
             return (
               <button
-                key={f.kind || 'all'}
+                key={opt.value}
                 type="button"
-                title={f.hint}
-                onClick={() => setKindFilter(f.kind)}
+                title={opt.description}
+                onClick={() => selectGenreFilter(opt.value)}
                 className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                   active
                     ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
                     : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
                 }`}
               >
-                {f.label}
+                {opt.cardTitle}
               </button>
             );
           })}
@@ -293,7 +309,7 @@ export function BuildingsPage() {
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{rows.length}</span>{' '}
                 bien{rows.length !== 1 ? 's' : ''}
-                {kindFilter ? ' (filtre actif)' : ''} ·{' '}
+                {genreFilter ? ' (filtre actif)' : ''} ·{' '}
                 <span className="tabular-nums">{totalUnits}</span> unité{totalUnits !== 1 ? 's' : ''} au total
               </p>
             ) : (
@@ -390,15 +406,15 @@ export function BuildingsPage() {
         {rows.length === 0 && !listErr && (
           <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {kindFilter ? (
+              {genreFilter ? (
                 <>
-                  Aucun bien ne correspond à ce filtre.{' '}
+                  Aucun bien ne correspond à ce genre.{' '}
                   <button
                     type="button"
                     className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
-                    onClick={() => setKindFilter('')}
+                    onClick={() => clearGenreFilter()}
                   >
-                    Afficher tous les biens
+                    Retirer le filtre
                   </button>
                 </>
               ) : (
@@ -408,7 +424,7 @@ export function BuildingsPage() {
                 </>
               )}
             </p>
-            {!kindFilter ? (
+            {!genreFilter ? (
               <button
                 type="button"
                 className="mt-3 inline-block text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"

@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async global(qRaw: string) {
+  async global(qRaw: string, organizationId: string) {
     const q = qRaw.trim();
     if (q.length < 2) {
       return {
@@ -23,6 +23,7 @@ export class SearchService {
     const [buildings, tenants, units, leases, charges, payments] = await Promise.all([
       this.prisma.building.findMany({
         where: {
+          organizationId,
           OR: [{ name: ic }, { city: ic }, { commune: ic }, { address: ic }],
         },
         orderBy: { name: 'asc' },
@@ -31,6 +32,7 @@ export class SearchService {
       }),
       this.prisma.tenant.findMany({
         where: {
+          organizationId,
           OR: [{ firstName: ic }, { lastName: ic }, { email: ic }, { phone: ic }],
         },
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
@@ -39,6 +41,7 @@ export class SearchService {
       }),
       this.prisma.unit.findMany({
         where: {
+          building: { organizationId },
           OR: [{ label: ic }, { description: ic }],
         },
         orderBy: { label: 'asc' },
@@ -53,6 +56,8 @@ export class SearchService {
       }),
       this.prisma.lease.findMany({
         where: {
+          active: true,
+          unit: { building: { organizationId } },
           OR: [
             { tenant: { firstName: ic } },
             { tenant: { lastName: ic } },
@@ -73,6 +78,7 @@ export class SearchService {
       }),
       this.prisma.charge.findMany({
         where: {
+          building: { organizationId },
           OR: [{ label: ic }, { notes: ic }],
         },
         orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
@@ -88,13 +94,23 @@ export class SearchService {
       }),
       this.prisma.payment.findMany({
         where: {
-          OR: [
-            { notes: ic },
-            { lease: { tenant: { firstName: ic } } },
-            { lease: { tenant: { lastName: ic } } },
-            { lease: { unit: { label: ic } } },
-            { lease: { unit: { building: { name: ic } } } },
-            { lease: { unit: { building: { city: ic } } } },
+          AND: [
+            {
+              lease: {
+                active: true,
+                unit: { building: { organizationId } },
+              },
+            },
+            {
+              OR: [
+                { notes: ic },
+                { lease: { tenant: { firstName: ic } } },
+                { lease: { tenant: { lastName: ic } } },
+                { lease: { unit: { label: ic } } },
+                { lease: { unit: { building: { name: ic } } } },
+                { lease: { unit: { building: { city: ic } } } },
+              ],
+            },
           ],
         },
         orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],

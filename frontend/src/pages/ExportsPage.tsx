@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { downloadReport } from '@/lib/api';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { ReturnNavigation } from '@/components/ReturnNavigation';
+import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
 
 export function ExportsPage() {
+  useRegisterRootSectionFallback();
   const [year, setYear] = useState(new Date().getFullYear());
 
   return (
     <div className="space-y-6">
-      <ReturnNavigation fallbackHref="/" fallbackLabel="Tableau de bord" />
       <AppPageTitle
         className="max-w-3xl"
         iconTo="/exports"

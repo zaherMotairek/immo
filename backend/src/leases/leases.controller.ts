@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LeasesService } from './leases.service';
 import { CreateLeaseDto } from './dto/create-lease.dto';
@@ -28,50 +30,50 @@ export class LeasesController {
   constructor(private readonly leases: LeasesService) {}
 
   @Get('overview')
-  overview(@Query('all') all?: string) {
+  overview(@CurrentUser() user: JwtAuthUser, @Query('all') all?: string) {
     const activeOnly = !(all === '1' || all === 'true');
-    return this.leases.listOverview(activeOnly);
+    return this.leases.listOverview(user.organizationId, activeOnly);
   }
 
   @Get('deposits-collected')
-  depositsCollected() {
-    return this.leases.listDepositsCollected();
+  depositsCollected(@CurrentUser() user: JwtAuthUser) {
+    return this.leases.listDepositsCollected(user.organizationId);
   }
 
   @Get()
-  list() {
-    return this.leases.list();
+  list(@CurrentUser() user: JwtAuthUser) {
+    return this.leases.list(user.organizationId);
   }
 
   @Get(':id/fiche')
-  fiche(@Param('id') id: string) {
-    return this.leases.getFiche(id);
+  fiche(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.leases.getFiche(id, user.organizationId);
   }
 
   /** Téléchargement / affichage du contrat (PDF ou image), protégé par JWT. */
   @Get(':id/contract')
-  downloadContract(@Param('id') id: string) {
-    return this.leases.getContractStream(id);
+  downloadContract(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.leases.getContractStream(id, user.organizationId);
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.leases.get(id);
+  get(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.leases.get(id, user.organizationId);
   }
 
   @Post()
-  create(@Body() dto: CreateLeaseDto) {
-    return this.leases.create(dto);
+  create(@CurrentUser() user: JwtAuthUser, @Body() dto: CreateLeaseDto) {
+    return this.leases.create(dto, user.organizationId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateLeaseDto) {
-    return this.leases.update(id, dto);
+  update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateLeaseDto) {
+    return this.leases.update(id, user.organizationId, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.leases.remove(id);
+  remove(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.leases.remove(id, user.organizationId);
   }
 
   @Post(':id/contract')
@@ -87,24 +89,28 @@ export class LeasesController {
       },
     }),
   )
-  uploadContract(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+  uploadContract(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     if (!file) throw new BadRequestException('Fichier manquant (formulaire : champ « file »).');
-    return this.leases.saveContract(id, file);
+    return this.leases.saveContract(id, user.organizationId, file);
   }
 
   @Delete(':id/contract')
-  deleteContractFile(@Param('id') id: string) {
-    return this.leases.removeContract(id);
+  deleteContractFile(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.leases.removeContract(id, user.organizationId);
   }
 
   @Post(':id/generate-payments')
-  generatePayments(@Param('id') id: string, @Body() dto: GeneratePaymentsDto) {
-    return this.leases.generatePayments(id, dto.year);
+  generatePayments(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: GeneratePaymentsDto) {
+    return this.leases.generatePayments(id, user.organizationId, dto.year);
   }
 
   /** Marque comme payées les N prochaines échéances de loyer encore PENDING/LATE (1 à 12). */
   @Post(':id/prepay-months')
-  prepayMonths(@Param('id') id: string, @Body() dto: PrepayMonthsDto) {
-    return this.leases.prepayNextMonths(id, dto.months);
+  prepayMonths(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: PrepayMonthsDto) {
+    return this.leases.prepayNextMonths(id, user.organizationId, dto.months);
   }
 }

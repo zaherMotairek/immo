@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useNavigate } from 'react-router-dom';
 import { api, getStoredUser, getToken, setStoredUser, setToken } from '@/lib/api';
 
-type User = { id: string; email: string; name: string | null };
+type User = { id: string; email: string; name: string | null; organizationId?: string };
 
 type AuthState = {
   user: User | null;
