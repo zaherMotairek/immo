@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { SmartLink } from '@/components/SmartLink';
+import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Card } from '@/components/ui';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 
 type DepositRow = {
   leaseId: string;
@@ -78,7 +79,9 @@ export function CautionsEncaisséesPage() {
                   Mois (équiv.)
                 </th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-200">Montant</th>
-                <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200" />
+                <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200" title="Fiche du bail (location)">
+                  Fiche location
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -96,16 +99,13 @@ export function CautionsEncaisséesPage() {
                   </td>
                 </tr>
               ) : (
-                rows.map((r) => (
-                  <tr
-                    key={r.leaseId}
-                    className="border-b border-slate-100 transition hover:bg-slate-50/80 dark:border-slate-800 dark:hover:bg-slate-800/40"
-                  >
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200">
+                rows.map((r, rowIndex) => (
+                  <tr key={r.leaseId} className={listTableDataRowClass(rowIndex)}>
+                    <td className={`${listTableFirstCellClass} whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-200`}>
                       {r.depositPaidAt}
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{r.tenantFullName}</td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                    <td className={`${listTableCellClass} font-medium text-slate-900 dark:text-slate-100`}>{r.tenantFullName}</td>
+                    <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
                       <span className="block text-xs text-slate-500 dark:text-slate-400">{r.localizationLine}</span>
                       <span>
                         {r.buildingName} — {r.unitLabel}
@@ -116,19 +116,14 @@ export function CautionsEncaisséesPage() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-800 dark:text-slate-200">
+                    <td className={`${listTableCellClass} whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200`}>
                       {cautionMoisLabel(r.monthlyRent, r.depositAmount)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                    <td className={`${listTableCellClass} whitespace-nowrap text-right font-semibold tabular-nums text-slate-900 dark:text-slate-100`}>
                       {fcfa(r.depositAmount)}
                     </td>
-                    <td className="px-4 py-3">
-                      <SmartLink
-                        to={`/locations/${r.leaseId}`}
-                        className="text-xs font-semibold text-brand-700 hover:underline dark:text-brand-400"
-                      >
-                        Fiche
-                      </SmartLink>
+                    <td className={listTableCellClass}>
+                      <FicheLocationLink leaseId={r.leaseId} />
                     </td>
                   </tr>
                 ))

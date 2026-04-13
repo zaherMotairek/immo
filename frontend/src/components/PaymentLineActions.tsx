@@ -33,14 +33,14 @@ export function PaymentLineActions({
   const bp = zoomed
     ? 'py-3 text-sm min-h-[2.75rem]'
     : stacked
-      ? 'w-full justify-center py-2 text-xs'
+      ? 'shrink-0 justify-center whitespace-nowrap px-2.5 py-2 text-xs'
       : compact
         ? 'shrink-0 py-1.5 px-2.5 text-[11px] font-semibold leading-tight'
         : 'py-2 text-xs';
   const waBp = zoomed
     ? 'px-5 py-3 text-sm'
     : stacked
-      ? 'w-full justify-center rounded-xl px-3 py-2 text-xs font-semibold'
+      ? 'shrink-0 justify-center whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold'
       : compact
         ? 'shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold leading-tight'
         : 'px-4 py-2 text-xs';
@@ -85,7 +85,7 @@ export function PaymentLineActions({
         <span
           className={
             stacked
-              ? 'w-full rounded-md border border-amber-200/90 bg-amber-50/90 px-2 py-1.5 text-center text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
+              ? 'shrink-0 rounded-md border border-amber-200/90 bg-amber-50/90 px-2 py-1.5 text-center text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
               : compact
                 ? 'shrink-0 rounded-md border border-amber-200/90 bg-amber-50/90 px-1.5 py-1 text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
                 : zoomed
@@ -117,7 +117,9 @@ export function PaymentLineActions({
   );
 
   if (stacked) {
-    return <div className="flex w-full flex-col gap-1.5">{nodes}</div>;
+    return (
+      <div className="flex w-full flex-row flex-wrap items-center justify-end gap-1.5">{nodes}</div>
+    );
   }
   if (compact) {
     return <div className="flex min-w-0 flex-nowrap items-center gap-1">{nodes}</div>;

@@ -27,16 +27,46 @@ export class PaymentsService {
 
   async list(
     organizationId: string,
-    filters?: { overdueOnly?: boolean; leaseId?: string; periodYear?: number; periodMonth?: number },
+    filters?: {
+      overdueOnly?: boolean;
+      leaseId?: string;
+      periodYear?: number;
+      periodMonth?: number;
+      /** Filtre optionnel : toutes les échéances des baux sur ce bien. */
+      buildingId?: string;
+      /** Filtre optionnel : une unité précise (avec ou sans buildingId si cohérent). */
+      unitId?: string;
+      /** Filtre optionnel : toutes les échéances des baux de ce locataire. */
+      tenantId?: string;
+    },
   ) {
     await this.syncLateStatuses();
+    /** Échéances des baux actifs uniquement (baux désactivés = historique hors vue liste). */
+    const leaseScope =
+      filters?.leaseId != null && filters.leaseId.trim() !== ''
+        ? {
+            id: filters.leaseId.trim(),
+            active: true,
+            unit: { building: { organizationId } },
+          }
+        : {
+            active: true,
+            ...(filters?.tenantId != null && filters.tenantId.trim() !== ''
+              ? { tenantId: filters.tenantId.trim() }
+              : {}),
+            unit: {
+              building: { organizationId },
+              ...(filters?.buildingId != null && filters.buildingId.trim() !== ''
+                ? { buildingId: filters.buildingId.trim() }
+                : {}),
+              ...(filters?.unitId != null && filters.unitId.trim() !== ''
+                ? { id: filters.unitId.trim() }
+                : {}),
+            },
+          };
+
     const where: Record<string, unknown> = {
-      /** Échéances des baux actifs uniquement (baux désactivés = historique hors vue liste). */
-      lease: {
-        active: true,
-        ...(filters?.leaseId ? { id: filters.leaseId } : {}),
-        unit: { building: { organizationId } },
-      },
+      lease: leaseScope,
     };
     if (filters?.periodYear !== undefined && Number.isInteger(filters.periodYear)) {
       where.periodYear = filters.periodYear;

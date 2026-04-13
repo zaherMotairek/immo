@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAppNavigation } from '@/context/NavigationContext';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { BuildingScopeBadge, UnitScopeBadge } from '@/components/BuildingUnitBadges';
+import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
 import { SidebarNavIcon } from '@/components/SidebarNavIcons';
-import { Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
-import { BUILDING_STRUCTURE_OPTIONS, type BuildingStructureValue } from '@/lib/buildingStructure';
+import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
+import {
+  BUILDING_STRUCTURE_OPTIONS,
+  IMMEUBLE_CARNET_COUNT_HINT,
+  IMMEUBLE_FLOORS_HINT,
+  type BuildingStructureValue,
+} from '@/lib/buildingStructure';
 import { UNIT_KIND_OPTIONS, unitKindLabel } from '@/lib/unitKind';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import { resolveReturnTarget } from '@/lib/navigation';
+import { useEscapeCancel } from '@/lib/useEscapeCancel';
 
 type Unit = {
   id: string;
@@ -83,24 +92,6 @@ function BuildingHeroIcon({ structureKind }: { structureKind: BuildingStructureV
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M9 22V12h6v10" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 shadow-sm dark:border-slate-600/80 dark:bg-slate-800/50">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</p>
-      {sub ? <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{sub}</p> : null}
     </div>
   );
 }
@@ -228,6 +219,30 @@ export function BuildingDetailPage() {
     return s;
   }, [b?.units]);
 
+  /** Même nombre d’étages que de places au carnet → 1 appartement par niveau : on ne propose pas un étage déjà utilisé. */
+  const immeubleOnePerFloorLayout = useMemo(
+    () =>
+      !!b &&
+      b.structureKind === 'IMMEUBLE' &&
+      b.floorCount != null &&
+      b.apartmentCount != null &&
+      b.floorCount === b.apartmentCount &&
+      b.floorCount > 0,
+    [b],
+  );
+
+  const availableImmeubleFloors = useMemo(() => {
+    if (!b?.floorCount) return [];
+    const fc = b.floorCount;
+    const all = [0, ...Array.from({ length: fc }, (_, i) => i + 1)];
+    if (!immeubleOnePerFloorLayout) return all;
+    const taken = new Set<number>();
+    for (const u of b.units ?? []) {
+      if (u.floor != null) taken.add(u.floor);
+    }
+    return all.filter((f) => !taken.has(f));
+  }, [b, immeubleOnePerFloorLayout]);
+
   const buildingStats = useMemo(() => {
     if (!b?.units) return null;
     const total = b.units.length;
@@ -255,8 +270,57 @@ export function BuildingDetailPage() {
       const n = typeof raw === 'string' ? Number(raw) : Number(raw);
       if (Number.isFinite(n) && n >= 0) monthlyRentTotal += n;
     }
-    return { total, occupied, vacant, surfaceLabel, surfaceCount, monthlyRentTotal };
-  }, [b?.units]);
+
+    /** Lots / places déclarés dans « Organisation du bien » (carnet immeuble ou lots terrain). */
+    let declaredCapacity: number | null = null;
+    if (b.structureKind === 'IMMEUBLE' && b.apartmentCount != null && b.apartmentCount > 0) {
+      declaredCapacity = b.apartmentCount;
+    } else if (b.structureKind === 'TERRAIN_LOTS' && b.terrainLotCount != null && b.terrainLotCount > 0) {
+      declaredCapacity = b.terrainLotCount;
+    }
+    const missingFromDeclared =
+      declaredCapacity != null ? Math.max(0, declaredCapacity - total) : null;
+    const overDeclared =
+      declaredCapacity != null ? Math.max(0, total - declaredCapacity) : null;
+
+    let unitsSub: string | undefined;
+    if (declaredCapacity != null) {
+      if (missingFromDeclared != null && missingFromDeclared > 0) {
+        unitsSub =
+          b.structureKind === 'TERRAIN_LOTS'
+            ? `Lots déclarés : ${declaredCapacity}`
+            : `Carnet : ${declaredCapacity} place${declaredCapacity !== 1 ? 's' : ''}`;
+      } else if (overDeclared != null && overDeclared > 0) {
+        unitsSub = `${overDeclared} unité${overDeclared !== 1 ? 's' : ''} au-delà du carnet (${declaredCapacity} déclaré${declaredCapacity !== 1 ? 's' : ''})`;
+      } else {
+        const onePerEtage =
+          b.structureKind === 'IMMEUBLE' &&
+          b.floorCount != null &&
+          b.apartmentCount != null &&
+          b.floorCount === b.apartmentCount &&
+          b.floorCount > 0
+            ? ' · 1 app./étage'
+            : '';
+        unitsSub =
+          b.structureKind === 'TERRAIN_LOTS'
+            ? `Tous les lots déclarés sont créés (${declaredCapacity})`
+            : `Carnet complet — ${declaredCapacity} place${declaredCapacity !== 1 ? 's' : ''} créée${declaredCapacity !== 1 ? 's' : ''}${onePerEtage}`;
+      }
+    }
+
+    return {
+      total,
+      occupied,
+      vacant,
+      surfaceLabel,
+      surfaceCount,
+      monthlyRentTotal,
+      unitsSub,
+      declaredCapacity,
+      missingFromDeclared: declaredCapacity != null ? missingFromDeclared : null,
+      structureKind: b.structureKind,
+    };
+  }, [b]);
 
   const sortedUnits = useMemo(() => {
     if (!b?.units?.length) return [];
@@ -353,6 +417,15 @@ export function BuildingDetailPage() {
     const ét = immeubleEtage === '0' ? 'RDC' : `ét. ${immeubleEtage}`;
     setLabel(`App. ${immeubleAppNo} · ${ét}`);
   }, [immeubleFloorPickerActive, kind, immeubleEtage, immeubleAppNo]);
+
+  useEffect(() => {
+    if (immeubleEtage === '') return;
+    const fNum = Number(immeubleEtage);
+    if (!Number.isFinite(fNum)) return;
+    if (!availableImmeubleFloors.includes(fNum)) {
+      setImmeubleEtage('');
+    }
+  }, [immeubleEtage, availableImmeubleFloors]);
 
   useEffect(() => {
     if (!terrainPlanActive || terrainLotNo === '') return;
@@ -542,6 +615,16 @@ export function BuildingDetailPage() {
     setErr(null);
   }
 
+  useEscapeCancel(!!b && (buildingProfileDirty || addUnitFormOpen), () => {
+    if (!b) return;
+    if (addUnitFormOpen) {
+      resetAddUnitForm();
+      setAddUnitFormOpen(false);
+    } else if (buildingProfileDirty) {
+      resetBuildingProfileFromLoaded();
+    }
+  });
+
   async function removeBuilding() {
     if (
       !confirm(
@@ -602,9 +685,19 @@ export function BuildingDetailPage() {
     : (BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKindDraft)?.description ?? '');
   const carnetHint =
     immeubleFloorPickerActive && b
-      ? (b.apartmentCount != null && b.apartmentCount > 0
-          ? `Carnet : ${b.floorCount} niveau(x) d’étage (RDC + étages 1…${b.floorCount}), ${b.apartmentCount} place(s) numérotées pour les appartements. Les numéros déjà pris sont masqués.`
-          : `Carnet : ${b.floorCount} niveau(x) d’étage — choisissez le rez-de-chaussée ou l’étage dans la liste, puis le n° d’appartement. Pour un menu 1…N, renseignez aussi le nombre d’appartements dans « Organisation du bien ».`)
+      ? (() => {
+          const onePerFloor =
+            b.floorCount != null &&
+            b.apartmentCount != null &&
+            b.floorCount > 0 &&
+            b.floorCount === b.apartmentCount
+              ? ' Égalité étages / places au carnet : 1 appartement par étage (répartition par défaut).'
+              : '';
+          if (b.apartmentCount != null && b.apartmentCount > 0) {
+            return `Carnet : ${b.floorCount} niveau(x) d’étage (RDC + étages 1…${b.floorCount}), ${b.apartmentCount} place(s) numérotées pour les appartements. Les numéros déjà pris sont masqués.${onePerFloor}`;
+          }
+          return `Carnet : ${b.floorCount} niveau(x) d’étage — choisissez le rez-de-chaussée ou l’étage dans la liste, puis le n° d’appartement. Pour un menu 1…N, renseignez aussi le nombre d’appartements dans « Organisation du bien ».`;
+        })()
       : '';
   const terrainCarnetHint =
     terrainPlanActive && b
@@ -649,9 +742,12 @@ export function BuildingDetailPage() {
               <BuildingHeroIcon structureKind={b.structureKind} />
             </div>
             <div className="min-w-0 flex-1 space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
-                {b.name}
-              </h1>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <BuildingScopeBadge className="shrink-0" />
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
+                  {b.name}
+                </h1>
+              </div>
               <p className="text-sm font-medium leading-snug text-slate-700 dark:text-slate-300">{locLine}</p>
               {addressLine ? (
                 <p className="text-sm leading-snug text-slate-600 dark:text-slate-400">{addressLine}</p>
@@ -672,7 +768,11 @@ export function BuildingDetailPage() {
                     </span>
                     <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200">
                       {b.apartmentCount != null
-                        ? `${b.apartmentCount} app. carnet`
+                        ? `${b.apartmentCount} place${b.apartmentCount !== 1 ? 's' : ''} au carnet${
+                            b.floorCount === b.apartmentCount && b.floorCount != null && b.floorCount > 0
+                              ? ' · 1 app./étage'
+                              : ''
+                          }`
                         : 'Carnet non renseigné'}
                     </span>
                   </>
@@ -695,12 +795,30 @@ export function BuildingDetailPage() {
                 <span className="inline-flex items-center rounded-full border border-emerald-600/90 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 dark:border-emerald-600/50 dark:bg-emerald-950/50 dark:text-emerald-200">
                   {b.units.length} unité{b.units.length !== 1 ? 's' : ''}
                 </span>
+                <Link
+                  to={`/activite-loyers?scope=building&buildingId=${encodeURIComponent(b.id)}&year=${new Date().getFullYear()}`}
+                  className="inline-flex items-center rounded-full border border-brand-400/80 bg-brand-50/90 px-2.5 py-0.5 text-xs font-semibold text-brand-900 underline-offset-2 hover:underline dark:border-brand-500/50 dark:bg-brand-950/40 dark:text-brand-100"
+                >
+                  Activité loyers (année)
+                </Link>
               </div>
             </div>
           </div>
           {buildingStats ? (
-            <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:max-w-xl lg:grid-cols-3">
-              <StatTile label="Unités" value={String(buildingStats.total)} />
+            <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:max-w-2xl lg:grid-cols-3">
+              <StatTile label="Unités" value={String(buildingStats.total)} sub={buildingStats.unitsSub} />
+              {buildingStats.declaredCapacity != null && buildingStats.missingFromDeclared != null ? (
+                <StatTile
+                  label="Non créé(s)"
+                  value={String(buildingStats.missingFromDeclared)}
+                  emphasize={buildingStats.missingFromDeclared > 0}
+                  sub={
+                    buildingStats.structureKind === 'TERRAIN_LOTS'
+                      ? `sur ${buildingStats.declaredCapacity} lot${buildingStats.declaredCapacity !== 1 ? 's' : ''} déclaré${buildingStats.declaredCapacity !== 1 ? 's' : ''}`
+                      : `sur ${buildingStats.declaredCapacity} au carnet`
+                  }
+                />
+              ) : null}
               <StatTile
                 label="Avec locataire"
                 value={String(buildingStats.occupied)}
@@ -834,10 +952,7 @@ export function BuildingDetailPage() {
                   <Label htmlFor="building-floor-count" className="mb-0">
                     Étages (indicatif)
                   </Label>
-                  <HelpHint
-                    title="Nombre d’étages indicatif pour le carnet d’appartements."
-                    className="align-middle"
-                  />
+                  <HelpHint title={IMMEUBLE_FLOORS_HINT} className="align-middle" />
                 </div>
                 <Input
                   id="building-floor-count"
@@ -851,10 +966,10 @@ export function BuildingDetailPage() {
               <div className="w-full min-w-[8rem] sm:w-auto">
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
                   <Label htmlFor="building-apartment-count" className="mb-0">
-                    Appartements (indicatif)
+                    Places au carnet (total)
                   </Label>
                   <HelpHint
-                    title="À l’ajout d’unités, les numéros d’appartement déjà attribués sont masqués."
+                    title={`${IMMEUBLE_CARNET_COUNT_HINT} À l’ajout d’unités, les numéros déjà attribués sont masqués.`}
                     className="align-middle"
                   />
                 </div>
@@ -1002,21 +1117,36 @@ export function BuildingDetailPage() {
                 {immeubleFloorPickerActive && kind === 'APARTMENT' ? (
                   <>
                     <div>
-                      <Label htmlFor="immeuble-etage">Étage</Label>
-                      <Select
-                        id="immeuble-etage"
-                        value={immeubleEtage}
-                        onChange={(e) => setImmeubleEtage(e.target.value)}
-                        required
-                      >
-                        <option value="">Choisir…</option>
-                        <option value="0">Rez-de-chaussée</option>
-                        {Array.from({ length: b.floorCount ?? 0 }, (_, i) => i + 1).map((n) => (
-                          <option key={n} value={String(n)}>
-                            Étage {n}
-                          </option>
-                        ))}
-                      </Select>
+                      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                        <Label htmlFor="immeuble-etage" className="mb-0">
+                          Étage
+                        </Label>
+                        {immeubleOnePerFloorLayout ? (
+                          <HelpHint
+                            title="Les étages où une unité appartement existe déjà sont retirés de la liste (répartition 1 appartement par étage, comme déclaré sur le bien)."
+                            className="align-middle"
+                          />
+                        ) : null}
+                      </div>
+                      {availableImmeubleFloors.length === 0 ? (
+                        <p className="rounded-lg border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100">
+                          Tous les étages prévus ont déjà une unité. Supprimez ou modifiez une unité existante, ou ajustez le carnet dans « Organisation du bien ».
+                        </p>
+                      ) : (
+                        <Select
+                          id="immeuble-etage"
+                          value={immeubleEtage}
+                          onChange={(e) => setImmeubleEtage(e.target.value)}
+                          required
+                        >
+                          <option value="">Choisir…</option>
+                          {availableImmeubleFloors.map((n) => (
+                            <option key={n} value={String(n)}>
+                              {n === 0 ? 'Rez-de-chaussée' : `Étage ${n}`}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="immeuble-app-no">N° appartement</Label>
@@ -1273,8 +1403,8 @@ export function BuildingDetailPage() {
                   <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right sm:px-5"> </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {tableUnits.map((u) => {
+              <tbody>
+                {tableUnits.map((u, rowIndex) => {
                   const lease0 = u.leases?.[0];
                   const tenant = lease0?.tenant;
                   const rawRent = lease0?.monthlyRent;
@@ -1285,13 +1415,11 @@ export function BuildingDetailPage() {
                   const occupied = unitIsOccupied(u);
                   const fl = floorLabel(u.floor);
                   return (
-                    <tr
-                      key={u.id}
-                      id={`unit-row-${u.id}`}
-                      className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
-                    >
-                      <td className="px-4 py-3 sm:px-5">
-                        <div className="min-w-0 max-w-[14rem]">
+                    <tr key={u.id} id={`unit-row-${u.id}`} className={listTableDataRowClass(rowIndex)}>
+                      <td className={listTableFirstCellClass}>
+                        <div className="flex min-w-0 max-w-[18rem] items-start gap-2">
+                          <UnitScopeBadge className="mt-0.5 shrink-0" />
+                          <div className="min-w-0">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             {u.apartmentSlot != null ? `Lot n° ${u.apartmentSlot}` : 'Unité'}
                           </p>
@@ -1299,9 +1427,10 @@ export function BuildingDetailPage() {
                           {u.description ? (
                             <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{u.description}</p>
                           ) : null}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 sm:px-5">
+                      <td className={listTableCellClass}>
                         <Select
                           id={`unit-kind-${u.id}`}
                           value={u.kind ?? 'APARTMENT'}
@@ -1315,14 +1444,14 @@ export function BuildingDetailPage() {
                           ))}
                         </Select>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">{fl ?? '—'}</td>
-                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300 sm:px-5">
+                      <td className={`whitespace-nowrap text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>{fl ?? '—'}</td>
+                      <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
                         {u.surfaceM2 != null ? `${Number(u.surfaceM2)} m²` : '—'}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300 sm:px-5">
+                      <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
                         {u.rooms != null ? u.rooms : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                      <td className={`text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
                         {tenant ? (
                           <span className="font-medium text-slate-900 dark:text-slate-100">
                             {tenant.firstName} {tenant.lastName}
@@ -1331,10 +1460,10 @@ export function BuildingDetailPage() {
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-800 dark:text-slate-200 sm:px-5">
+                      <td className={`whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-200 ${listTableCellClass}`}>
                         {rent != null && Number.isFinite(rent) ? fcfa(rent) : '—'}
                       </td>
-                      <td className="px-4 py-3 sm:px-5">
+                      <td className={listTableCellClass}>
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
                             occupied
@@ -1345,15 +1474,10 @@ export function BuildingDetailPage() {
                           {occupied ? 'Loué' : 'Libre'}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right sm:px-5">
+                      <td className={`whitespace-nowrap text-right ${listTableCellClass}`}>
                         <div className="inline-flex flex-col items-end gap-1.5 sm:flex-row sm:items-center">
                           {lease0?.id ? (
-                            <SmartLink
-                              to={`/locations/${lease0.id}`}
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-300/90 bg-slate-100/85 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
-                            >
-                              Fiche location
-                            </SmartLink>
+                            <FicheLocationLink leaseId={lease0.id} />
                           ) : (
                             <SmartLink
                               to={`/baux?buildingId=${encodeURIComponent(b.id)}&unitId=${encodeURIComponent(u.id)}#nouveau-bail`}

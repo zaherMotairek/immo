@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
+import { BuildingScopeBadge } from '@/components/BuildingUnitBadges';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
-import { BUILDING_STRUCTURE_OPTIONS, type BuildingStructureValue } from '@/lib/buildingStructure';
+import { useEscapeCancel } from '@/lib/useEscapeCancel';
+import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
+import {
+  BUILDING_STRUCTURE_OPTIONS,
+  IMMEUBLE_CARNET_COUNT_HINT,
+  IMMEUBLE_FLOORS_HINT,
+  type BuildingStructureValue,
+} from '@/lib/buildingStructure';
 
 type BuildingRow = {
   id: string;
@@ -67,7 +75,10 @@ function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructure
 
 export function BuildingsPage() {
   useRegisterRootSectionFallback();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const returnLocationParam = searchParams.get('returnLocation')?.trim() ?? '';
+  const returnAfterBuildingCreateRef = useRef<string | null>(null);
   /** Filtre par genre de bien (structure), aligné sur le formulaire « Genre de bien ». */
   const genreFilter = useMemo(() => normalizeGenreParam(searchParams.get('genre')), [searchParams]);
 
@@ -109,6 +120,7 @@ export function BuildingsPage() {
   const [terrainLotCountNew, setTerrainLotCountNew] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
+  const [listSearch, setListSearch] = useState('');
   const [addFormOpen, setAddFormOpen] = useState(false);
   const addFormRef = useRef<HTMLDivElement | null>(null);
 
@@ -137,7 +149,23 @@ export function BuildingsPage() {
   function cancelNewBuilding() {
     resetNewBuildingForm();
     setAddFormOpen(false);
+    returnAfterBuildingCreateRef.current = null;
+    if (searchParams.get('returnLocation')) {
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('returnLocation');
+          return p;
+        },
+        { replace: true },
+      );
+    }
+    if (window.location.hash === '#nouveau-bien') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }
+
+  useEscapeCancel(addFormOpen, cancelNewBuilding);
 
   const load = useCallback(() => {
     const q = genreFilter ? `?structureKind=${encodeURIComponent(genreFilter)}` : '';
@@ -160,6 +188,14 @@ export function BuildingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (returnLocationParam && isSafeInternalReturnPath(returnLocationParam)) {
+      returnAfterBuildingCreateRef.current = returnLocationParam;
+    } else {
+      returnAfterBuildingCreateRef.current = null;
+    }
+  }, [returnLocationParam]);
 
   useEffect(() => {
     if (window.location.hash === '#nouveau-bien') {
@@ -224,6 +260,8 @@ export function BuildingsPage() {
             : {}),
         },
       });
+      const back = returnAfterBuildingCreateRef.current;
+      returnAfterBuildingCreateRef.current = null;
       setName('');
       setAddress('');
       setPostalCode('');
@@ -233,7 +271,11 @@ export function BuildingsPage() {
       setApartmentCountImmeuble('');
       setTerrainLotCountNew('');
       setAddFormOpen(false);
-      load();
+      if (back) {
+        navigateAfterCreate(navigate, back);
+      } else {
+        load();
+      }
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
     }
@@ -243,7 +285,21 @@ export function BuildingsPage() {
     ? 'Filtre par genre de bien (structure) : immeuble multi-lots, terrain parcelé ou un seul lot — comme dans « Nouveau bien ».'
     : '« Tous les biens » : aucun filtre. Choisissez un genre pour restreindre la liste.';
 
+  const filteredRows = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((b) => {
+      const loc = [b.commune ?? '', b.city, b.postalCode ?? ''].filter(Boolean).join(' ');
+      const hay = `${b.name} ${loc} ${structureKindShort(b.structureKind)} ${b.structureKind ?? ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, listSearch]);
+
   const totalUnits = useMemo(() => rows.reduce((s, b) => s + b._count.units, 0), [rows]);
+  const totalUnitsFiltered = useMemo(
+    () => filteredRows.reduce((s, b) => s + b._count.units, 0),
+    [filteredRows],
+  );
 
   return (
     <div className="space-y-6">
@@ -303,19 +359,66 @@ export function BuildingsPage() {
 
       <Card>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-700">
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Vos sites</h2>
             {rows.length > 0 ? (
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{rows.length}</span>{' '}
-                bien{rows.length !== 1 ? 's' : ''}
-                {genreFilter ? ' (filtre actif)' : ''} ·{' '}
-                <span className="tabular-nums">{totalUnits}</span> unité{totalUnits !== 1 ? 's' : ''} au total
+                {listSearch.trim() ? (
+                  <>
+                    <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                      {filteredRows.length}
+                    </span>{' '}
+                    sur{' '}
+                    <span className="tabular-nums">{rows.length}</span>{' '}
+                    {rows.length !== 1 ? 'biens affichés' : 'bien affiché'}
+                    {genreFilter ? ' (filtre genre actif)' : ''} ·{' '}
+                    <span className="tabular-nums">{totalUnitsFiltered}</span> unité{totalUnitsFiltered !== 1 ? 's' : ''} dans cette
+                    sélection
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{rows.length}</span>{' '}
+                    bien{rows.length !== 1 ? 's' : ''}
+                    {genreFilter ? ' (filtre actif)' : ''} ·{' '}
+                    <span className="tabular-nums">{totalUnits}</span> unité{totalUnits !== 1 ? 's' : ''} au total
+                  </>
+                )}
               </p>
             ) : (
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Aucun bien pour cette vue.</p>
             )}
           </div>
+          {rows.length > 0 ? (
+            <div className="relative w-full max-w-md shrink-0 sm:w-auto">
+              <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-slate-400" aria-hidden>
+                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+                </svg>
+              </span>
+              <Input
+                type="search"
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                placeholder="Rechercher (nom, ville, commune, CP, type…)"
+                className="w-full rounded-xl border-slate-200 py-2.5 pl-9 pr-8 text-sm shadow-sm dark:border-slate-600"
+                aria-label="Filtrer les biens"
+                autoComplete="off"
+              />
+              {listSearch.trim() ? (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 z-[1] -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                  onClick={() => setListSearch('')}
+                  aria-label="Effacer la recherche"
+                >
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {listErr && (
@@ -335,8 +438,9 @@ export function BuildingsPage() {
           </div>
         )}
 
+        {filteredRows.length > 0 ? (
         <ul className="grid list-none gap-4 sm:grid-cols-2">
-          {rows.map((b) => {
+          {filteredRows.map((b) => {
             const isImmeuble = b.structureKind === 'IMMEUBLE';
             return (
               <li key={b.id}>
@@ -349,9 +453,12 @@ export function BuildingsPage() {
                       <BuildingCardIcon structureKind={b.structureKind} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-base font-semibold leading-snug text-slate-900 group-hover:text-brand-700 dark:text-slate-100 dark:group-hover:text-brand-400 sm:text-lg">
-                            {b.name}
-                          </h3>
+                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                            <BuildingScopeBadge className="shrink-0" />
+                            <h3 className="min-w-0 text-base font-semibold leading-snug text-slate-900 group-hover:text-brand-700 dark:text-slate-100 dark:group-hover:text-brand-400 sm:text-lg">
+                              {b.name}
+                            </h3>
+                          </div>
                           <span className="shrink-0 rounded-lg bg-brand-500/15 px-2 py-0.5 text-xs font-bold tabular-nums text-brand-800 dark:bg-brand-500/20 dark:text-brand-200">
                             {b._count.units}
                           </span>
@@ -402,6 +509,18 @@ export function BuildingsPage() {
             );
           })}
         </ul>
+        ) : null}
+
+        {rows.length > 0 && filteredRows.length === 0 && listSearch.trim() && !listErr ? (
+          <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Aucun bien ne correspond à « {listSearch.trim()} ».
+            </p>
+            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => setListSearch('')}>
+              Effacer la recherche
+            </Button>
+          </div>
+        ) : null}
 
         {rows.length === 0 && !listErr && (
           <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
@@ -520,35 +639,40 @@ export function BuildingsPage() {
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Taille de l’immeuble (indicatif)
               </p>
+              <p className="mb-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                Par défaut, si le nombre de places au carnet est égal au nombre d’étages, l’application considère{' '}
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">1 appartement par étage</strong>{' '}
+                (ex. 13 niveaux et 13 places = 13 lots au total).
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
                     <Label htmlFor="new-building-floors" className="mb-0">
                       Nombre d&apos;étages
                     </Label>
-                    <HelpHint
-                      className="align-middle"
-                      title="Pour proposer les étages dans « Nouvelle unité » (RDC, 1, 2…). Indicatif."
-                    />
+                    <HelpHint className="align-middle" title={IMMEUBLE_FLOORS_HINT} />
                   </div>
                   <Input
                     id="new-building-floors"
                     type="number"
                     min={0}
                     value={floorCountImmeuble}
-                    onChange={(e) => setFloorCountImmeuble(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setFloorCountImmeuble(next);
+                      if (apartmentCountImmeuble.trim() === '' && next.trim() !== '') {
+                        setApartmentCountImmeuble(next);
+                      }
+                    }}
                     placeholder="Ex. 4"
                   />
                 </div>
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
                     <Label htmlFor="new-building-apartments" className="mb-0">
-                      Nombre d&apos;unités (appartements, bureaux…)
+                      Places au carnet (total des appartements)
                     </Label>
-                    <HelpHint
-                      className="align-middle"
-                      title="Pour numéroter les locaux (n°1…n). Chaque unité sera ensuite créée avec son type : appartement, bureau, entrepôt, etc."
-                    />
+                    <HelpHint className="align-middle" title={IMMEUBLE_CARNET_COUNT_HINT} />
                   </div>
                   <Input
                     id="new-building-apartments"

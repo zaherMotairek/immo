@@ -21,6 +21,9 @@ export class PaymentsController {
     @Query('year') yearRaw?: string,
     /** Filtre optionnel par mois de période (1–12). */
     @Query('month') monthRaw?: string,
+    @Query('buildingId') buildingId?: string,
+    @Query('unitId') unitId?: string,
+    @Query('tenantId') tenantId?: string,
   ) {
     const overdueOnly = overdue === '1' || overdue === 'true';
     let periodYear: number | undefined;
@@ -33,7 +36,15 @@ export class PaymentsController {
       const m = Number(monthRaw);
       if (Number.isInteger(m) && m >= 1 && m <= 12) periodMonth = m;
     }
-    return this.payments.list(user.organizationId, { overdueOnly, leaseId, periodYear, periodMonth });
+    return this.payments.list(user.organizationId, {
+      overdueOnly,
+      leaseId,
+      periodYear,
+      periodMonth,
+      buildingId,
+      unitId,
+      tenantId,
+    });
   }
 
   @Post(':id/send-reminder')

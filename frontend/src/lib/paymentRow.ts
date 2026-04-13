@@ -1,5 +1,6 @@
 export type PaymentRow = {
   id: string;
+  /** Présent sur les listes API (regroupement par bail). */
   leaseId?: string;
   periodYear: number;
   periodMonth: number;
@@ -9,7 +10,13 @@ export type PaymentRow = {
   amountPaid: unknown | null;
   paidAt: string | null;
   lease: {
-    tenant: { firstName: string; lastName: string; email: string | null; phone: string | null };
+    tenant: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string | null;
+      phone: string | null;
+    };
     unit: { label: string; kind: string; building: { name: string; commune: string; city: string } };
   };
 };

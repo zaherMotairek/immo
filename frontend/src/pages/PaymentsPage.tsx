@@ -5,12 +5,25 @@ import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
+import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { AmountFcfaInput, Button, Card, Label, Select } from '@/components/ui';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { AmountFcfaInput, Button, Card, HelpHint, Label, Select } from '@/components/ui';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { shouldDeferEscapeCancel } from '@/lib/useEscapeCancel';
 import { unitKindLabel } from '@/lib/unitKind';
+
+type BuildingOpt = {
+  id: string;
+  name: string;
+  units: { id: string; label: string; kind: string }[];
+};
+
+type TenantOpt = { id: string; firstName: string; lastName: string };
 
 const MOIS_SELECT_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Tous les mois' },
@@ -44,6 +57,9 @@ export function PaymentsPage() {
   const leaseIdFilter = params.get('leaseId')?.trim() || '';
   const hintTenant = params.get('hintTenant')?.trim() || '';
   const hintPlace = params.get('hintPlace')?.trim() || '';
+  const buildingIdFilter = params.get('buildingId')?.trim() || '';
+  const unitIdFilter = params.get('unitId')?.trim() || '';
+  const tenantIdFilter = params.get('tenantId')?.trim() || '';
   const yearParam = params.get('year');
   const monthParam = params.get('month');
 
@@ -74,16 +90,71 @@ export function PaymentsPage() {
   const [partialSubmitting, setPartialSubmitting] = useState(false);
   const [collapsedMonthKeys, setCollapsedMonthKeys] = useState(() => new Set<string>());
   const [zoomPaymentId, setZoomPaymentId] = useState<string | null>(null);
+  const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
+  const [tenants, setTenants] = useState<TenantOpt[]>([]);
 
   const load = useCallback(() => {
     const q = new URLSearchParams();
     if (overdueOnly) q.set('overdue', '1');
     if (leaseIdFilter) q.set('leaseId', leaseIdFilter);
+    else {
+      if (buildingIdFilter) q.set('buildingId', buildingIdFilter);
+      if (unitIdFilter) q.set('unitId', unitIdFilter);
+      if (tenantIdFilter) q.set('tenantId', tenantIdFilter);
+    }
     if (yearFilter !== 'all') q.set('year', String(yearFilter));
     if (monthFilter !== 'all') q.set('month', String(monthFilter));
     const qs = q.toString();
     api<PaymentRow[]>(`/payments${qs ? `?${qs}` : ''}`).then(setRows).catch(() => setRows([]));
-  }, [leaseIdFilter, monthFilter, overdueOnly, yearFilter]);
+  }, [
+    buildingIdFilter,
+    leaseIdFilter,
+    monthFilter,
+    overdueOnly,
+    tenantIdFilter,
+    unitIdFilter,
+    yearFilter,
+  ]);
+
+  useEffect(() => {
+    api<BuildingOpt[]>('/buildings').then(setBuildings).catch(() => setBuildings([]));
+    api<TenantOpt[]>('/tenants').then(setTenants).catch(() => setTenants([]));
+  }, []);
+
+  /** Si l’unité ne correspond plus au bien choisi, on retire unitId de l’URL. */
+  useEffect(() => {
+    if (leaseIdFilter) return;
+    if (!buildingIdFilter || !unitIdFilter || buildings.length === 0) return;
+    const b = buildings.find((x) => x.id === buildingIdFilter);
+    if (!b?.units.some((u) => u.id === unitIdFilter)) {
+      setParams(
+        (prev) => {
+          const q = new URLSearchParams(prev);
+          q.delete('unitId');
+          return q;
+        },
+        { replace: true },
+      );
+    }
+  }, [buildingIdFilter, buildings, leaseIdFilter, setParams, unitIdFilter]);
+
+  /** Lien direct avec unitId seul : on complète buildingId pour afficher les listes cohérentes. */
+  useEffect(() => {
+    if (leaseIdFilter || buildingIdFilter || !unitIdFilter || buildings.length === 0) return;
+    for (const b of buildings) {
+      if (b.units.some((u) => u.id === unitIdFilter)) {
+        setParams(
+          (prev) => {
+            const q = new URLSearchParams(prev);
+            q.set('buildingId', b.id);
+            return q;
+          },
+          { replace: true },
+        );
+        return;
+      }
+    }
+  }, [buildingIdFilter, buildings, leaseIdFilter, setParams, unitIdFilter]);
 
   useEffect(() => {
     load();
@@ -146,14 +217,22 @@ export function PaymentsPage() {
 
   const monthKeysSig = useMemo(() => monthGroups.map(([k]) => k).join('\0'), [monthGroups]);
 
+  /** Par défaut : tous les mois sont repliés. Lien direct ?focus= : ne déplier que le mois du paiement ciblé. */
   useLayoutEffect(() => {
     const keys = monthGroups.map(([k]) => k);
-    const next = new Set(keys);
     if (focusPaymentId && rows.length > 0) {
       const p = rows.find((r) => r.id === focusPaymentId);
-      if (p) next.delete(monthGroupKey(p));
+      if (p) {
+        const focusKey = monthGroupKey(p);
+        const next = new Set<string>();
+        for (const k of keys) {
+          if (k !== focusKey) next.add(k);
+        }
+        setCollapsedMonthKeys(next);
+        return;
+      }
     }
-    setCollapsedMonthKeys(next);
+    setCollapsedMonthKeys(new Set(keys));
   }, [monthKeysSig, focusPaymentId, rows]);
 
   useEffect(() => {
@@ -166,6 +245,18 @@ export function PaymentsPage() {
   }, [zoomPaymentId]);
 
   useEffect(() => {
+    if (!partialFor || partialSubmitting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (shouldDeferEscapeCancel()) return;
+      e.preventDefault();
+      setPartialFor(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [partialFor, partialSubmitting]);
+
+  useEffect(() => {
     if (!zoomPaymentId) return;
     if (!rows.some((r) => r.id === zoomPaymentId)) setZoomPaymentId(null);
   }, [rows, zoomPaymentId]);
@@ -175,14 +266,82 @@ export function PaymentsPage() {
     return Array.from({ length: 8 }, (_, i) => y + 1 - i);
   }, []);
 
+  const scopeSummaryParts = useMemo(() => {
+    if (leaseIdFilter) return [];
+    const parts: string[] = [];
+    if (tenantIdFilter) {
+      const t = tenants.find((x) => x.id === tenantIdFilter);
+      parts.push(t ? `${t.firstName} ${t.lastName}`.trim() : 'Locataire');
+    }
+    if (buildingIdFilter) {
+      const b = buildings.find((x) => x.id === buildingIdFilter);
+      parts.push(b ? b.name : 'Bien');
+    }
+    if (unitIdFilter) {
+      let label: string | null = null;
+      for (const b of buildings) {
+        const u = b.units.find((x) => x.id === unitIdFilter);
+        if (u) {
+          label = unitKindLabel(u.kind) + ' — ' + u.label;
+          break;
+        }
+      }
+      parts.push(label ?? 'Unité');
+    }
+    return parts;
+  }, [leaseIdFilter, tenantIdFilter, buildingIdFilter, unitIdFilter, tenants, buildings]);
+
   const periodSummaryLabel = useMemo(() => {
     const y = yearFilter === 'all' ? 'Toutes les années' : String(yearFilter);
     const m =
       monthFilter === 'all'
         ? 'tous les mois'
         : MOIS_SELECT_OPTIONS.find((o) => o.value === String(monthFilter))?.label ?? '';
-    return `${y} · ${m}`;
-  }, [yearFilter, monthFilter]);
+    const scope =
+      scopeSummaryParts.length > 0 ? ` · ${scopeSummaryParts.join(' · ')}` : '';
+    return `${y} · ${m}${scope}`;
+  }, [yearFilter, monthFilter, scopeSummaryParts]);
+
+  const unitsForBuildingFilter = useMemo(() => {
+    if (!buildingIdFilter) return [];
+    const b = buildings.find((x) => x.id === buildingIdFilter);
+    if (!b?.units.length) return [];
+    return [...b.units].sort((a, c) =>
+      a.label.localeCompare(c.label, 'fr', { numeric: true, sensitivity: 'base' }),
+    );
+  }, [buildingIdFilter, buildings]);
+
+  const paymentScopeInputClass =
+    'min-h-[2rem] border-slate-200 bg-white py-1.5 pl-2.5 text-xs font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950/80';
+
+  const tenantSearchOptions = useMemo(
+    () =>
+      [...tenants]
+        .sort((a, b) =>
+          `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'fr', {
+            sensitivity: 'base',
+          }),
+        )
+        .map((t) => ({ id: t.id, label: `${t.firstName} ${t.lastName}`.trim() })),
+    [tenants],
+  );
+
+  const buildingSearchOptions = useMemo(
+    () =>
+      [...buildings]
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+        .map((b) => ({ id: b.id, label: b.name })),
+    [buildings],
+  );
+
+  const unitSearchOptions = useMemo(
+    () =>
+      unitsForBuildingFilter.map((u) => ({
+        id: u.id,
+        label: `${unitKindLabel(u.kind)} — ${u.label}`,
+      })),
+    [unitsForBuildingFilter],
+  );
 
   const leaseFocusSummary = useMemo(() => {
     if (!leaseIdFilter) return null;
@@ -206,6 +365,19 @@ export function PaymentsPage() {
         q.delete('leaseId');
         q.delete('hintTenant');
         q.delete('hintPlace');
+        return q;
+      },
+      { replace: true },
+    );
+  }
+
+  function clearScopeFilters() {
+    setParams(
+      (prev) => {
+        const q = new URLSearchParams(prev);
+        q.delete('buildingId');
+        q.delete('unitId');
+        q.delete('tenantId');
         return q;
       },
       { replace: true },
@@ -491,6 +663,110 @@ export function PaymentsPage() {
         </div>
 
         {leaseIdFilter ? (
+          <div className="border-t border-slate-200/90 px-2 py-2.5 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-400 sm:px-3">
+            <p>
+              <strong className="font-semibold text-slate-800 dark:text-slate-200">Périmètre (bien, locataire, unité)</strong>{' '}
+              : indisponible tant qu’un <strong>seul bail</strong> est ciblé ci-dessous. Réinitialisez le filtre bail pour utiliser
+              ces critères.
+            </p>
+          </div>
+        ) : (
+          <div className="border-t border-slate-200/90 bg-slate-50/40 px-2 py-2.5 dark:border-slate-700 dark:bg-slate-900/30 sm:px-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Périmètre</p>
+              <HelpHint
+                className="align-middle"
+                title="Affinez la liste par locataire, par immeuble ou par lot. Choisissez d’abord le bien pour activer le filtre unité. Compatible avec l’année et le mois de facturation."
+              />
+              {(buildingIdFilter || unitIdFilter || tenantIdFilter) && (
+                <button
+                  type="button"
+                  onClick={clearScopeFilters}
+                  className="ml-auto text-[11px] font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                >
+                  Effacer périmètre
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+              <div>
+                <Label htmlFor="payments-tenant" className="!mb-0.5 !text-[10px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
+                  Locataire
+                </Label>
+                <SearchableSelect
+                  id="payments-tenant"
+                  compact
+                  inputClassName={paymentScopeInputClass}
+                  emptyLabel="Tous les locataires"
+                  placeholder="Nom du locataire…"
+                  aria-label="Filtrer par locataire"
+                  value={tenantIdFilter}
+                  onChange={(v) => {
+                    setParams((prev) => {
+                      const q = new URLSearchParams(prev);
+                      if (v) q.set('tenantId', v);
+                      else q.delete('tenantId');
+                      return q;
+                    });
+                  }}
+                  options={tenantSearchOptions}
+                />
+              </div>
+              <div>
+                <Label htmlFor="payments-building" className="!mb-0.5 !text-[10px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
+                  Bien
+                </Label>
+                <SearchableSelect
+                  id="payments-building"
+                  compact
+                  inputClassName={paymentScopeInputClass}
+                  emptyLabel="Tous les biens"
+                  placeholder="Nom du bien…"
+                  aria-label="Filtrer par bien"
+                  value={buildingIdFilter}
+                  onChange={(v) => {
+                    setParams((prev) => {
+                      const q = new URLSearchParams(prev);
+                      if (v) q.set('buildingId', v);
+                      else q.delete('buildingId');
+                      q.delete('unitId');
+                      return q;
+                    });
+                  }}
+                  options={buildingSearchOptions}
+                />
+              </div>
+              <div>
+                <Label htmlFor="payments-unit" className="!mb-0.5 !text-[10px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
+                  Unité (lot)
+                </Label>
+                <SearchableSelect
+                  id="payments-unit"
+                  compact
+                  inputClassName={`${paymentScopeInputClass} disabled:cursor-not-allowed disabled:opacity-60`}
+                  disabled={!buildingIdFilter}
+                  emptyLabel={
+                    buildingIdFilter ? 'Toutes les unités du bien' : 'Choisir un bien d’abord'
+                  }
+                  placeholder="Lot / unité…"
+                  aria-label="Filtrer par unité"
+                  value={unitIdFilter}
+                  onChange={(v) => {
+                    setParams((prev) => {
+                      const q = new URLSearchParams(prev);
+                      if (v) q.set('unitId', v);
+                      else q.delete('unitId');
+                      return q;
+                    });
+                  }}
+                  options={unitSearchOptions}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {leaseIdFilter ? (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/90 bg-slate-50/60 px-2 py-2 sm:px-3 dark:border-slate-700 dark:bg-slate-800/40">
             <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
               <span className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200/95 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-600">
@@ -581,21 +857,33 @@ export function PaymentsPage() {
 
       <div className="space-y-5">
         {monthGroups.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
-              onClick={() => setCollapsedMonthKeys(new Set(monthGroups.map(([k]) => k)))}
-            >
-              Tout replier
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
-              onClick={() => setCollapsedMonthKeys(new Set())}
-            >
-              Tout déplier
-            </button>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+            Détail des échéances (par mois de facturation)
+          </p>
+        ) : null}
+        {monthGroups.length > 1 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-600/80 dark:bg-slate-900/40">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span className="font-semibold text-slate-900 dark:text-slate-50">{monthGroups.length} mois</span>
+              {' · '}
+              <span className="text-slate-600 dark:text-slate-400">Les détails sont affichés ci-dessous. Vous pouvez masquer un mois pour gagner de la place.</span>
+            </p>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
+                onClick={() => setCollapsedMonthKeys(new Set(monthGroups.map(([k]) => k)))}
+              >
+                Masquer tous les détails
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-900 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-100 dark:hover:bg-brand-900/40"
+                onClick={() => setCollapsedMonthKeys(new Set())}
+              >
+                Afficher tous les détails
+              </button>
+            </div>
           </div>
         ) : null}
         {monthGroups.map(([key, items]) => {
@@ -609,25 +897,25 @@ export function PaymentsPage() {
           const monthCollapsed = collapsedMonthKeys.has(key);
 
           return (
-            <Card key={key} className="!p-0 overflow-hidden">
-              <button
-                type="button"
-                aria-expanded={!monthCollapsed}
-                aria-controls={`payments-month-body-${key}`}
+            <Card key={key} className="!p-0 overflow-hidden shadow-md ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
+              <div
                 id={`payments-month-head-${key}`}
-                onClick={() =>
-                  setCollapsedMonthKeys((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(key)) next.delete(key);
-                    else next.add(key);
-                    return next;
-                  })
-                }
-                className="relative z-10 flex w-full items-start gap-3 border-b border-slate-200/90 bg-gradient-to-r from-slate-100/90 to-slate-50/95 px-4 py-3 text-left transition hover:from-slate-100 hover:to-slate-50/90 sm:px-5 dark:border-slate-700 dark:from-slate-800/95 dark:to-slate-900/98 dark:hover:from-slate-800 dark:hover:to-slate-900/95"
+                className="relative flex flex-col gap-3 border-b border-slate-200/90 bg-white px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5 dark:border-slate-700 dark:bg-slate-900/85"
               >
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{monthTitle(py, pm)}</h2>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                <span
+                  className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-brand-500/90 dark:bg-brand-500/80"
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1 pl-2 sm:pl-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+                      {monthTitle(py, pm)}
+                    </h2>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600">
+                      {String(pm).padStart(2, '0')}/{py}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                     {items.length} échéance{items.length !== 1 ? 's' : ''} · {fcfa(monthDue)} au total
                     {monthPending.length > 0 && (
                       <span className="font-medium text-amber-900 dark:text-amber-300">
@@ -636,31 +924,47 @@ export function PaymentsPage() {
                       </span>
                     )}
                     {overdueInMonth > 0 && (
-                      <span className="font-medium text-red-800 dark:text-red-300"> · {overdueInMonth} en retard</span>
+                      <span className="font-medium text-red-700 dark:text-red-400"> · {overdueInMonth} en retard</span>
                     )}
                   </p>
-                  <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-500">
-                    Cliquer pour afficher ou masquer le tableau du mois
-                  </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2 self-start">
-                  <span className="rounded-lg bg-slate-100/95 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600">
-                    Période {String(pm).padStart(2, '0')}/{py}
-                  </span>
-                  <svg
-                    className={`size-5 shrink-0 text-slate-500 transition-transform duration-200 dark:text-slate-400 ${monthCollapsed ? '' : 'rotate-180'}`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden
+                <div className="flex shrink-0 items-center gap-2 self-stretch sm:self-start sm:pt-0.5">
+                  <button
+                    type="button"
+                    aria-expanded={!monthCollapsed}
+                    aria-controls={`payments-month-body-${key}`}
+                    onClick={() =>
+                      setCollapsedMonthKeys((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return next;
+                      })
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-700/80"
                   >
-                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                    {monthCollapsed ? (
+                      <>
+                        <svg className="size-4 text-brand-600 dark:text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                          <path d="M15 12H9M12 9v6" strokeLinecap="round" />
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                        </svg>
+                        Afficher le tableau
+                      </>
+                    ) : (
+                      <>
+                        <svg className="size-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                          <path d="M9 12h6M12 3v18" strokeLinecap="round" />
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                        </svg>
+                        Masquer le tableau
+                      </>
+                    )}
+                  </button>
                 </div>
-              </button>
-              <div id={`payments-month-body-${key}`} className="overflow-x-auto" hidden={monthCollapsed}>
-                <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+              </div>
+              <div id={`payments-month-body-${key}`} className="overflow-x-auto bg-white dark:bg-slate-950/30" hidden={monthCollapsed}>
+                <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                       <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
@@ -678,22 +982,24 @@ export function PaymentsPage() {
                       <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
                         Statut
                       </th>
+                      <th
+                        className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400"
+                        title="Fiche du bail (location)"
+                      >
+                        Fiche location
+                      </th>
                       <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {items.map((p) => (
-                      <tr
-                        key={p.id}
-                        id={`payment-${p.id}`}
-                        className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
-                      >
-                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100 sm:px-5">
-                          {p.leaseId ? (
+                  <tbody>
+                    {items.map((p, rowIndex) => (
+                      <tr key={p.id} id={`payment-${p.id}`} className={listTableDataRowClass(rowIndex)}>
+                        <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
+                          {p.lease.tenant.id ? (
                             <SmartLink
-                              to={`/locations/${p.leaseId}`}
+                              to={`/locataires?edit=${encodeURIComponent(p.lease.tenant.id)}`}
                               className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                             >
                               {p.lease.tenant.firstName} {p.lease.tenant.lastName}
@@ -704,16 +1010,19 @@ export function PaymentsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="max-w-[22rem] px-4 py-3 text-slate-800 dark:text-slate-200 sm:px-5">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{p.lease.unit.building.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {p.lease.unit.building.commune}, {p.lease.unit.building.city}
-                          </p>
-                          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                            {unitKindLabel(p.lease.unit.kind)} — {p.lease.unit.label}
-                          </p>
+                        <td className={`max-w-[24rem] ${listTableCellClass} text-slate-800 dark:text-slate-200`}>
+                          <BuildingUnitStack
+                            buildingName={p.lease.unit.building.name}
+                            buildingSubline={
+                              <>
+                                {p.lease.unit.building.commune}, {p.lease.unit.building.city}
+                              </>
+                            }
+                            unitKindLabel={unitKindLabel(p.lease.unit.kind)}
+                            unitLabel={p.lease.unit.label}
+                          />
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-800 dark:text-slate-200 sm:px-5">
+                        <td className={`whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200 ${listTableCellClass}`}>
                           <span className="font-semibold">{fcfa(Number(p.amountDue))}</span>
                           {(p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0 ? (
                             <span className="mt-1 block text-xs font-medium text-emerald-800 dark:text-emerald-300">
@@ -721,35 +1030,35 @@ export function PaymentsPage() {
                             </span>
                           ) : null}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-700 dark:text-slate-300 sm:px-5">
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Facturation {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
-                          </p>
+                        <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
                           <p className="text-sm">Échéance {p.dueDate.slice(0, 10)}</p>
                           {p.status === 'PAID' && p.paidAt ? (
                             <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">Payé le {p.paidAt.slice(0, 10)}</p>
                           ) : null}
                         </td>
-                        <td className="px-4 py-3 sm:px-5">
+                        <td className={listTableCellClass}>
                           <span
                             className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(p.status)}`}
                           >
                             {statusLabel(p.status)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right align-top sm:px-5">
+                        <td className={`whitespace-nowrap ${listTableCellClass}`}>
+                          {p.leaseId ? <FicheLocationLink leaseId={p.leaseId} /> : <span className="text-xs text-slate-400">—</span>}
+                        </td>
+                        <td className={`text-right align-top ${listTableCellClass}`}>
                           <details className="ml-auto inline-block min-w-[8.5rem] max-w-[15rem] rounded-lg border border-slate-200 bg-slate-50/80 text-left dark:border-slate-600 dark:bg-slate-800/50">
                             <summary className="cursor-pointer list-none px-2.5 py-1.5 text-xs font-medium text-slate-700 marker:hidden [&::-webkit-details-marker]:hidden dark:text-slate-200">
                               Actions
                             </summary>
                             <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-600">
-                              <div className="flex flex-col gap-1.5">
+                              <div className="flex flex-row flex-wrap items-center justify-end gap-1.5">
                                 <button
                                   type="button"
                                   title="Vue agrandie — détail de l’échéance"
                                   aria-label={`Agrandir l'échéance de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
                                   onClick={() => setZoomPaymentId(p.id)}
-                                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-500/40 bg-brand-50/90 px-3 py-2 text-xs font-semibold text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
+                                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-500/40 bg-brand-50/90 px-3 py-2 text-xs font-semibold text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
                                 >
                                   <svg
                                     className="size-4 shrink-0"

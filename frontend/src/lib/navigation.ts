@@ -64,3 +64,31 @@ export function resolveReturnTarget(
   }
   return { href: defaults.fallbackHref, label: defaults.fallbackLabel };
 }
+
+/** URL de fiche bien avec unité en surbrillance + retour (même usage que les liens « depuis Baux / Charges »). */
+export function buildReturnToBuildingUrl(options: {
+  buildingId: string;
+  unitId?: string;
+  hintUnitLabel?: string;
+  returnLocation: string;
+}): string {
+  const q = new URLSearchParams();
+  if (options.unitId) {
+    q.set('unitId', options.unitId);
+    if (options.hintUnitLabel) q.set('hintUnitLabel', options.hintUnitLabel);
+  }
+  q.set('returnLocation', options.returnLocation);
+  return `/biens/${encodeURIComponent(options.buildingId)}?${q.toString()}`;
+}
+
+/**
+ * Après enregistrement d’un formulaire ouvert depuis une autre page (query `returnLocation`, lien contextuel).
+ * Ne fait rien si le chemin n’est pas un chemin interne sûr.
+ */
+export function navigateAfterCreate(
+  navigate: (to: string, opts?: { replace?: boolean }) => void,
+  path: string | null | undefined,
+): void {
+  if (!path || !isSafeInternalReturnPath(path)) return;
+  navigate(path, { replace: true });
+}

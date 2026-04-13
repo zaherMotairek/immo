@@ -3,11 +3,11 @@ import { mkdir, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { BadRequestException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
-import { PaymentStatus } from '@prisma/client';
+import { PaymentStatus, type Lease } from '@prisma/client';
 import type { Express } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
-import { rentDueDate } from '../common/date.util';
+import { addOneYearSameDay, rentDueDateForBilledPeriod } from '../common/date.util';
 import { CreateLeaseDto } from './dto/create-lease.dto';
 import { UpdateLeaseDto } from './dto/update-lease.dto';
 import {
@@ -86,6 +86,9 @@ export class LeasesService {
       return {
         leaseId: l.id,
         active: l.active,
+        tenantId: l.tenantId,
+        buildingId: b.id,
+        unitId: l.unitId,
         localizationLine: [b.commune, b.city].filter(Boolean).join(' · '),
         buildingName: b.name,
         unitLabel: l.unit.label,
@@ -246,12 +249,18 @@ export class LeasesService {
       deposit = null;
     }
 
-    return this.prisma.lease.create({
+    const startDate = new Date(dto.startDate);
+    const endDate =
+      dto.endDate != null && String(dto.endDate).trim() !== ''
+        ? new Date(dto.endDate)
+        : addOneYearSameDay(startDate);
+
+    const lease = await this.prisma.lease.create({
       data: {
         unitId: dto.unitId,
         tenantId: dto.tenantId,
-        startDate: new Date(dto.startDate),
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
+        startDate,
+        endDate,
         monthlyRent: dto.monthlyRent,
         depositAmount: deposit ?? null,
         rentDueDay: dto.rentDueDay ?? 1,
@@ -259,6 +268,75 @@ export class LeasesService {
       },
       include: { tenant: true, unit: { include: { building: true } } },
     });
+
+    if (lease.active) {
+      await this.generatePaymentsFromLeaseStartUntilContractEnd(lease.id, lease);
+    }
+
+    return lease;
+  }
+
+  /**
+   * Premier mois de loyer : le mois **suivant** celui où le bail a été enregistré (ex. contrat en avril → 1ᵉʳ loyer en mai).
+   * Si la date de début de bail est dans un mois plus tard, on commence à ce mois-là (ex. bail à partir de juin → 1ᵉʳ loyer en juin).
+   * L’échéance tombe le jour `rentDueDay` dans le mois de la période (cf. `rentDueDateForBilledPeriod`).
+   */
+  private firstBillingPeriodMonth(leaseStartDate: Date, leaseCreatedAt: Date): { y: number; m: number } {
+    let ny = leaseCreatedAt.getFullYear();
+    let nm = leaseCreatedAt.getMonth() + 2;
+    if (nm > 12) {
+      nm = 1;
+      ny += 1;
+    }
+    const ly = leaseStartDate.getFullYear();
+    const lm = leaseStartDate.getMonth() + 1;
+    const nextAfterContractMonth = ny * 12 + nm;
+    const startSeq = ly * 12 + lm;
+    if (startSeq > nextAfterContractMonth) {
+      return { y: ly, m: lm };
+    }
+    return { y: ny, m: nm };
+  }
+
+  /** Dernière période facturable : mois calendaire de la date de fin de bail (inclus). */
+  private async generatePaymentsFromLeaseStartUntilContractEnd(
+    leaseId: string,
+    lease: Pick<Lease, 'startDate' | 'endDate' | 'monthlyRent' | 'rentDueDay' | 'createdAt'>,
+  ) {
+    if (!lease.endDate) return;
+
+    const { y: firstY, m: firstM } = this.firstBillingPeriodMonth(lease.startDate, lease.createdAt);
+    const lastY = lease.endDate.getFullYear();
+    const lastM = lease.endDate.getMonth() + 1;
+
+    const firstSeq = firstY * 12 + firstM;
+    const lastSeq = lastY * 12 + lastM;
+    if (firstSeq > lastSeq) return;
+
+    let y = firstY;
+    let mo = firstM;
+    while (y * 12 + mo <= lastSeq) {
+      const due = rentDueDateForBilledPeriod(y, mo, lease.rentDueDay);
+      try {
+        await this.prisma.payment.create({
+          data: {
+            leaseId,
+            periodYear: y,
+            periodMonth: mo,
+            amountDue: lease.monthlyRent,
+            dueDate: due,
+            status: PaymentStatus.PENDING,
+          },
+        });
+      } catch {
+        /* déjà créé */
+      }
+      mo += 1;
+      if (mo > 12) {
+        mo = 1;
+        y += 1;
+      }
+    }
   }
 
   async update(id: string, organizationId: string, dto: UpdateLeaseDto) {
@@ -424,7 +502,7 @@ export class LeasesService {
 
     const created: string[] = [];
     for (let mo = 1; mo <= 12; mo++) {
-      const due = rentDueDate(year, mo, lease.rentDueDay);
+      const due = rentDueDateForBilledPeriod(year, mo, lease.rentDueDay);
       try {
         await this.prisma.payment.create({
           data: {

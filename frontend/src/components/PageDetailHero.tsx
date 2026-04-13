@@ -39,7 +39,7 @@ export function PageDetailHero({
     <Card className="overflow-hidden p-0 sm:p-0">
       <div className="flex flex-col gap-3 border-b border-slate-200/80 bg-slate-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <nav aria-label="Fil d'Ariane" className="min-w-0">
-          <ol className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
+          <ol className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             <li className="shrink-0">
               <Link to={backHref} className={backLinkClassName}>
                 <ChevronLeftIcon className="size-4 shrink-0 text-slate-400 transition group-hover:text-brand-600" />
@@ -50,7 +50,7 @@ export function PageDetailHero({
               /
             </li>
             <li
-              className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100"
+              className="min-w-0 truncate font-semibold text-slate-950 dark:text-slate-50"
               title={breadcrumbTitle ?? breadcrumbCurrent}
             >
               {breadcrumbCurrent}

@@ -52,3 +52,20 @@ html.dark body {
   /* Texte principal un peu plus clair (lisibilité sur fond sombre) */
   color: #f0f1f5;
 }
+
+@media print {
+  html {
+    color-scheme: only light;
+  }
+  body {
+    background: white !important;
+    background-image: none !important;
+    background-attachment: scroll !important;
+    color: var(--color-ink) !important;
+  }
+  html.dark body {
+    background: white !important;
+    background-image: none !important;
+    color: var(--color-ink) !important;
+  }
+}

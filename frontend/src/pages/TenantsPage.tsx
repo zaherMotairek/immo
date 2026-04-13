@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/lib/api';
 import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
+import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
+import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
+import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
+import {
+  listTableCellClass,
+  listTableDataRowClass,
+  listTableEditingFirstCellClass,
+  listTableFirstCellClass,
+  listTableRowEditingClass,
+} from '@/lib/listTableStyles';
+import { useEscapeCancel } from '@/lib/useEscapeCancel';
+import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 import { unitKindLabel } from '@/lib/unitKind';
 
 type Tenant = {
@@ -20,7 +32,13 @@ type Tenant = {
   idDocSize: number | null;
   idDocUploadedAt: string | null;
   leases: Array<{
-    unit: { label: string; kind: string; building: { name: string; commune: string; city: string } };
+    id: string;
+    unit: {
+      id: string;
+      label: string;
+      kind: string;
+      building: { id: string; name: string; commune: string; city: string };
+    };
   }>;
 };
 
@@ -43,7 +61,10 @@ function splitFullName(input: string): { firstName: string; lastName: string } {
 
 export function TenantsPage() {
   useRegisterRootSectionFallback();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const returnLocationParam = params.get('returnLocation')?.trim() ?? '';
+  const returnAfterTenantCreateRef = useRef<string | null>(null);
   const [rows, setRows] = useState<Tenant[]>([]);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -98,6 +119,20 @@ export function TenantsPage() {
   function cancelNewTenant() {
     resetNewTenantForm();
     setAddTenantOpen(false);
+    returnAfterTenantCreateRef.current = null;
+    if (params.get('returnLocation')) {
+      setParams(
+        (prev) => {
+          const q = new URLSearchParams(prev);
+          q.delete('returnLocation');
+          return q;
+        },
+        { replace: true },
+      );
+    }
+    if (window.location.hash === '#nouveau-locataire') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }
 
   function load() {
@@ -107,6 +142,14 @@ export function TenantsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (returnLocationParam && isSafeInternalReturnPath(returnLocationParam)) {
+      returnAfterTenantCreateRef.current = returnLocationParam;
+    } else {
+      returnAfterTenantCreateRef.current = null;
+    }
+  }, [returnLocationParam]);
 
   useEffect(() => {
     if (window.location.hash === '#nouveau-locataire') {
@@ -152,6 +195,11 @@ export function TenantsPage() {
     }
   }
 
+  useEscapeCancel(editingId !== null || addTenantOpen, () => {
+    if (editingId !== null) cancelEdit();
+    else cancelNewTenant();
+  });
+
   async function saveEdit(id: string) {
     setEditErr(null);
     if (!editFirstName.trim() || !editLastName.trim()) {
@@ -194,11 +242,17 @@ export function TenantsPage() {
           phone: phone.trim() || undefined,
         },
       });
+      const back = returnAfterTenantCreateRef.current;
+      returnAfterTenantCreateRef.current = null;
       setFullName('');
       setEmail('');
       setPhone('');
       setAddTenantOpen(false);
-      load();
+      if (back) {
+        navigateAfterCreate(navigate, back);
+      } else {
+        load();
+      }
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
     }
@@ -233,6 +287,7 @@ export function TenantsPage() {
           iconTo="/locataires"
           title="Locataires"
           hintTitle="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
+          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
         />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
           <span className="text-base leading-none" aria-hidden>
@@ -359,23 +414,26 @@ export function TenantsPage() {
 
         {rows.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[880px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
                 <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Locataire</th>
                 <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Contact</th>
                 <th className="min-w-[12rem] px-4 py-2.5 sm:px-5">Bien & unité</th>
+                <th className="whitespace-nowrap px-4 py-2.5 sm:px-5" title="Fiche du bail (location)">
+                  Fiche location
+                </th>
                 <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right sm:px-5"> </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredRows.map((t) => {
+            <tbody>
+              {filteredRows.map((t, rowIndex) => {
                 const l = t.leases[0];
                 const isEditing = editingId === t.id;
                 if (isEditing) {
                   return (
-                    <tr key={t.id} id={`tenant-row-${t.id}`} className="bg-brand-50/60 dark:bg-brand-950/25">
-                      <td colSpan={4} className="px-4 py-4 sm:px-5">
+                    <tr key={t.id} id={`tenant-row-${t.id}`} className={listTableRowEditingClass}>
+                      <td colSpan={5} className={listTableEditingFirstCellClass}>
                         <div className="space-y-3 rounded-xl border border-brand-200/90 bg-white/90 p-4 shadow-sm dark:border-brand-700/40 dark:bg-slate-900/80">
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
                           <div className="grid gap-3 sm:grid-cols-2">
@@ -413,6 +471,14 @@ export function TenantsPage() {
                           </div>
                           {editErr && <p className="text-sm text-red-600">{editErr}</p>}
                           <TenantIdDocumentSection tenantId={t.id} idDocument={idDocumentMeta(t)} onChanged={load} />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <SmartLink
+                              to={`/activite-loyers?scope=tenant&tenantId=${encodeURIComponent(t.id)}&year=${new Date().getFullYear()}`}
+                              className="text-xs font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                            >
+                              Activité loyers sur l’année →
+                            </SmartLink>
+                          </div>
                           <div className="flex flex-wrap gap-2">
                             <Button type="button" className="py-2 text-xs" onClick={() => saveEdit(t.id)}>
                               Enregistrer
@@ -427,18 +493,17 @@ export function TenantsPage() {
                   );
                 }
                 return (
-                  <tr
-                    key={t.id}
-                    id={`tenant-row-${t.id}`}
-                    className="align-top transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
-                  >
-                    <td className="px-4 py-3 sm:px-5">
+                  <tr key={t.id} id={`tenant-row-${t.id}`} className={listTableDataRowClass(rowIndex)}>
+                    <td className={listTableFirstCellClass}>
                       <div className="flex items-start gap-3">
                         {t.idDocFileKey ? <TenantIdDocumentThumb tenantId={t.id} mimeType={t.idDocMime} /> : null}
                         <div className="min-w-0">
-                          <p className="font-semibold leading-snug text-slate-900 dark:text-slate-100">
+                          <SmartLink
+                            to={`/locataires?edit=${encodeURIComponent(t.id)}`}
+                            className="font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                          >
                             {t.firstName} {t.lastName}
-                          </p>
+                          </SmartLink>
                           {t.idDocFileKey ? (
                             <button
                               type="button"
@@ -451,7 +516,7 @@ export function TenantsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                    <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
                       <div className="max-w-[14rem] space-y-1">
                         <p className="tabular-nums">
                           {t.phone?.trim() ? (
@@ -476,22 +541,35 @@ export function TenantsPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 sm:px-5">
+                    <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
                       {l ? (
-                        <div className="max-w-md space-y-0.5">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{l.unit.building.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {l.unit.building.commune}, {l.unit.building.city}
-                          </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">
-                            {unitKindLabel(l.unit.kind)} · {l.unit.label}
-                          </p>
+                        <div className="max-w-md">
+                          <BuildingUnitStack
+                            buildingName={
+                              <SmartLink
+                                to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/locataires')}`}
+                                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
+                              >
+                                {l.unit.building.name}
+                              </SmartLink>
+                            }
+                            buildingSubline={
+                              <>
+                                {l.unit.building.commune}, {l.unit.building.city}
+                              </>
+                            }
+                            unitKindLabel={unitKindLabel(l.unit.kind)}
+                            unitLabel={l.unit.label}
+                          />
                         </div>
                       ) : (
                         <span className="text-slate-400">Sans bail actif</span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right sm:px-5">
+                    <td className={`whitespace-nowrap ${listTableCellClass}`}>
+                      {l ? <FicheLocationLink leaseId={l.id} /> : <span className="text-xs text-slate-400">—</span>}
+                    </td>
+                    <td className={`whitespace-nowrap text-right ${listTableCellClass}`}>
                       <div className="inline-flex flex-col items-end gap-1.5 sm:flex-row sm:items-center">
                         <Button variant="secondary" className="py-1.5 text-xs" onClick={() => beginEdit(t)}>
                           Modifier

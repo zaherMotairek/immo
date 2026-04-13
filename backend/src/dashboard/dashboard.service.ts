@@ -99,6 +99,7 @@ export class DashboardService {
         const amountRemaining = Math.max(0, dueN - paidN);
         return {
           paymentId: p.id,
+          leaseId: p.leaseId,
           tenantId: p.lease.tenantId,
           dueDate: p.dueDate,
           amountDue: dueN,

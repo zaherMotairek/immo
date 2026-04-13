@@ -416,7 +416,7 @@ export function GlobalSearchBar() {
   const listKeyboardActive = showResultsBlock && !loading && total > 0;
 
   return (
-    <div ref={wrapRef} className="relative z-50">
+    <div ref={wrapRef} className="relative z-50" data-global-search-open={open ? 'true' : undefined}>
       <label className="sr-only" htmlFor="global-search">
         Recherche dans tout le programme ({SHORTCUT_HINT})
       </label>

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
 import { api } from '@/lib/api';
@@ -118,6 +118,22 @@ export function MiniAssistantPanel() {
     }
   }, [busy, input, navigate, routerLocation.pathname, routerLocation.search]);
 
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[data-global-search-open="true"]')) return;
+      const otherModals = [...document.querySelectorAll('[data-escape-modal="true"]')].filter(
+        (el) => el.id !== 'mini-assistant-panel',
+      );
+      if (otherModals.length > 0) return;
+      e.preventDefault();
+      setOpen(false);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [open]);
+
   return (
     <>
       <button
@@ -136,6 +152,7 @@ export function MiniAssistantPanel() {
       {open ? (
         <div
           id="mini-assistant-panel"
+          data-escape-modal="true"
           className="fixed inset-y-0 left-0 z-[47] flex w-[min(100%,20rem)] max-w-[100vw] flex-col border-r border-slate-200/90 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 md:left-[15.5rem]"
           role="dialog"
           aria-label="Assistant prototype"

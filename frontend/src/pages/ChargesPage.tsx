@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { chargeCategoryLabel, chargeCategoryOptions } from '@/lib/chargeCategories';
+import { listBlockRowClass } from '@/lib/listTableStyles';
 import { unitKindLabel } from '@/lib/unitKind';
 
 type ChargeRow = {
@@ -17,8 +19,8 @@ type ChargeRow = {
   periodMonth: number | null;
   paid: boolean;
   notes?: string | null;
-  building: { name: string };
-  unit: { label: string; kind?: string } | null;
+  building: { id: string; name: string };
+  unit: { id: string; label: string; kind?: string } | null;
 };
 
 type Summary = {
@@ -67,6 +69,8 @@ export function ChargesPage() {
   useRegisterRootSectionFallback();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
+  const chargesReturnLocation = `${routerLocation.pathname}${routerLocation.search}`;
   const focusChargeId = searchParams.get('focus');
   const [y, setY] = useState(() => readInitialPeriod().y);
   const [viewMonth, setViewMonth] = useState<number | 'all'>(() => readInitialPeriod().viewMonth);
@@ -437,21 +441,34 @@ export function ChargesPage() {
             title="Colonne de droite : marquer une charge comme payée après virement ou espèces, ou repasser en « À payer » si besoin. Le bandeau du haut « Non réglées » se met à jour automatiquement."
           />
         </div>
-        <ul className="divide-y divide-slate-100 dark:divide-slate-700/80">
-          {rows.map((c) => (
-            <li
-              key={c.id}
-              id={`charge-${c.id}`}
-              className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between"
-            >
+        <ul className="list-none">
+          {rows.map((c, rowIndex) => (
+            <li key={c.id} id={`charge-${c.id}`} className={listBlockRowClass(rowIndex)}>
               <div>
                 <p className="font-medium text-slate-900 dark:text-slate-100">
                   {c.label}{' '}
                   <span className="font-normal text-slate-500 dark:text-slate-400">· {chargeCategoryLabel(c.category)}</span>
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {c.building.name}
-                  {c.unit ? ` — ${unitKindLabel(c.unit.kind)} — ${c.unit.label}` : ''}
+                  {c.unit ? (
+                    <>
+                      <SmartLink
+                        to={`/biens/${c.building.id}?unitId=${encodeURIComponent(c.unit.id)}&hintUnitLabel=${encodeURIComponent(c.unit.label)}&returnLocation=${encodeURIComponent(chargesReturnLocation)}`}
+                        className="font-medium text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
+                      >
+                        {c.building.name}
+                      </SmartLink>
+                      {' — '}
+                      {unitKindLabel(c.unit.kind)} — {c.unit.label}
+                    </>
+                  ) : (
+                    <SmartLink
+                      to={`/biens/${c.building.id}?returnLocation=${encodeURIComponent(chargesReturnLocation)}`}
+                      className="font-medium text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
+                    >
+                      {c.building.name}
+                    </SmartLink>
+                  )}
                   {c.periodMonth ? ` · mois ${c.periodMonth}` : ''}
                 </p>
                 {c.notes?.trim() ? (

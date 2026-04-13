@@ -147,7 +147,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
             </div>
           </div>
           <p className="shrink-0 rounded-lg bg-slate-200/70 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-700 dark:bg-slate-700/80 dark:text-slate-300">
-            Facturation {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
+            {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
           </p>
         </div>
 
@@ -203,7 +203,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
 
         <div className="border-t border-slate-200/90 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900/95 sm:px-5">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Actions</p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-row flex-wrap items-center gap-2">
             <PaymentLineActions
               p={p}
               zoomed
@@ -227,6 +227,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-zoom-modal-title"
+        data-escape-modal="true"
       >
         <button
           type="button"
@@ -293,6 +294,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
           role="dialog"
           aria-modal="true"
           aria-labelledby="partial-pay-title"
+          data-escape-modal="true"
           onClick={(e) => {
             if (e.target === e.currentTarget && !partialSubmitting) setPartialFor(null);
           }}

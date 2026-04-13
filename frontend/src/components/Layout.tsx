@@ -27,6 +27,7 @@ const navGroups: { title?: string; items: NavItem[] }[] = [
     title: 'Finances',
     items: [
       { to: '/paiements', label: 'Paiements' },
+      { to: '/activite-loyers', label: 'Activité loyers' },
       { to: '/cautions', label: 'Cautions' },
       { to: '/charges', label: 'Charges' },
       { to: '/exports', label: 'Exports' },
@@ -51,8 +52,8 @@ const navClassMobile = ({ isActive }: { isActive: boolean }) =>
 export function Layout() {
   const { user, logout } = useAuth();
   return (
-    <div className="min-h-dvh flex flex-col md:flex-row">
-      <aside className="border-b border-slate-800/80 bg-[#0c0f14] text-slate-100 md:w-[15.5rem] md:shrink-0 md:border-b-0 md:border-r md:border-slate-800/70 md:min-h-dvh md:sticky md:top-0 md:self-start">
+    <div className="min-h-dvh flex flex-col md:flex-row print:min-h-0">
+      <aside className="border-b border-slate-800/80 bg-[#0c0f14] text-slate-100 print:hidden md:w-[15.5rem] md:shrink-0 md:border-b-0 md:border-r md:border-slate-800/70 md:min-h-dvh md:sticky md:top-0 md:self-start">
         <div className="flex items-center justify-between gap-2 p-4 md:flex-col md:items-stretch md:px-3 md:pt-5">
           <div className="flex w-full items-start justify-between gap-2 md:mb-6 md:px-1">
             <div className="min-w-0">
@@ -112,14 +113,16 @@ export function Layout() {
           ))}
         </nav>
       </aside>
-      <main className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 dark:text-slate-100">
-        <MiniAssistantPanel />
-        <div className="sticky top-0 z-30 border-b border-slate-300/80 bg-slate-100/90 px-4 pb-3.5 pt-3.5 shadow-[0_4px_24px_rgb(15_23_42/0.07)] backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/92 dark:shadow-[0_4px_24px_rgb(0_0_0/0.2)] sm:px-6 lg:px-6 xl:px-8">
+      <main className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 print:bg-white print:text-black dark:text-slate-100">
+        <div className="print:hidden">
+          <MiniAssistantPanel />
+        </div>
+        <div className="sticky top-0 z-30 border-b border-slate-300/80 bg-slate-100/90 px-4 pb-3.5 pt-3.5 shadow-[0_4px_24px_rgb(15_23_42/0.07)] backdrop-blur-md print:hidden dark:border-slate-700/80 dark:bg-slate-900/92 dark:shadow-[0_4px_24px_rgb(0_0_0/0.2)] sm:px-6 lg:px-6 xl:px-8">
           <div className="mx-auto w-full max-w-[min(100%,96rem)]">
             <GlobalSearchBar />
           </div>
         </div>
-        <div className="flex-1 p-4 sm:p-6 lg:px-6 lg:pb-12 lg:pt-6 xl:px-8 xl:pt-8">
+        <div className="flex-1 p-4 print:p-4 sm:p-6 lg:px-6 lg:pb-12 lg:pt-6 xl:px-8 xl:pt-8">
           <div className="mx-auto w-full max-w-[min(100%,96rem)]">
             <NavigationProvider>
               <ScrollRestoration />
@@ -128,7 +131,7 @@ export function Layout() {
           </div>
         </div>
       </main>
-      <div className="flex items-center justify-between border-t border-slate-800/80 bg-[#0c0f14] px-3 py-3 text-slate-200 md:hidden">
+      <div className="flex items-center justify-between border-t border-slate-800/80 bg-[#0c0f14] px-3 py-3 text-slate-200 print:hidden md:hidden">
         <span className="truncate text-[11px] text-slate-400">{user?.email}</span>
         <Button
           variant="secondary"

@@ -70,6 +70,17 @@ export function SidebarNavIcon({ to, className = '' }: { to: string; className?:
           </>
         ),
       });
+    case '/activite-loyers':
+      return svg({
+        children: (
+          <>
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 9h18" />
+            <path d="M8 2v4M16 2v4" strokeLinecap="round" />
+            <path d="M7 12h2M7 16h2M12 12h2M12 16h2M17 12h2M17 16h2" strokeLinecap="round" />
+          </>
+        ),
+      });
     case '/cautions':
       return svg({
         children: (

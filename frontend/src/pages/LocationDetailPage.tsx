@@ -10,6 +10,7 @@ import { unitKindLabel } from '@/lib/unitKind';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { resolveReturnTarget } from '@/lib/navigation';
+import { useEscapeCancel } from '@/lib/useEscapeCancel';
 
 type Fiche = {
   leaseId: string;
@@ -71,28 +72,16 @@ function badge(fr: string) {
 
 function SectionHeader({ title, hintTitle }: { title: string; hintTitle?: string }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-200/90 pb-3 dark:border-slate-700/80">
-      <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</h2>
+    <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-300/90 pb-3 dark:border-slate-600/80">
+      <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-50">{title}</h2>
       {hintTitle ? <HelpHint title={hintTitle} className="shrink-0" /> : null}
     </div>
   );
 }
 
-function SummaryTile({ label, children }: { label: string; children: ReactNode }) {
+function SubBlockTitle({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/90 px-4 py-3 shadow-sm dark:border-slate-600/80 dark:from-slate-800/60 dark:to-slate-900/40">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{label}</p>
-      <div className="mt-1.5">{children}</div>
-    </div>
-  );
-}
-
-function DlField({ label, children, span2 }: { label: string; children: ReactNode; span2?: boolean }) {
-  return (
-    <div className={span2 ? 'sm:col-span-2' : ''}>
-      <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">{label}</dt>
-      <dd className="mt-1.5 text-[15px] font-medium leading-snug text-slate-900 dark:text-slate-100">{children}</dd>
-    </div>
+    <h3 className="mb-2.5 text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">{children}</h3>
   );
 }
 
@@ -174,6 +163,8 @@ export function LocationDetailPage() {
     setEndDate(data.endDate ? data.endDate.slice(0, 10) : '');
     setLeaseErr(null);
   }
+
+  useEscapeCancel(leaseFormDirty, resetLeaseEditForm);
 
   async function saveLeaseConditions(e: FormEvent) {
     e.preventDefault();
@@ -305,7 +296,7 @@ export function LocationDetailPage() {
   const { localization, property, tenant, financial } = data;
   const locationHeadline = `${property.buildingName} — ${property.unitLabel}`;
   const buildingWithUnitFocusHref = `/biens/${encodeURIComponent(property.buildingId)}?unitId=${encodeURIComponent(property.unitId)}&hintUnitLabel=${encodeURIComponent(property.unitLabel)}&returnLocation=${encodeURIComponent(id ? `/locations/${id}` : '/locations')}`;
-  const bauxWithLeaseFocusHref = `/baux?leaseId=${encodeURIComponent(data.leaseId)}&hintTenant=${encodeURIComponent(tenant.fullName)}&hintPlace=${encodeURIComponent(locationHeadline)}`;
+  const paymentsHref = `/paiements?leaseId=${encodeURIComponent(data.leaseId)}&year=all&month=all&hintTenant=${encodeURIComponent(tenant.fullName)}&hintPlace=${encodeURIComponent(locationHeadline)}`;
 
   async function requestDeleteLocation() {
     if (!data) return;
@@ -320,7 +311,7 @@ export function LocationDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageDetailHero
         backHref={back.href}
         backLabel={back.label}
@@ -329,382 +320,285 @@ export function LocationDetailPage() {
       >
         <div className="flex flex-wrap items-start gap-3 sm:gap-4">
           <div
-            className="flex size-[3.15rem] shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-gradient-to-br from-brand-50 via-white to-sky-50/90 text-brand-700 shadow-md shadow-slate-900/[0.06] ring-1 ring-slate-900/[0.03] dark:border-slate-600 dark:from-brand-950/50 dark:via-slate-900 dark:to-slate-800/90 dark:text-brand-300 dark:ring-white/[0.04] sm:size-[3.35rem]"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-slate-50 text-brand-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-brand-300 sm:size-12"
             aria-hidden
             title="Locations"
           >
-            <SidebarNavIcon to="/locations" className="size-6 sm:size-[1.6rem]" />
+            <SidebarNavIcon to="/locations" className="size-5 sm:size-6" />
           </div>
-          <div className="min-w-0 flex flex-1 flex-wrap items-center gap-3 pt-0.5">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">Fiche location</h1>
-            {!data.active ? (
-              <span className="rounded-full bg-slate-300/90 px-3 py-1 text-xs font-semibold text-slate-900 dark:bg-slate-600 dark:text-slate-100">
-                Bail inactif
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Fiche location</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-50 sm:text-[1.65rem]">{locationHeadline}</h1>
+              {!data.active ? (
+                <span className="rounded-md bg-slate-300/95 px-2.5 py-1 text-xs font-bold text-slate-900 dark:bg-slate-600 dark:text-slate-100">
+                  Inactif
+                </span>
+              ) : (
+                <span className="rounded-md bg-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-900 dark:bg-emerald-500/25 dark:text-emerald-100">
+                  Actif
+                </span>
+              )}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-300/90 pt-4 text-base dark:border-slate-600/80">
+              <span className="tabular-nums text-lg font-bold text-slate-950 dark:text-slate-50">{fcfa(financial.monthlyRent)}</span>
+              <span className="text-slate-500 dark:text-slate-400">·</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">Échéance le {financial.rentDueDay} / mois</span>
+              <span className="text-slate-500 dark:text-slate-400">·</span>
+              <span className={`inline-flex rounded-md px-2.5 py-1 text-sm font-bold ${badge(financial.currentPaymentStatusFr)}`}>
+                {financial.currentPaymentStatusFr}
               </span>
-            ) : (
-              <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">
-                Bail actif
-              </span>
-            )}
-          </div>
-        </div>
-        <p className="text-lg font-semibold leading-snug text-slate-900 dark:text-slate-100">{locationHeadline}</p>
-        <p className="text-sm text-slate-600 dark:text-slate-400">{unitKindLabel(property.kind)}</p>
+            </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryTile label="Loyer mensuel">
-            <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{fcfa(financial.monthlyRent)}</p>
-          </SummaryTile>
-          <SummaryTile label="Échéance loyer">
-            <p className="text-lg font-bold text-slate-900 dark:text-white">Le {financial.rentDueDay}</p>
-            <p className="mt-0.5 text-xs font-normal text-slate-600 dark:text-slate-400">chaque mois</p>
-          </SummaryTile>
-          <SummaryTile label="Mois en cours">
-            <span
-              className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-semibold ${badge(financial.currentPaymentStatusFr)}`}
-            >
-              {financial.currentPaymentStatusFr}
-            </span>
-          </SummaryTile>
-          <SummaryTile label="Période suivie">
-            <p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
-              {String(financial.currentPeriodMonth).padStart(2, '0')}/{financial.currentPeriodYear}
-            </p>
-          </SummaryTile>
-        </div>
-
-        <div className="mt-5 border-t border-slate-200/80 pt-4 dark:border-slate-700/80">
-          <div className="flex flex-wrap gap-2">
-            <LinkButton
-              to={`/paiements?leaseId=${encodeURIComponent(data.leaseId)}&year=all&month=all&hintTenant=${encodeURIComponent(tenant.fullName)}&hintPlace=${encodeURIComponent(locationHeadline)}`}
-              variant="primary"
-              className="py-2.5 text-sm"
-            >
-              Échéances & paiements (ce bail)
-            </LinkButton>
-            <LinkButton to={buildingWithUnitFocusHref} variant="secondary" className="py-2.5 text-sm">
-              Fiche du bien (cette unité)
-            </LinkButton>
-            <LinkButton to={bauxWithLeaseFocusHref} variant="secondary" className="py-2.5 text-sm">
-              Baux & génération (ce bail)
-            </LinkButton>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <LinkButton to={paymentsHref} variant="primary" className="py-2.5 text-sm font-semibold" title="Échéances et paiements pour ce bail">
+                Paiements
+              </LinkButton>
+              <LinkButton to={buildingWithUnitFocusHref} variant="secondary" className="py-2.5 text-sm font-semibold">
+                Fiche du bien
+              </LinkButton>
+              <LinkButton to={`/locataires?edit=${tenant.id}`} variant="secondary" className="py-2.5 text-sm font-semibold">
+                Modifier le locataire
+              </LinkButton>
+            </div>
           </div>
-          <p className="mt-2.5 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            <strong className="font-semibold text-slate-700 dark:text-slate-300">Paiements</strong> : échéances de ce bail.{' '}
-            <strong className="font-semibold text-slate-700 dark:text-slate-300">Fiche du bien</strong> : unité mise en avant.{' '}
-            <strong className="font-semibold text-slate-700 dark:text-slate-300">Baux</strong> : génération des loyers et contrat.
-          </p>
         </div>
       </PageDetailHero>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <SectionHeader title="Localisation" />
-          <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-            <DlField label="Ville">{localization.city}</DlField>
-            <DlField label="Commune / zone">{localization.commune}</DlField>
-            {localization.address ? (
-              <DlField label="Adresse ou précision" span2>
-                {localization.address}
-              </DlField>
-            ) : null}
-            {localization.postalCode ? <DlField label="Code postal">{localization.postalCode}</DlField> : null}
-            <DlField label="Pays">{localization.country}</DlField>
-          </dl>
-          <p className="mt-4 rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 py-2.5 text-sm font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-200">
-            {localization.shortLabel}
+      <Card id="fiche-lieu" className="scroll-mt-24 !overflow-hidden !p-0 text-[15px] leading-relaxed text-slate-800 shadow-sm dark:text-slate-200">
+        <div className="border-b border-slate-300/90 bg-slate-100/90 px-5 py-4 dark:border-slate-600/80 dark:bg-slate-800/90">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Lieu, locataire & finances</h2>
+          <p className="mt-1.5 text-[15px] font-medium text-slate-700 dark:text-slate-300">
+            Lieu & locataire · caution & règlements groupés.
           </p>
-        </Card>
+        </div>
 
-        <Card>
-          <SectionHeader title="Logement loué" />
-          <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-            <DlField label="Site (immeuble / terrain)">{property.buildingName}</DlField>
-            <DlField label="Unité / lot">{property.unitLabel}</DlField>
-            <DlField label="Type">{unitKindLabel(property.kind)}</DlField>
-            <DlField label="Étage">{property.floor != null ? property.floor : '—'}</DlField>
-            <DlField label="Pièces">{property.rooms != null ? property.rooms : '—'}</DlField>
-            <DlField label="Surface">{property.surfaceM2 != null ? `${property.surfaceM2} m²` : '—'}</DlField>
-            {(property.description || property.notes) && (
-              <div className="sm:col-span-2">
-                <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">Description</dt>
-                <dd className="mt-1.5 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
-                  {property.description || property.notes}
-                </dd>
+        <div className="grid lg:grid-cols-2 lg:divide-x lg:divide-slate-300/90 dark:lg:divide-slate-600/70">
+          <div className="p-5">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">Lieu & logement</h3>
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-semibold leading-snug text-slate-950 dark:text-slate-50">
+                  {localization.shortLabel?.trim() ||
+                    [localization.commune, localization.city].filter(Boolean).join(', ') ||
+                    '—'}
+                </p>
+                {localization.address?.trim() ? (
+                  <p className="mt-2 text-[15px] font-medium text-slate-800 dark:text-slate-200">{localization.address}</p>
+                ) : null}
+                {localization.postalCode?.trim() ? (
+                  <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-300">{localization.postalCode}</p>
+                ) : null}
               </div>
-            )}
-          </dl>
-          <LinkButton to={buildingWithUnitFocusHref} variant="secondary" className="mt-5 py-2.5 text-sm">
-            Ouvrir la fiche du bien (unité {property.unitLabel})
-          </LinkButton>
-        </Card>
-      </div>
 
-      <Card>
-        <SectionHeader title="Locataire" />
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <div
-            className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-sky-500/25 text-base font-bold uppercase tracking-wide text-brand-800 shadow-sm dark:from-brand-500/25 dark:to-sky-500/20 dark:text-brand-200"
-            aria-hidden
-          >
-            {`${tenant.firstName?.[0] ?? ''}${tenant.lastName?.[0] ?? ''}`.trim() || '?'}
+              {(() => {
+                const bits: string[] = [];
+                bits.push(unitKindLabel(property.kind));
+                if (property.surfaceM2 != null) bits.push(`${property.surfaceM2} m²`);
+                if (property.rooms != null) bits.push(`${property.rooms} pièce${property.rooms !== 1 ? 's' : ''}`);
+                if (property.floor != null) bits.push(property.floor === 0 ? 'RDC' : `Étage ${property.floor}`);
+                const line = bits.filter(Boolean).join(' · ');
+                return line ? <p className="font-medium text-slate-800 dark:text-slate-200">{line}</p> : null;
+              })()}
+
+              {(property.description || property.notes)?.trim() ? (
+                <p className="text-[15px] text-slate-800 dark:text-slate-200">{property.description || property.notes}</p>
+              ) : null}
+
+              <div className="border-t border-slate-300/90 pt-4 dark:border-slate-600/80">
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">Locataire</p>
+                <p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{tenant.fullName}</p>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6">
+                  {tenant.phone?.trim() ? (
+                    <a
+                      href={`tel:${tenant.phone.replace(/\s/g, '')}`}
+                      className="text-base font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                    >
+                      {tenant.phone}
+                    </a>
+                  ) : (
+                    <span className="text-slate-600 dark:text-slate-400">—</span>
+                  )}
+                  {tenant.email?.trim() ? (
+                    <a
+                      href={`mailto:${tenant.email}`}
+                      className="break-all text-base font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                    >
+                      {tenant.email}
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xl font-semibold leading-snug text-slate-900 dark:text-slate-100">{tenant.fullName}</p>
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-600 dark:bg-slate-800/50">
-              <dl className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">Téléphone</dt>
-                  <dd className="mt-1.5 text-[15px] font-medium text-slate-900 dark:text-slate-100">
-                    {tenant.phone?.trim() ? (
-                      <a
-                        href={`tel:${tenant.phone.replace(/\s/g, '')}`}
-                        className="text-brand-700 hover:underline dark:text-brand-400"
-                      >
-                        {tenant.phone}
-                      </a>
-                    ) : (
-                      <span className="font-normal text-slate-500 dark:text-slate-400">Non renseigné</span>
-                    )}
-                  </dd>
-                </div>
-                <div className="sm:col-span-2 sm:max-w-xl">
-                  <dt className="text-xs font-semibold text-slate-600 dark:text-slate-400">E-mail</dt>
-                  <dd className="mt-1.5 break-all text-[15px] font-medium text-slate-900 dark:text-slate-100">
-                    {tenant.email?.trim() ? (
-                      <a href={`mailto:${tenant.email}`} className="text-brand-700 hover:underline dark:text-brand-400">
-                        {tenant.email}
-                      </a>
-                    ) : (
-                      <span className="font-normal text-slate-500 dark:text-slate-400">Non renseigné</span>
-                    )}
-                  </dd>
-                </div>
-              </dl>
+
+          <div id="fiche-finances" className="border-t border-slate-300/90 bg-slate-50/90 p-5 dark:border-slate-600/80 dark:bg-slate-900/75 lg:border-t-0">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">Finances sur ce bail</h3>
+            <p className="mb-4 text-[15px] font-medium text-slate-800 dark:text-slate-200">
+              Détail mois par mois : bouton <span className="font-bold text-slate-950 dark:text-white">Paiements</span> en haut de page.
+            </p>
+
+            <div className="rounded-lg border-2 border-slate-200/95 bg-white p-4 dark:border-slate-500/60 dark:bg-slate-950/60">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">Caution</span>
+                <HelpHint title="Montant contractuel et date d’encaissement." />
+              </div>
+              {financial.depositAmount != null && financial.depositAmount > 0 ? (
+                <>
+                  <p className="text-xl font-bold tabular-nums text-slate-950 dark:text-slate-50">{fcfa(financial.depositAmount)}</p>
+                  {financial.depositPaidAt ? (
+                    <p className="mt-1.5 text-sm font-semibold text-emerald-800 dark:text-emerald-300">Encaissée le {financial.depositPaidAt}</p>
+                  ) : (
+                    <p className="mt-1.5 text-sm font-semibold text-amber-900 dark:text-amber-200">Encaissement non enregistré</p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="py-2 text-sm"
+                      disabled={depositActBusy || !!financial.depositPaidAt}
+                      onClick={() => void markDepositReceived(new Date().toISOString().slice(0, 10))}
+                    >
+                      Marquer encaissée (aujourd’hui)
+                    </Button>
+                    {financial.depositPaidAt ? (
+                      <Button type="button" variant="ghost" className="py-2 text-sm" disabled={depositActBusy} onClick={() => void clearDepositReceived()}>
+                        Effacer la date
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <p className="text-[15px] font-medium text-slate-800 dark:text-slate-200">
+                  Aucun montant. Indiquez-le dans les conditions du bail.
+                </p>
+              )}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <LinkButton to={`/locataires?edit=${tenant.id}`} variant="secondary" className="py-2.5 text-sm">
-                Modifier la fiche locataire
-              </LinkButton>
-              <LinkButton to="/locataires" variant="ghost" className="py-2.5 text-sm">
-                Tous les locataires
-              </LinkButton>
-            </div>
+
+            {data.active ? (
+              <div className="mt-5 border-t border-slate-300/90 pt-5 dark:border-slate-600/80">
+                <SubBlockTitle>Paiement groupé</SubBlockTitle>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <Label htmlFor="prepay-n">Nombre de mois</Label>
+                    <Select id="prepay-n" className="mt-1 min-w-[10rem]" value={prepayMonths} onChange={(e) => setPrepayMonths(e.target.value)}>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <option key={m} value={String(m)}>
+                          {m} mois{m === 6 ? ' (semestre)' : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <Button type="button" className="py-2 text-sm" disabled={prepayBusy} onClick={() => void prepayRent()}>
+                    {prepayBusy ? 'Enregistrement…' : 'Marquer comme payés'}
+                  </Button>
+                </div>
+                {prepayErr ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{prepayErr}</p> : null}
+              </div>
+            ) : null}
           </div>
         </div>
       </Card>
 
-      <Card>
-        <SectionHeader
-          title="Pièce jointe : contrat"
-          hintTitle="PDF ou image du contrat signé (15 Mo max). Un nouveau fichier remplace l’ancien."
-        />
-        <LeaseContractSection leaseId={data.leaseId} contract={data.contract} onChanged={reload} />
-      </Card>
+      <Card id="fiche-bail" className="scroll-mt-24 !overflow-hidden !p-0 text-[15px] leading-relaxed text-slate-800 shadow-sm dark:text-slate-200">
+        <div className="!p-5">
+          <SectionHeader title="Contrat signé" hintTitle="PDF ou image, 15 Mo max." />
+          <LeaseContractSection leaseId={data.leaseId} contract={data.contract} onChanged={reload} />
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <SectionHeader
-            title="Suivi du mois"
-            hintTitle="Statut et échéance pour la période affichée en tête de page. Détail des encaissements : Paiements (bouton ci-dessus)."
-          />
-          <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-            <DlField label="Statut loyer">
-              <span className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-semibold ${badge(financial.currentPaymentStatusFr)}`}>
-                {financial.currentPaymentStatusFr}
-              </span>
-            </DlField>
-            {financial.currentPaymentDueDate ? (
-              <DlField label="Échéance">{financial.currentPaymentDueDate.slice(0, 10)}</DlField>
-            ) : (
-              <DlField label="Échéance">
-                <span className="font-normal text-slate-500 dark:text-slate-400">—</span>
-              </DlField>
-            )}
-          </dl>
-        </Card>
-
-        <Card>
-          <SectionHeader title="Dépôt de garantie" hintTitle="Montant contractuel et date d’encaissement enregistrée dans l’application." />
-          {financial.depositAmount != null && financial.depositAmount > 0 ? (
-            <>
-              <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-                <DlField label="Montant" span2>
-                  <span className="block text-[15px] font-semibold">{fcfa(financial.depositAmount)}</span>
-                  {financial.depositPaidAt ? (
-                    <span className="mt-2 block text-sm font-normal text-emerald-700 dark:text-emerald-400">
-                      Encaissée le {financial.depositPaidAt}
-                    </span>
-                  ) : (
-                    <span className="mt-2 block text-sm font-normal text-amber-800 dark:text-amber-300">
-                      Encaissement non enregistré
-                    </span>
-                  )}
-                </DlField>
-              </dl>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="py-2.5 text-sm"
-                  disabled={depositActBusy || !!financial.depositPaidAt}
-                  onClick={() => void markDepositReceived(new Date().toISOString().slice(0, 10))}
-                >
-                  Marquer comme encaissée (aujourd’hui)
-                </Button>
-                {financial.depositPaidAt ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="py-2.5 text-sm"
-                    disabled={depositActBusy}
-                    onClick={() => void clearDepositReceived()}
-                  >
-                    Effacer la date d’encaissement
-                  </Button>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-400">Aucun montant renseigné sur ce bail. Indiquez-le dans « Modifier le bail ».</p>
-          )}
-        </Card>
-      </div>
-
-      {data.active ? (
-        <Card className="border-brand-200/60 bg-gradient-to-br from-brand-50/90 to-slate-50/80 dark:border-brand-500/25 dark:from-brand-950/30 dark:to-slate-900/40">
-          <SectionHeader
-            title="Paiement groupé (plusieurs mois)"
-            hintTitle="Enregistre les prochaines échéances impayées dans l’ordre du calendrier. Les lignes doivent exister (page Baux)."
-          />
-          <div className="mt-1 flex flex-wrap items-end gap-3">
-            <div>
-              <Label htmlFor="prepay-n">Nombre de mois</Label>
-              <Select
-                id="prepay-n"
-                className="mt-1 min-w-[10rem]"
-                value={prepayMonths}
-                onChange={(e) => setPrepayMonths(e.target.value)}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={String(m)}>
-                    {m} mois{m === 6 ? ' (semestre)' : ''}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button type="button" className="py-2.5 text-sm" disabled={prepayBusy} onClick={() => void prepayRent()}>
-              {prepayBusy ? 'Enregistrement…' : 'Marquer ces mois comme payés'}
-            </Button>
+        <div className="border-t border-slate-300/90 bg-slate-50/80 !px-5 !py-5 dark:border-slate-600/80 dark:bg-slate-900/60">
+          <SectionHeader title="Conditions du bail" hintTitle="Loyer, dates, caution. Les mois déjà payés ne sont pas recalculés." />
+          <form onSubmit={(e) => void saveLeaseConditions(e)} className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="lease-edit-rent">{INPUT_AMOUNT_FCFA_LABEL} — loyer mensuel</Label>
+            <AmountFcfaInput
+              id="lease-edit-rent"
+              min={0}
+              step={1}
+              value={monthlyRent}
+              onChange={(e) => setMonthlyRent(e.target.value)}
+              required
+              placeholder={formatAmountDigitsGrouped('250000')}
+            />
           </div>
-          {prepayErr ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{prepayErr}</p> : null}
-        </Card>
-      ) : null}
-
-      <Card>
-        <SectionHeader
-          title="Modifier le bail"
-          hintTitle="Loyer, dates et dépôt. Les échéances impayées ou en retard suivent le nouveau loyer ; les mois déjà payés sont inchangés."
-        />
-        <form onSubmit={(e) => void saveLeaseConditions(e)} className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="lease-edit-rent">{INPUT_AMOUNT_FCFA_LABEL} — loyer mensuel</Label>
+          <div>
+            <Label htmlFor="lease-edit-due">Jour d&apos;échéance (1–31)</Label>
+            <Input
+              id="lease-edit-due"
+              type="number"
+              min={1}
+              max={31}
+              value={rentDueDay}
+              onChange={(e) => setRentDueDay(e.target.value)}
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="lease-edit-deposit">{INPUT_AMOUNT_FCFA_LABEL} — dépôt / caution (optionnel)</Label>
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
               <AmountFcfaInput
-                id="lease-edit-rent"
+                id="lease-edit-deposit"
+                wrapperClassName="sm:max-w-xs"
                 min={0}
                 step={1}
-                value={monthlyRent}
-                onChange={(e) => setMonthlyRent(e.target.value)}
-                required
-                placeholder={formatAmountDigitsGrouped('250000')}
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="Laisser vide si aucun"
               />
-            </div>
-            <div>
-              <Label htmlFor="lease-edit-due">Jour d&apos;échéance (1–31)</Label>
-              <Input
-                id="lease-edit-due"
-                type="number"
-                min={1}
-                max={31}
-                value={rentDueDay}
-                onChange={(e) => setRentDueDay(e.target.value)}
-                required
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="lease-edit-deposit">{INPUT_AMOUNT_FCFA_LABEL} — dépôt / caution (optionnel)</Label>
-              <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <AmountFcfaInput
-                  id="lease-edit-deposit"
-                  wrapperClassName="sm:max-w-xs"
-                  min={0}
-                  step={1}
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="Laisser vide si aucun"
-                />
-                <div className="flex flex-wrap gap-2">
-                  <span className="self-center text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">
-                    Raccourcis :
-                  </span>
-                  <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={() => applyDepositFromRent(1)}>
-                    ×1 loyer
-                  </Button>
-                  <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={() => applyDepositFromRent(2)}>
-                    ×2
-                  </Button>
-                  <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={() => applyDepositFromRent(3)}>
-                    ×3
-                  </Button>
-                </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="self-center text-xs font-semibold uppercase text-slate-700 dark:text-slate-300">Raccourcis :</span>
+                <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={() => applyDepositFromRent(1)}>
+                  ×1 loyer
+                </Button>
+                <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={() => applyDepositFromRent(2)}>
+                  ×2
+                </Button>
+                <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={() => applyDepositFromRent(3)}>
+                  ×3
+                </Button>
               </div>
             </div>
-            <div>
-              <Label htmlFor="lease-edit-start">Début du bail</Label>
-              <Input
-                id="lease-edit-start"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="lease-edit-end">Fin du bail (optionnel)</Label>
-              <Input id="lease-edit-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
-            {leaseErr ? <p className="text-sm text-red-600 sm:col-span-2 dark:text-red-400">{leaseErr}</p> : null}
-            <div className="sm:col-span-2 flex flex-wrap gap-2">
-              <Button type="submit" className="py-2.5 text-sm" disabled={savingLease}>
-                {savingLease ? 'Enregistrement…' : 'Enregistrer les conditions du bail'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="py-2.5 text-sm"
-                disabled={savingLease || !leaseFormDirty}
-                onClick={resetLeaseEditForm}
-              >
-                Annuler
-              </Button>
-            </div>
-          </form>
-      </Card>
+          </div>
+          <div>
+            <Label htmlFor="lease-edit-start">Début du bail</Label>
+            <Input id="lease-edit-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="lease-edit-end">Fin du bail (optionnel)</Label>
+            <Input id="lease-edit-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+          {leaseErr ? <p className="text-sm text-red-600 sm:col-span-2 dark:text-red-400">{leaseErr}</p> : null}
+          <div className="sm:col-span-2 flex flex-wrap gap-2">
+            <Button type="submit" className="py-2.5 text-sm" disabled={savingLease}>
+              {savingLease ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="py-2.5 text-sm"
+              disabled={savingLease || !leaseFormDirty}
+              onClick={resetLeaseEditForm}
+            >
+              Annuler
+            </Button>
+          </div>
+        </form>
+        </div>
 
-      <Card className="border-red-200/90 bg-red-50/30 dark:border-red-900/45 dark:bg-red-950/20">
-        <h2 className="text-base font-semibold text-red-900 dark:text-red-200">Zone sensible — supprimer la location</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-          Retire le bail, toutes les échéances de loyer enregistrées et le contrat joint. L’unité redevient libre pour un nouveau
-          bail ; le locataire reste dans l’annuaire.
-        </p>
-        <Button
-          type="button"
-          variant="secondary"
-          className="mt-4 border-red-300 py-2.5 text-sm font-semibold text-red-800 hover:bg-red-100 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-950/50"
-          onClick={() => void requestDeleteLocation()}
-        >
-          Supprimer définitivement le bail…
-        </Button>
+        <div className="border-t border-red-300/80 bg-red-50/90 !px-5 !py-4 dark:border-red-800/60 dark:bg-red-950/80">
+          <h2 className="text-base font-bold text-red-950 dark:text-red-100">Supprimer ce bail</h2>
+          <p className="mt-1.5 text-sm font-medium text-slate-800 dark:text-slate-200">
+            Retire échéances et contrat. Locataire et bien conservés.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-3 border-red-300 py-2.5 text-sm font-semibold text-red-900 hover:bg-red-100 dark:border-red-800/70 dark:text-red-100 dark:hover:bg-red-950/50"
+            onClick={() => void requestDeleteLocation()}
+          >
+            Supprimer définitivement…
+          </Button>
+        </div>
       </Card>
     </div>
   );

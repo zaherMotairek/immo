@@ -23,6 +23,42 @@ export function Card({
   );
 }
 
+/** Bloc indicateur (KPI) — même gabarit partout (fiches bien, titres de page, etc.). */
+export function StatTile({
+  label,
+  value,
+  sub,
+  emphasize,
+  className = '',
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  /** Met en avant (ex. lots encore à créer au carnet). */
+  emphasize?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-3 py-2.5 shadow-sm ${
+        emphasize
+          ? 'border-amber-400/85 bg-amber-50/95 dark:border-amber-600/55 dark:bg-amber-950/35'
+          : 'border-slate-200/90 bg-white/90 dark:border-slate-600/80 dark:bg-slate-800/50'
+      } ${className}`}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p
+        className={`mt-0.5 text-lg font-semibold tabular-nums ${
+          emphasize ? 'text-amber-950 dark:text-amber-100' : 'text-slate-900 dark:text-slate-50'
+        }`}
+      >
+        {value}
+      </p>
+      {sub ? <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{sub}</p> : null}
+    </div>
+  );
+}
+
 export function Button({
   children,
   variant = 'primary',

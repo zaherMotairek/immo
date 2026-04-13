@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { api } from '@/lib/api';
@@ -12,7 +12,9 @@ import {
   KpiIconTrendUp,
   KpiIconUnits,
 } from '@/components/dashboardKpiIcons';
+import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { LinkButton } from '@/components/LinkButton';
+import { SmartLink } from '@/components/SmartLink';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { Button, Card, HelpHint } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -35,6 +37,7 @@ type Overview = {
   };
   alerts: Array<{
     paymentId: string;
+    leaseId: string;
     tenantId: string;
     tenantFirstName: string;
     tenantEmail: string | null;
@@ -92,6 +95,7 @@ export function DashboardPage() {
   const [zoomAlertPaymentId, setZoomAlertPaymentId] = useState<string | null>(null);
 
   const [collapsedAlertMonths, setCollapsedAlertMonths] = useState(() => new Set<string>());
+  const alertsCollapseInitialized = useRef(false);
 
   const alertMonthGroups = useMemo(() => {
     const alerts = data?.alerts ?? [];
@@ -110,6 +114,13 @@ export function DashboardPage() {
     }
     return [...map.entries()].sort(([ka], [kb]) => ka.localeCompare(kb));
   }, [data?.alerts]);
+
+  useEffect(() => {
+    if (alertMonthGroups.length === 0) return;
+    if (alertsCollapseInitialized.current) return;
+    alertsCollapseInitialized.current = true;
+    setCollapsedAlertMonths(new Set(alertMonthGroups.map(([k]) => k)));
+  }, [alertMonthGroups]);
 
   if (err) {
     return (
@@ -354,14 +365,18 @@ export function DashboardPage() {
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-slate-900 dark:text-slate-100">
+                            <SmartLink
+                              to={`/locataires?edit=${encodeURIComponent(a.tenantId)}`}
+                              className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                            >
                               {a.tenant || 'Locataire'}
-                            </p>
+                            </SmartLink>
                             <span
                               className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(a.status)}`}
                             >
                               {statusLabel(a.status)}
                             </span>
+                            {a.leaseId ? <FicheLocationLink leaseId={a.leaseId} /> : null}
                           </div>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {[a.commune, a.city].filter(Boolean).join(', ') || '—'} · {a.building ?? '—'} —{' '}
