@@ -44,7 +44,10 @@ export function LoginPage() {
       </div>
       <div className="mx-auto w-full max-w-md">
         <div className="mb-6 text-center sm:mb-8">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">ImmoPilot</h1>
+          <div className="mx-auto mb-4 flex justify-center">
+            <span className="h-1 w-14 rounded-full bg-gradient-to-r from-sky-400 to-brand-600" aria-hidden />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">ImmoPilot</h1>
           <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">Espace connecté</p>
           <p className="mx-auto mt-3 max-w-[22rem] text-xs leading-relaxed text-slate-600 dark:text-slate-300">
             Sur téléphone : même compte e-mail et mot de passe qu’en bureau. Connectez-vous au{' '}

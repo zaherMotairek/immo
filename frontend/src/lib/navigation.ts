@@ -6,6 +6,68 @@ export type AppNavigateState = {
 
 export const SCROLL_STORAGE_PREFIX = 'immo:scroll:';
 
+/** Mémorise l’identifiant de ligne (ex. bail, bien) pour retrouver la ligne au retour sur cette liste. */
+export const FOCUS_STORAGE_PREFIX = 'immo:focusRow:';
+
+export function saveReturnFocusForPath(listPath: string, rowId: string): void {
+  if (!rowId || !listPath) return;
+  try {
+    sessionStorage.setItem(FOCUS_STORAGE_PREFIX + listPath, rowId);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Lecture sans suppression (pour réessayer après le rendu du tableau). */
+export function peekReturnFocusForPath(listPath: string): string | null {
+  try {
+    return sessionStorage.getItem(FOCUS_STORAGE_PREFIX + listPath);
+  } catch {
+    return null;
+  }
+}
+
+/** Lit et supprime l’identifiant de ligne mémorisé pour ce chemin (liste + query). */
+export function consumeReturnFocusForPath(listPath: string): string | null {
+  const k = FOCUS_STORAGE_PREFIX + listPath;
+  try {
+    const v = sessionStorage.getItem(k);
+    if (v) sessionStorage.removeItem(k);
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/** Depuis la recherche globale : mémorise la ligne seulement si la cible correspond à la liste courante. */
+export function maybeSaveSearchReturnFocus(fromFullPath: string, to: string): void {
+  const listPath = fromFullPath.split('?')[0] || '';
+  const mLoc = to.match(/^\/locations\/([^/?#]+)/);
+  if (mLoc && (listPath === '/locations' || listPath === '/baux' || listPath === '/cautions')) {
+    saveReturnFocusForPath(fromFullPath, mLoc[1]);
+  }
+  const mBien = to.match(/^\/biens\/([^/?#]+)/);
+  if (mBien && listPath === '/biens') {
+    saveReturnFocusForPath(fromFullPath, mBien[1]);
+  }
+  if (listPath === '/paiements' && to.startsWith('/paiements')) {
+    try {
+      const focus = new URL(to, 'https://local.invalid').searchParams.get('focus');
+      if (focus) saveReturnFocusForPath(fromFullPath, focus);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (listPath === '/locataires' && to.startsWith('/locataires')) {
+    try {
+      const edit = new URL(to, 'https://local.invalid').searchParams.get('edit');
+      if (edit) saveReturnFocusForPath(fromFullPath, edit);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export function saveScrollForPath(path: string): void {
   try {
     sessionStorage.setItem(SCROLL_STORAGE_PREFIX + path, String(window.scrollY));
@@ -35,6 +97,7 @@ export function inferBackLabelFromPath(fullPath: string): string {
     '/cautions': 'Cautions',
     '/exports': 'Exports',
     '/login': 'Connexion',
+    '/activite-loyers': 'Activité loyers',
   };
   if (map[path]) return map[path];
   if (path.startsWith('/locations/')) return 'Locations';

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
+import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
@@ -146,7 +147,7 @@ function formatBuildingChoiceLabel(b: BuildingOpt) {
     b.structureKind === 'IMMEUBLE'
       ? 'Immeuble'
       : b.structureKind === 'TERRAIN_LOTS'
-        ? 'Terrain parcelé'
+        ? 'Terrain avec plusieurs locataires'
         : b.structureKind === 'MONO_LOT'
           ? 'Mono-lot'
           : null;
@@ -160,6 +161,12 @@ const filterPillOn =
 const filterPillOff =
   'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/75 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800';
 
+function leaseRowFlashClass(active: boolean) {
+  return active
+    ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
+    : '';
+}
+
 export function LeasesPage() {
   useRegisterRootSectionFallback();
   const navigate = useNavigate();
@@ -169,6 +176,7 @@ export function LeasesPage() {
   const hintPlace = params.get('hintPlace')?.trim() ?? '';
 
   const [leases, setLeases] = useState<LeaseRow[]>([]);
+  const [leasesFetched, setLeasesFetched] = useState(false);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
   const [unitId, setUnitId] = useState('');
   const [tenantId, setTenantId] = useState('');
@@ -229,10 +237,15 @@ export function LeasesPage() {
   useEscapeCancel(addLeaseOpen, cancelNewLease);
 
   const load = useCallback(() => {
-    api<LeaseRow[]>('/leases').then(setLeases).catch(() => setLeases([]));
-    api<BuildingOpt[]>('/buildings').then(setBuildings).catch(() => setBuildings([]));
-    api<{ id: string; firstName: string; lastName: string }[]>('/tenants').then(setTenants).catch(() => setTenants([]));
+    setLeasesFetched(false);
+    Promise.all([
+      api<LeaseRow[]>('/leases').then(setLeases).catch(() => setLeases([])),
+      api<BuildingOpt[]>('/buildings').then(setBuildings).catch(() => setBuildings([])),
+      api<{ id: string; firstName: string; lastName: string }[]>('/tenants').then(setTenants).catch(() => setTenants([])),
+    ]).finally(() => setLeasesFetched(true));
   }, []);
+
+  const flashLeaseRowId = useReturnRowFocus({ rowIdPrefix: 'lease-row-', ready: leasesFetched });
 
   useEffect(() => {
     load();
@@ -464,7 +477,7 @@ export function LeasesPage() {
     nVacantUnits > 0 &&
     (isMultiLotSelected || nVacantUnits > 1);
 
-  /** Multi-lots déclaré mais aucune unité encore créée sur la fiche Biens. */
+  /** Multi locataires déclaré mais aucune unité encore créée sur la fiche Biens. */
   const needsUnitsOnBuildingFirst =
     !!selectedBuilding && isMultiLotSelected && nUnitsInBuilding === 0;
 
@@ -482,7 +495,7 @@ export function LeasesPage() {
     return '';
   }, [selectedBuilding, showLeaseUnitSelect, vacantUnitsInSelectedBuilding, unitId]);
 
-  /** Multi-lots + une seule unité libre : pré-sélection pour éviter un select à une seule entrée sans défaut. */
+  /** Multi locataires + une seule unité libre : pré-sélection pour éviter un select à une seule entrée sans défaut. */
   useEffect(() => {
     if (!showLeaseUnitSelect || nVacantUnits !== 1) return;
     const only = vacantUnitsInSelectedBuilding[0];
@@ -516,7 +529,7 @@ export function LeasesPage() {
     }
     if (needsUnitsOnBuildingFirst) {
       setErr(
-        'Ce bien multi-lots n’a pas encore d’unité : créez chaque lot sur la fiche « Biens », puis revenez ici pour lier le bail.',
+        'Ce bien multi locataires n’a pas encore d’unité : créez chaque lot sur la fiche « Biens », puis revenez ici pour lier le bail.',
       );
       return;
     }
@@ -681,6 +694,7 @@ export function LeasesPage() {
                 <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
                   <SmartLink
                     to={`/locations/${leaseIdFocus}`}
+                    returnFocusId={leaseIdFocus}
                     className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                   >
                     ← Fiche location de ce bail
@@ -800,7 +814,7 @@ export function LeasesPage() {
             </div>
           ) : needsUnitsOnBuildingFirst ? (
             <div className="sm:col-span-2 rounded-xl border border-amber-300/90 bg-amber-50/95 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
-              <p className="font-semibold">Aucune unité enregistrée sur ce bien multi-lots.</p>
+              <p className="font-semibold">Aucune unité enregistrée sur ce bien multi locataires.</p>
               <p className="mt-1 leading-snug">
                 Créez d’abord les lots (unités) sur la fiche « Biens », puis revenez pour attacher le bail au bon lot.
               </p>
@@ -1188,10 +1202,15 @@ export function LeasesPage() {
                 </thead>
                 <tbody>
                   {tableLeases.map((l, rowIndex) => (
-                    <tr key={l.id} id={`lease-row-${l.id}`} className={listTableDataRowClass(rowIndex)}>
+                    <tr
+                      key={l.id}
+                      id={`lease-row-${l.id}`}
+                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${leaseRowFlashClass(flashLeaseRowId === l.id)}`}
+                    >
                       <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
                         <SmartLink
                           to={`/locataires?edit=${encodeURIComponent(l.tenant.id)}`}
+                          returnFocusId={l.id}
                           className="text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                         >
                           {l.tenant.firstName} {l.tenant.lastName}
@@ -1203,6 +1222,7 @@ export function LeasesPage() {
                           <div className="min-w-0">
                             <SmartLink
                               to={`/biens/${l.unit.building.id}?returnLocation=${encodeURIComponent('/baux')}`}
+                              returnFocusId={l.id}
                               className="block font-medium text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                             >
                               {l.unit.building.name}
@@ -1218,6 +1238,7 @@ export function LeasesPage() {
                           <UnitScopeBadge className="mt-0.5 shrink-0" />
                           <SmartLink
                             to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/baux')}`}
+                            returnFocusId={l.id}
                             className="min-w-0 block text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                           >
                             <span className="text-xs text-slate-500 dark:text-slate-400">{unitKindLabel(l.unit.kind)}</span>

@@ -1,4 +1,3 @@
-/** Aligné sur l’enum Prisma `BuildingStructureKind`. */
 export const BUILDING_STRUCTURE = {
   IMMEUBLE: 'IMMEUBLE',
   TERRAIN_LOTS: 'TERRAIN_LOTS',
@@ -7,7 +6,6 @@ export const BUILDING_STRUCTURE = {
 
 export type BuildingStructureValue = (typeof BUILDING_STRUCTURE)[keyof typeof BUILDING_STRUCTURE];
 
-/** Immeuble ou terrain parcelé : plusieurs unités et plusieurs baux possibles sur le même bien. */
 export function isMultiLotStructure(k?: string | null): boolean {
   return k === 'IMMEUBLE' || k === 'TERRAIN_LOTS';
 }
@@ -15,15 +13,13 @@ export function isMultiLotStructure(k?: string | null): boolean {
 export const BUILDING_STRUCTURE_OPTIONS: {
   value: BuildingStructureValue;
   label: string;
-  /** Titre court pour les cartes de choix à la création du bien. */
   cardTitle: string;
-  /** Sous-titre court sous la carte. */
   cardHint: string;
   description: string;
 }[] = [
   {
     value: 'IMMEUBLE',
-    label: 'Immeuble ou bâtiment multi-lots',
+    label: 'Immeuble ou bâtiment multi locataires',
     cardTitle: 'Immeuble',
     cardHint: 'Plusieurs étages, plusieurs locaux / baux',
     description:
@@ -31,11 +27,11 @@ export const BUILDING_STRUCTURE_OPTIONS: {
   },
   {
     value: 'TERRAIN_LOTS',
-    label: 'Terrain multi-lots',
-    cardTitle: 'Terrain parcelé',
-    cardHint: 'Découpé en plusieurs lots / emplacements',
+    label: 'Terrain avec plusieurs locataires',
+    cardTitle: 'Terrain avec plusieurs locataires',
+    cardHint: 'Plusieurs unités (lots) louées séparément',
     description:
-      'Un même terrain cadastral découpé en plusieurs lots loués séparément : plusieurs unités (parcelles, emplacements…), plusieurs locataires et plusieurs baux.',
+      'Un terrain découpé en plusieurs lots : une unité (parcelle, emplacement…) par lot, donc plusieurs locataires et plusieurs baux sur ce même bien.',
   },
   {
     value: 'MONO_LOT',
@@ -47,9 +43,11 @@ export const BUILDING_STRUCTURE_OPTIONS: {
   },
 ];
 
-/** Aide : carnet d’appartements = total des numéros 1…N (pas « par étage » × étages). */
 export const IMMEUBLE_CARNET_COUNT_HINT =
-  'Total des places au carnet pour numéroter les locaux (n° 1 à N). Par défaut, si ce nombre est égal au nombre d’étages, on considère 1 appartement par étage (ex. 13 étages et 13 places = 13 lots au total, un par niveau). Sinon, modifiez ce nombre (ex. plus de lots que d’étages).';
+  'Nombre de places pour numéroter les appartements (1…N). Le rez-de-chaussée (étage 0) ne concerne pas ce carnet : entrepôt et commerce au RDC utilisent leur propre numéro saisi à la création.';
 
 export const IMMEUBLE_FLOORS_HINT =
-  'Nombre de niveaux pour les listes d’étages (RDC, 1, 2…). Souvent le même que le nombre de places au carnet pour viser 1 appartement par étage.';
+  'Indiquez combien d’étages il y a au-dessus du sol (ex. 10). Si vous cochez « inclure le rez-de-chaussée », l’immeuble a en tout 11 niveaux : l’étage 0 = rez-de-chaussée, puis les étages 1 à 10. Au RDC, seuls entrepôt et commerce sont prévus à la création d’unité. Si vous décochez le RDC : pas de niveau 0, seulement les étages 1 à 10.';
+
+export const IMMEUBLE_RDC_CHECKBOX_HINT =
+  'Si coché : étage 0 = rez-de-chaussée dans les listes, en plus des étages 1…N saisis au-dessus. Le carnet « appartements » compte uniquement les appartements ; le RDC est pour entrepôt / commerce.';

@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
+import { maybeSaveSearchReturnFocus, saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -394,6 +394,7 @@ export function GlobalSearchBar() {
       setError(null);
       const from = routerLocation.pathname + routerLocation.search;
       saveScrollForPath(from);
+      maybeSaveSearchReturnFocus(from, to);
       const state: AppNavigateState = { from };
       navigate(to, { state });
     },

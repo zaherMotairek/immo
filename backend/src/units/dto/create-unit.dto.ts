@@ -17,13 +17,21 @@ export class CreateUnitDto {
   @IsInt()
   floor?: number;
 
-  /** Numéro d’appartement dans l’immeuble (1…N), doit être unique par bien si renseigné. */
+  /** Carnet appartements (immeuble) ou lots (terrain) — pas pour entrepôt / commerce en immeuble. */
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(500_000)
   apartmentSlot?: number;
+
+  /** Carnet entrepôts / commerces (immeuble uniquement) — distinct du carnet appartements. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500_000)
+  locauxSlot?: number;
 
   @IsOptional()
   @Type(() => Number)

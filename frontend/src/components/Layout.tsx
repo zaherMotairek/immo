@@ -1,5 +1,6 @@
-import { Fragment } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Fragment, useCallback } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { saveScrollForPath } from '@/lib/navigation';
 import { useAuth } from '@/auth/AuthContext';
 import { NavigationProvider } from '@/context/NavigationContext';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
@@ -51,9 +52,23 @@ const navClassMobile = ({ isActive }: { isActive: boolean }) =>
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  /** Avant de changer de page via le menu : mémorise le scroll pour le retour (historique ou re-clic). */
+  const saveScrollBeforeMenuNav = useCallback(() => {
+    saveScrollForPath(location.pathname + location.search);
+  }, [location.pathname, location.search]);
   return (
     <div className="min-h-dvh flex flex-col md:flex-row print:min-h-0">
-      <aside className="border-b border-slate-800/80 bg-[#0c0f14] text-slate-100 print:hidden md:w-[15.5rem] md:shrink-0 md:border-b-0 md:border-r md:border-slate-800/70 md:min-h-dvh md:sticky md:top-0 md:self-start">
+      <a
+        href="#contenu-principal"
+        className="sr-only rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:outline-none focus:ring-2 focus:ring-brand-300"
+      >
+        Aller au contenu principal
+      </a>
+      <aside
+        className="border-b border-slate-800/80 bg-[#0c0f14] text-slate-100 print:hidden md:w-[15.5rem] md:shrink-0 md:border-b-0 md:border-r md:border-slate-800/70 md:min-h-dvh md:sticky md:top-0 md:self-start"
+        aria-label="Navigation principale"
+      >
         <div className="flex items-center justify-between gap-2 p-4 md:flex-col md:items-stretch md:px-3 md:pt-5">
           <div className="flex w-full items-start justify-between gap-2 md:mb-6 md:px-1">
             <div className="min-w-0">
@@ -77,7 +92,13 @@ export function Layout() {
                 ) : null}
                 <div className="flex flex-col gap-0.5">
                   {group.items.map((l) => (
-                    <NavLink key={`${l.to}-${l.end ? '1' : '0'}`} to={l.to} end={l.end} className={navClass}>
+                    <NavLink
+                      key={`${l.to}-${l.end ? '1' : '0'}`}
+                      to={l.to}
+                      end={l.end}
+                      className={navClass}
+                      onClick={saveScrollBeforeMenuNav}
+                    >
                       <span className="flex items-center gap-2.5">
                         <SidebarNavIcon to={l.to} />
                         {l.label}
@@ -106,14 +127,25 @@ export function Layout() {
           style={{ scrollbarWidth: 'none' }}
         >
           {flatNavItems.map((l) => (
-            <NavLink key={`${l.to}-${l.end ? '1' : '0'}`} to={l.to} end={l.end} className={`${navClassMobile} flex items-center gap-1.5`}>
+            <NavLink
+              key={`${l.to}-${l.end ? '1' : '0'}`}
+              to={l.to}
+              end={l.end}
+              className={`${navClassMobile} flex items-center gap-1.5`}
+              onClick={saveScrollBeforeMenuNav}
+            >
               <SidebarNavIcon to={l.to} className="size-3.5 opacity-95" />
               {l.label}
             </NavLink>
           ))}
         </nav>
       </aside>
-      <main className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 print:bg-white print:text-black dark:text-slate-100">
+      <main
+        id="contenu-principal"
+        role="main"
+        tabIndex={-1}
+        className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 outline-none print:bg-white print:text-black dark:text-slate-100"
+      >
         <div className="print:hidden">
           <MiniAssistantPanel />
         </div>

@@ -304,7 +304,7 @@ export function LocationDetailPage() {
     if (!window.confirm(msg)) return;
     try {
       await api(`/leases/${data.leaseId}`, { method: 'DELETE' });
-      navigate('/locations');
+      navigate('/locations', { replace: true });
     } catch (e2) {
       alert(e2 instanceof Error ? e2.message : 'Suppression impossible.');
     }

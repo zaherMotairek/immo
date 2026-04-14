@@ -1,21 +1,32 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, type LinkProps } from 'react-router-dom';
-import { saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
+import { saveReturnFocusForPath, saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
 
 type Props = Omit<LinkProps, 'className'> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   className?: string;
   children: ReactNode;
+  returnFocusId?: string;
 };
 
-export function LinkButton({ variant = 'secondary', className = '', children, state, onClick, ...props }: Props) {
+export function LinkButton({
+  variant = 'secondary',
+  className = '',
+  children,
+  state,
+  onClick,
+  returnFocusId,
+  ...props
+}: Props) {
   const loc = useLocation();
   const mergedState: AppNavigateState = {
     ...(state as object),
     from: (state as AppNavigateState)?.from ?? loc.pathname + loc.search,
   };
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    saveScrollForPath(loc.pathname + loc.search);
+    const from = loc.pathname + loc.search;
+    saveScrollForPath(from);
+    if (returnFocusId) saveReturnFocusForPath(from, returnFocusId);
     onClick?.(e);
   };
   const base =

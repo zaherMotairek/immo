@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
+import { SmartLink } from '@/components/SmartLink';
+import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
@@ -30,15 +31,26 @@ function cautionMoisLabel(monthlyRent: number, depositAmount: number): string {
   return `${Number(m.toFixed(1)).toLocaleString('fr-FR')} mois`;
 }
 
+function cautionRowFlash(active: boolean) {
+  return active
+    ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
+    : '';
+}
+
 export function CautionsEncaisséesPage() {
   useRegisterRootSectionFallback();
   const [rows, setRows] = useState<DepositRow[]>([]);
+  const [listFetched, setListFetched] = useState(false);
 
   useEffect(() => {
+    setListFetched(false);
     api<DepositRow[]>('/leases/deposits-collected')
       .then(setRows)
-      .catch(() => setRows([]));
+      .catch(() => setRows([]))
+      .finally(() => setListFetched(true));
   }, []);
+
+  const flashLeaseId = useReturnRowFocus({ rowIdPrefix: 'caution-row-', ready: listFetched });
 
   const totals = useMemo(() => {
     const sum = rows.reduce((s, r) => s + r.depositAmount, 0);
@@ -91,16 +103,20 @@ export function CautionsEncaisséesPage() {
                     <p>Aucune caution encaissée enregistrée.</p>
                     <p className="mt-2 text-xs">
                       Renseignez le dépôt sur une{' '}
-                      <Link to="/locations" className="font-medium text-brand-700 hover:underline dark:text-brand-400">
+                      <SmartLink to="/locations" className="font-medium text-brand-700 hover:underline dark:text-brand-400">
                         fiche location
-                      </Link>
+                      </SmartLink>
                       , puis « Marquer la caution encaissée ».
                     </p>
                   </td>
                 </tr>
               ) : (
                 rows.map((r, rowIndex) => (
-                  <tr key={r.leaseId} className={listTableDataRowClass(rowIndex)}>
+                  <tr
+                    key={r.leaseId}
+                    id={`caution-row-${r.leaseId}`}
+                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${cautionRowFlash(flashLeaseId === r.leaseId)}`}
+                  >
                     <td className={`${listTableFirstCellClass} whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-200`}>
                       {r.depositPaidAt}
                     </td>

@@ -56,9 +56,13 @@ model Building {
   structureKind  BuildingStructureKind  @default(MONO_LOT) @map("structure_kind")
   /** Nombre d’étages du bâtiment (immeuble) — indicatif. */
   floorCount     Int?                   @map("floor_count")
-  /** Nombre d’appartements prévus / déclarés (immeuble) — indicatif ; les baux restent liés aux unités créées. */
+  /** Immeuble : le rez-de-chaussée (étage 0) fait partie du carnet. Si false, étages 1…floorCount seulement. */
+  hasRezDeChaussee Boolean?            @map("has_rez_de_chaussee")
+  /** Nombre d’appartements prévus / déclarés (immeuble) — carnet réservé aux unités de type appartement uniquement. */
   apartmentCount Int?                   @map("apartment_count")
-  /** Nombre de lots prévus sur le terrain (terrain multi-lots) — indicatif. */
+  /** Immeuble : places au carnet pour entrepôts et commerces (distinct du carnet appartements). */
+  locauxSlotCount Int?                 @map("locaux_slot_count")
+  /** Nombre de lots prévus sur le terrain (terrain multi locataires) — indicatif. */
   terrainLotCount Int?                 @map("terrain_lot_count")
   createdAt      DateTime               @default(now()) @map("created_at")
   updatedAt      DateTime               @updatedAt @map("updated_at")
@@ -86,8 +90,10 @@ model Unit {
   label         String
   kind          UnitKind @default(APARTMENT)
   floor         Int?
-  /** Numéro d’appartement dans l’immeuble (1…apartmentCount), optionnel (parkings, etc.). */
+  /** Numéro au carnet appartements (1…apartmentCount), réservé aux appartements en immeuble. */
   apartmentSlot Int?     @map("apartment_slot")
+  /** Numéro au carnet entrepôts / commerces (1…locauxSlotCount), pour WAREHOUSE et COMMERCIAL en immeuble. */
+  locauxSlot   Int?     @map("locaux_slot")
   surfaceM2     Decimal? @map("surface_m2") @db.Decimal(10, 2)
   rooms         Int?
   defaultRent   Decimal? @map("default_rent") @db.Decimal(12, 2)
@@ -100,6 +106,7 @@ model Unit {
   charges       Charge[]
 
   @@unique([buildingId, apartmentSlot])
+  @@unique([buildingId, locauxSlot])
   @@index([buildingId])
   @@map("units")
 }

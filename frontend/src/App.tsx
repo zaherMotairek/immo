@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
+import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -19,11 +20,7 @@ import { ExportsPage } from './pages/ExportsPage';
 function Protected({ children }: { children: ReactElement }) {
   const { user, ready } = useAuth();
   if (!ready) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center text-slate-500">
-        Chargement…
-      </div>
-    );
+    return <AppLoadingScreen message="Ouverture de la session…" />;
   }
   if (!user) return <Navigate to="/login" replace />;
   return children;

@@ -1,6 +1,16 @@
 import { BuildingStructureKind } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 /** Aligné sur Prisma ; liste explicite pour la validation (évite un client `prisma generate` pas à jour). */
 export const BUILDING_STRUCTURE_KIND_INPUT = ['IMMEUBLE', 'TERRAIN_LOTS', 'MONO_LOT'] as const;
@@ -54,7 +64,13 @@ export class CreateBuildingDto {
   @Max(200)
   floorCount?: number;
 
-  /** Pour un immeuble : nombre d’appartements / lots résidentiels prévus (indicatif). */
+  /** Pour un immeuble : inclure le rez-de-chaussée (étage 0) dans les listes. Défaut true. */
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  hasRezDeChaussee?: boolean;
+
+  /** Pour un immeuble : nombre de places au carnet appartements uniquement (indicatif). */
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -62,7 +78,15 @@ export class CreateBuildingDto {
   @Max(50_000)
   apartmentCount?: number;
 
-  /** Pour un terrain multi-lots : nombre de lots prévus (indicatif). */
+  /** Pour un immeuble : places au carnet entrepôts + commerces (distinct des appartements). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50_000)
+  locauxSlotCount?: number;
+
+  /** Pour un terrain multi locataires : nombre de lots prévus (indicatif). */
   @IsOptional()
   @Type(() => Number)
   @IsInt()

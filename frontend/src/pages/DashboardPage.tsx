@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { EmptyState } from '@/components/EmptyState';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
@@ -124,8 +125,9 @@ export function DashboardPage() {
 
   if (err) {
     return (
-      <Card>
-        <p className="text-red-600">{err}</p>
+      <Card className="border-red-200/90 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/30">
+        <p className="font-medium text-red-800 dark:text-red-200">Impossible de charger le tableau de bord.</p>
+        <p className="mt-1 text-sm text-red-700/90 dark:text-red-300/90">{err}</p>
         <Button className="mt-4" onClick={() => window.location.reload()}>
           Réessayer
         </Button>
@@ -134,10 +136,11 @@ export function DashboardPage() {
   }
 
   if (!data) {
-    return <p className="text-slate-500 dark:text-slate-400">Chargement du tableau de bord…</p>;
+    return <AppLoadingScreen message="Chargement du tableau de bord…" />;
   }
 
   const { kpis, alerts } = data;
+  const isEmptyPortfolio = kpis.buildings === 0;
 
   return (
     <div className="space-y-6">
@@ -145,11 +148,30 @@ export function DashboardPage() {
         className="max-w-3xl"
         iconTo="/"
         title="Tableau de bord"
+        subtitle="Vue d’ensemble de votre parc : encaissements du mois, impayés et raccourcis vers l’essentiel."
         hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
       />
 
+      {isEmptyPortfolio ? (
+        <EmptyState
+          title="Première étape : enregistrer un bien"
+          description="Créez au moins un bien et ses lots (appartements, bureaux…) pour suivre les loyers, les baux et les paiements dans ImmoPilot."
+          icon={<KpiIconBuilding className="h-6 w-6" />}
+          action={
+            <>
+              <LinkButton to="/biens" variant="primary" className="py-2.5 text-sm font-semibold">
+                Ajouter un bien
+              </LinkButton>
+              <LinkButton to="/locataires" variant="secondary" className="py-2.5 text-sm font-semibold">
+                Locataires
+              </LinkButton>
+            </>
+          }
+        />
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Link
+        <SmartLink
           to="/biens"
           className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
           aria-label={`Voir les biens — ${kpis.buildings} enregistré${kpis.buildings !== 1 ? 's' : ''}`}
@@ -166,8 +188,8 @@ export function DashboardPage() {
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums dark:text-slate-100">{kpis.buildings}</p>
           </Card>
-        </Link>
-        <Link
+        </SmartLink>
+        <SmartLink
           to="/biens"
           className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
           aria-label={`Voir les biens et les unités — ${kpis.units} unité${kpis.units !== 1 ? 's' : ''}`}
@@ -184,8 +206,8 @@ export function DashboardPage() {
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums dark:text-slate-100">{kpis.units}</p>
           </Card>
-        </Link>
-        <Link
+        </SmartLink>
+        <SmartLink
           to="/locataires"
           className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
           aria-label={`Voir les locataires — ${kpis.tenants} enregistré${kpis.tenants !== 1 ? 's' : ''}`}
@@ -202,7 +224,7 @@ export function DashboardPage() {
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums dark:text-slate-100">{kpis.tenants}</p>
           </Card>
-        </Link>
+        </SmartLink>
         <Card className="!p-4">
           <p className="flex items-center gap-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
             <KpiIconMoney className="h-4 w-4 shrink-0 text-slate-400" />
@@ -233,12 +255,12 @@ export function DashboardPage() {
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Dépôts de garantie marqués encaissés ce mois — non confondus avec les loyers.
               </p>
-              <Link
+              <SmartLink
                 to="/cautions"
                 className="mt-2 inline-block text-xs font-semibold text-brand-700 hover:underline dark:text-brand-400"
               >
                 Voir toutes les cautions encaissées →
-              </Link>
+              </SmartLink>
             </div>
           </div>
         </Card>
@@ -256,12 +278,12 @@ export function DashboardPage() {
           <p className="mt-2 text-3xl font-bold text-amber-800 dark:text-amber-300">{fcfa(kpis.overdueAmount)}</p>
           <p className="text-sm text-slate-600 dark:text-slate-400">{kpis.overdueCount} échéance(s)</p>
           <div className="mt-3 flex flex-wrap gap-3">
-            <Link to="/locations" className="text-sm font-medium text-brand-700 dark:text-brand-400">
+            <SmartLink to="/locations" className="text-sm font-medium text-brand-700 dark:text-brand-400">
               Voir les locations →
-            </Link>
-            <Link to="/paiements?overdue=1" className="text-sm font-medium text-brand-700 dark:text-brand-400">
+            </SmartLink>
+            <SmartLink to="/paiements?overdue=1" className="text-sm font-medium text-brand-700 dark:text-brand-400">
               Paiements en retard →
-            </Link>
+            </SmartLink>
           </div>
         </Card>
       </div>

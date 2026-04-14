@@ -20,6 +20,8 @@
 
 html {
   color-scheme: light;
+  /* Évite le décalage horizontal quand la barre de défilement apparaît / disparaît */
+  scrollbar-gutter: stable;
 }
 
 html.dark {
@@ -51,6 +53,26 @@ html.dark body {
   background-image: linear-gradient(165deg, #12141a 0%, #0b0c0f 50%, #07080b 100%);
   /* Texte principal un peu plus clair (lisibilité sur fond sombre) */
   color: #f0f1f5;
+}
+
+::selection {
+  background-color: rgb(37 99 235 / 0.22);
+}
+
+html.dark ::selection {
+  background-color: rgb(56 189 248 / 0.25);
+}
+
+/* Page Locations : le filtre change la hauteur du document ; évite les sauts de scroll automatiques */
+#locations-page-root {
+  overflow-anchor: none;
+}
+
+/* Liens dans le contenu : anneau focus visible sans casser le design */
+main a:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 0.125rem;
 }
 
 @media print {

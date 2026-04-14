@@ -48,10 +48,11 @@ async function executeCommand(parsed: ParsedAssistantCommand): Promise<string> {
             commune: DEFAULT_COMMUNE,
             structureKind: 'IMMEUBLE',
             floorCount: parsed.units,
+            hasRezDeChaussee: true,
             apartmentCount: parsed.units,
           },
         });
-        return `Bien « ${parsed.name} » créé (immeuble indicatif ${parsed.units} étages / ${parsed.units} app.). Ouvrez Biens pour les unités.`;
+        return `Bien « ${parsed.name} » créé (immeuble indicatif ${parsed.units} étages, même nombre de places carnet — ajustez sur la fiche si besoin). Ouvrez Biens pour les unités.`;
       }
       await api('/buildings', {
         method: 'POST',

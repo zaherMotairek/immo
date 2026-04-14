@@ -5,6 +5,7 @@ import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/l
 import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
 import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
+import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
@@ -59,6 +60,12 @@ function splitFullName(input: string): { firstName: string; lastName: string } {
   return { firstName: parts[0]!, lastName: parts.slice(1).join(' ') };
 }
 
+function tenantRowFlash(active: boolean) {
+  return active
+    ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
+    : '';
+}
+
 export function TenantsPage() {
   useRegisterRootSectionFallback();
   const navigate = useNavigate();
@@ -66,6 +73,7 @@ export function TenantsPage() {
   const returnLocationParam = params.get('returnLocation')?.trim() ?? '';
   const returnAfterTenantCreateRef = useRef<string | null>(null);
   const [rows, setRows] = useState<Tenant[]>([]);
+  const [listFetched, setListFetched] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -136,8 +144,14 @@ export function TenantsPage() {
   }
 
   function load() {
-    api<Tenant[]>('/tenants').then(setRows).catch(() => setRows([]));
+    setListFetched(false);
+    api<Tenant[]>('/tenants')
+      .then(setRows)
+      .catch(() => setRows([]))
+      .finally(() => setListFetched(true));
   }
+
+  const flashTenantId = useReturnRowFocus({ rowIdPrefix: 'tenant-row-', ready: listFetched });
 
   useEffect(() => {
     load();
@@ -432,7 +446,11 @@ export function TenantsPage() {
                 const isEditing = editingId === t.id;
                 if (isEditing) {
                   return (
-                    <tr key={t.id} id={`tenant-row-${t.id}`} className={listTableRowEditingClass}>
+                    <tr
+                      key={t.id}
+                      id={`tenant-row-${t.id}`}
+                      className={`scroll-mt-28 ${listTableRowEditingClass} ${tenantRowFlash(flashTenantId === t.id)}`}
+                    >
                       <td colSpan={5} className={listTableEditingFirstCellClass}>
                         <div className="space-y-3 rounded-xl border border-brand-200/90 bg-white/90 p-4 shadow-sm dark:border-brand-700/40 dark:bg-slate-900/80">
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
@@ -474,6 +492,7 @@ export function TenantsPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <SmartLink
                               to={`/activite-loyers?scope=tenant&tenantId=${encodeURIComponent(t.id)}&year=${new Date().getFullYear()}`}
+                              returnFocusId={t.id}
                               className="text-xs font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
                             >
                               Activité loyers sur l’année →
@@ -493,13 +512,18 @@ export function TenantsPage() {
                   );
                 }
                 return (
-                  <tr key={t.id} id={`tenant-row-${t.id}`} className={listTableDataRowClass(rowIndex)}>
+                  <tr
+                    key={t.id}
+                    id={`tenant-row-${t.id}`}
+                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${tenantRowFlash(flashTenantId === t.id)}`}
+                  >
                     <td className={listTableFirstCellClass}>
                       <div className="flex items-start gap-3">
                         {t.idDocFileKey ? <TenantIdDocumentThumb tenantId={t.id} mimeType={t.idDocMime} /> : null}
                         <div className="min-w-0">
                           <SmartLink
                             to={`/locataires?edit=${encodeURIComponent(t.id)}`}
+                            returnFocusId={t.id}
                             className="font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
                           >
                             {t.firstName} {t.lastName}
@@ -548,6 +572,7 @@ export function TenantsPage() {
                             buildingName={
                               <SmartLink
                                 to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/locataires')}`}
+                                returnFocusId={t.id}
                                 className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                               >
                                 {l.unit.building.name}
@@ -567,7 +592,7 @@ export function TenantsPage() {
                       )}
                     </td>
                     <td className={`whitespace-nowrap ${listTableCellClass}`}>
-                      {l ? <FicheLocationLink leaseId={l.id} /> : <span className="text-xs text-slate-400">—</span>}
+                      {l ? <FicheLocationLink leaseId={l.id} returnFocusRowId={t.id} /> : <span className="text-xs text-slate-400">—</span>}
                     </td>
                     <td className={`whitespace-nowrap text-right ${listTableCellClass}`}>
                       <div className="inline-flex flex-col items-end gap-1.5 sm:flex-row sm:items-center">

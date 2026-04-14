@@ -73,7 +73,10 @@ export class BuildingsService {
           notes: dto.notes,
           structureKind: kind,
           floorCount: kind === BuildingStructureKind.IMMEUBLE ? dto.floorCount ?? null : null,
+          hasRezDeChaussee:
+            kind === BuildingStructureKind.IMMEUBLE ? dto.hasRezDeChaussee !== false : null,
           apartmentCount: kind === BuildingStructureKind.IMMEUBLE ? dto.apartmentCount ?? null : null,
+          locauxSlotCount: kind === BuildingStructureKind.IMMEUBLE ? dto.locauxSlotCount ?? null : null,
           terrainLotCount: kind === BuildingStructureKind.TERRAIN_LOTS ? dto.terrainLotCount ?? null : null,
         },
       });
@@ -99,7 +102,7 @@ export class BuildingsService {
       dto.structureKind === BuildingStructureKind.MONO_LOT
     ) {
       throw new BadRequestException(
-        'Ce bien est en multi-lots (immeuble ou terrain parcelé) : le type ne peut plus être repassé en « un seul lot ». Créez un autre bien pour une villa ou un local loué en entier.',
+        'Ce bien est en multi locataires (immeuble ou terrain avec plusieurs locataires) : le type ne peut plus être repassé en « un seul lot ». Créez un autre bien pour une villa ou un local loué en entier.',
       );
     }
     if (dto.structureKind === BuildingStructureKind.MONO_LOT) {

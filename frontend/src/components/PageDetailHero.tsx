@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { SmartLink } from '@/components/SmartLink';
 import { Card } from '@/components/ui';
 
 export function ChevronLeftIcon({ className = 'size-4' }: { className?: string }) {
@@ -41,10 +41,10 @@ export function PageDetailHero({
         <nav aria-label="Fil d'Ariane" className="min-w-0">
           <ol className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             <li className="shrink-0">
-              <Link to={backHref} className={backLinkClassName}>
+              <SmartLink to={backHref} className={backLinkClassName}>
                 <ChevronLeftIcon className="size-4 shrink-0 text-slate-400 transition group-hover:text-brand-600" />
                 {backLabel}
-              </Link>
+              </SmartLink>
             </li>
             <li className="shrink-0 text-slate-300 dark:text-slate-600" aria-hidden>
               /
@@ -74,12 +74,12 @@ export function PageDetailBackLink({
   className?: string;
 }) {
   return (
-    <Link
+    <SmartLink
       to={to}
       className={`group mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/95 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.04] transition hover:border-brand-200 hover:bg-brand-50/80 hover:text-brand-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:border-brand-500 dark:hover:bg-slate-700 dark:hover:text-white ${className}`}
     >
       <ChevronLeftIcon className="size-4 shrink-0 text-slate-400 transition group-hover:text-brand-600" />
       {children}
-    </Link>
+    </SmartLink>
   );
 }

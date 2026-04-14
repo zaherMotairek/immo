@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
@@ -273,12 +273,12 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
               <>
                 {renderZoomPaymentCard(row)}
                 <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">
-                  <Link
+                  <SmartLink
                     to={`/paiements?focus=${row.id}&overdue=1&year=all&month=all`}
                     className="font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
                   >
                     Ouvrir aussi dans Paiements
-                  </Link>
+                  </SmartLink>
                 </p>
               </>
             ) : (

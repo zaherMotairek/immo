@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
+import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
@@ -83,6 +84,7 @@ export function PaymentsPage() {
   }, [monthParam, overdueOnly]);
 
   const [rows, setRows] = useState<PaymentRow[]>([]);
+  const [paymentsReady, setPaymentsReady] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [partialFor, setPartialFor] = useState<PaymentRow | null>(null);
   const [partialAmount, setPartialAmount] = useState('');
@@ -94,6 +96,7 @@ export function PaymentsPage() {
   const [tenants, setTenants] = useState<TenantOpt[]>([]);
 
   const load = useCallback(() => {
+    setPaymentsReady(false);
     const q = new URLSearchParams();
     if (overdueOnly) q.set('overdue', '1');
     if (leaseIdFilter) q.set('leaseId', leaseIdFilter);
@@ -105,7 +108,10 @@ export function PaymentsPage() {
     if (yearFilter !== 'all') q.set('year', String(yearFilter));
     if (monthFilter !== 'all') q.set('month', String(monthFilter));
     const qs = q.toString();
-    api<PaymentRow[]>(`/payments${qs ? `?${qs}` : ''}`).then(setRows).catch(() => setRows([]));
+    api<PaymentRow[]>(`/payments${qs ? `?${qs}` : ''}`)
+      .then(setRows)
+      .catch(() => setRows([]))
+      .finally(() => setPaymentsReady(true));
   }, [
     buildingIdFilter,
     leaseIdFilter,
@@ -159,6 +165,14 @@ export function PaymentsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const flashPaymentRowId = useReturnRowFocus({ rowIdPrefix: 'payment-', ready: paymentsReady });
+
+  function paymentRowFlash(active: boolean) {
+    return active
+      ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
+      : '';
+  }
 
   const focusPaymentId = params.get('focus');
 
@@ -836,9 +850,9 @@ export function PaymentsPage() {
                 {stats.partialLines > 0 ? ` · ${stats.partialLines} acompte${stats.partialLines !== 1 ? 's' : ''}` : ''}
                 <span className="mt-1 block">
                   Hors caution —{' '}
-                  <Link to="/cautions" className="font-semibold text-brand-700 hover:underline dark:text-brand-400">
+                  <SmartLink to="/cautions" className="font-semibold text-brand-700 hover:underline dark:text-brand-400">
                     cautions encaissées
-                  </Link>
+                  </SmartLink>
                   .
                 </span>
               </p>
@@ -995,11 +1009,16 @@ export function PaymentsPage() {
                   </thead>
                   <tbody>
                     {items.map((p, rowIndex) => (
-                      <tr key={p.id} id={`payment-${p.id}`} className={listTableDataRowClass(rowIndex)}>
+                      <tr
+                        key={p.id}
+                        id={`payment-${p.id}`}
+                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${paymentRowFlash(flashPaymentRowId === p.id)}`}
+                      >
                         <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
                           {p.lease.tenant.id ? (
                             <SmartLink
                               to={`/locataires?edit=${encodeURIComponent(p.lease.tenant.id)}`}
+                              returnFocusId={p.id}
                               className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                             >
                               {p.lease.tenant.firstName} {p.lease.tenant.lastName}
@@ -1044,7 +1063,7 @@ export function PaymentsPage() {
                           </span>
                         </td>
                         <td className={`whitespace-nowrap ${listTableCellClass}`}>
-                          {p.leaseId ? <FicheLocationLink leaseId={p.leaseId} /> : <span className="text-xs text-slate-400">—</span>}
+                          {p.leaseId ? <FicheLocationLink leaseId={p.leaseId} returnFocusRowId={p.id} /> : <span className="text-xs text-slate-400">—</span>}
                         </td>
                         <td className={`text-right align-top ${listTableCellClass}`}>
                           <details className="ml-auto inline-block min-w-[8.5rem] max-w-[15rem] rounded-lg border border-slate-200 bg-slate-50/80 text-left dark:border-slate-600 dark:bg-slate-800/50">

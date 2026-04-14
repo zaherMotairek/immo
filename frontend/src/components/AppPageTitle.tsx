@@ -6,6 +6,8 @@ type AppPageTitleProps = {
   /** Même clé que dans le menu latéral (`SidebarNavIcon`) pour garder les mêmes pictogrammes. */
   iconTo: string;
   title: string;
+  /** Sous-titre discret sous le titre (contexte pour le client). */
+  subtitle?: string;
   hintTitle?: string;
   /** Éléments après l’aide (ex. badge) */
   titleExtra?: ReactNode;
@@ -13,7 +15,7 @@ type AppPageTitleProps = {
 };
 
 /** Titre de section principal : icône dans un cartouche + titre plus lisible, aligné sur la barre latérale. */
-export function AppPageTitle({ iconTo, title, hintTitle, titleExtra, className = '' }: AppPageTitleProps) {
+export function AppPageTitle({ iconTo, title, subtitle, hintTitle, titleExtra, className = '' }: AppPageTitleProps) {
   return (
     <div className={`flex items-start gap-3 sm:gap-4 ${className}`}>
       <div
@@ -32,6 +34,9 @@ export function AppPageTitle({ iconTo, title, hintTitle, titleExtra, className =
           ) : null}
           {titleExtra}
         </div>
+        {subtitle ? (
+          <p className="mt-2 max-w-2xl text-[15px] leading-snug text-slate-600 dark:text-slate-400">{subtitle}</p>
+        ) : null}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
+import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
@@ -75,6 +76,7 @@ export function ChargesPage() {
   const [y, setY] = useState(() => readInitialPeriod().y);
   const [viewMonth, setViewMonth] = useState<number | 'all'>(() => readInitialPeriod().viewMonth);
   const [rows, setRows] = useState<ChargeRow[]>([]);
+  const [listFetched, setListFetched] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
   const [buildingId, setBuildingId] = useState('');
@@ -97,10 +99,21 @@ export function ChargesPage() {
 
   const load = useCallback(() => {
     const q = periodQuery();
-    api<ChargeRow[]>(`/charges?${q}`).then(setRows).catch(() => setRows([]));
-    api<Summary>(`/charges/summary?${q}`).then(setSummary).catch(() => setSummary(null));
-    api<BuildingOpt[]>('/buildings').then(setBuildings).catch(() => setBuildings([]));
+    setListFetched(false);
+    Promise.all([
+      api<ChargeRow[]>(`/charges?${q}`).then(setRows).catch(() => setRows([])),
+      api<Summary>(`/charges/summary?${q}`).then(setSummary).catch(() => setSummary(null)),
+      api<BuildingOpt[]>('/buildings').then(setBuildings).catch(() => setBuildings([])),
+    ]).finally(() => setListFetched(true));
   }, [periodQuery]);
+
+  const flashChargeId = useReturnRowFocus({ rowIdPrefix: 'charge-', ready: listFetched });
+
+  function chargeRowFlash(active: boolean) {
+    return active
+      ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
+      : '';
+  }
 
   useEffect(() => {
     load();
@@ -443,7 +456,11 @@ export function ChargesPage() {
         </div>
         <ul className="list-none">
           {rows.map((c, rowIndex) => (
-            <li key={c.id} id={`charge-${c.id}`} className={listBlockRowClass(rowIndex)}>
+            <li
+              key={c.id}
+              id={`charge-${c.id}`}
+              className={`scroll-mt-28 ${listBlockRowClass(rowIndex)} ${chargeRowFlash(flashChargeId === c.id)}`}
+            >
               <div>
                 <p className="font-medium text-slate-900 dark:text-slate-100">
                   {c.label}{' '}
@@ -454,6 +471,7 @@ export function ChargesPage() {
                     <>
                       <SmartLink
                         to={`/biens/${c.building.id}?unitId=${encodeURIComponent(c.unit.id)}&hintUnitLabel=${encodeURIComponent(c.unit.label)}&returnLocation=${encodeURIComponent(chargesReturnLocation)}`}
+                        returnFocusId={c.id}
                         className="font-medium text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                       >
                         {c.building.name}
@@ -464,6 +482,7 @@ export function ChargesPage() {
                   ) : (
                     <SmartLink
                       to={`/biens/${c.building.id}?returnLocation=${encodeURIComponent(chargesReturnLocation)}`}
+                      returnFocusId={c.id}
                       className="font-medium text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                     >
                       {c.building.name}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
+import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
 import { BuildingScopeBadge } from '@/components/BuildingUnitBadges';
@@ -13,6 +14,7 @@ import {
   BUILDING_STRUCTURE_OPTIONS,
   IMMEUBLE_CARNET_COUNT_HINT,
   IMMEUBLE_FLOORS_HINT,
+  IMMEUBLE_RDC_CHECKBOX_HINT,
   type BuildingStructureValue,
 } from '@/lib/buildingStructure';
 
@@ -38,8 +40,8 @@ function normalizeGenreParam(raw: string | null): BuildingStructureValue | null 
 }
 
 function structureKindShort(k?: BuildingStructureValue | string | null) {
-  if (k === 'IMMEUBLE') return 'Multi-lots';
-  if (k === 'TERRAIN_LOTS') return 'Terrain multi';
+  if (k === 'IMMEUBLE') return 'Multi locataires';
+  if (k === 'TERRAIN_LOTS') return 'Terrain multi loc.';
   return 'Un seul lot';
 }
 
@@ -79,7 +81,6 @@ export function BuildingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const returnLocationParam = searchParams.get('returnLocation')?.trim() ?? '';
   const returnAfterBuildingCreateRef = useRef<string | null>(null);
-  /** Filtre par genre de bien (structure), aligné sur le formulaire « Genre de bien ». */
   const genreFilter = useMemo(() => normalizeGenreParam(searchParams.get('genre')), [searchParams]);
 
   function selectGenreFilter(next: BuildingStructureValue) {
@@ -107,6 +108,7 @@ export function BuildingsPage() {
   }
 
   const [rows, setRows] = useState<BuildingRow[]>([]);
+  const [listFetched, setListFetched] = useState(false);
   const [name, setName] = useState('');
   const [cityChoice, setCityChoice] = useState<string>(IVORY_COAST_CITIES[0]);
   const [cityOther, setCityOther] = useState('');
@@ -116,6 +118,7 @@ export function BuildingsPage() {
   const [postalCode, setPostalCode] = useState('');
   const [structureKind, setStructureKind] = useState<BuildingStructureValue>('MONO_LOT');
   const [floorCountImmeuble, setFloorCountImmeuble] = useState('');
+  const [includeRezDeChaussee, setIncludeRezDeChaussee] = useState(true);
   const [apartmentCountImmeuble, setApartmentCountImmeuble] = useState('');
   const [terrainLotCountNew, setTerrainLotCountNew] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -141,6 +144,7 @@ export function BuildingsPage() {
     setPostalCode('');
     setStructureKind('MONO_LOT');
     setFloorCountImmeuble('');
+    setIncludeRezDeChaussee(true);
     setApartmentCountImmeuble('');
     setTerrainLotCountNew('');
     setErr(null);
@@ -170,6 +174,7 @@ export function BuildingsPage() {
   const load = useCallback(() => {
     const q = genreFilter ? `?structureKind=${encodeURIComponent(genreFilter)}` : '';
     setListErr(null);
+    setListFetched(false);
     api<BuildingRow[]>(`/buildings${q}`)
       .then((data) => {
         setRows(data);
@@ -182,8 +187,17 @@ export function BuildingsPage() {
             ? e.message
             : 'Impossible de charger les biens. Vérifiez la connexion et que l’API répond (terminal backend).',
         );
-      });
+      })
+      .finally(() => setListFetched(true));
   }, [genreFilter]);
+
+  const flashBuildingId = useReturnRowFocus({ rowIdPrefix: 'bien-row-', ready: listFetched });
+
+  function bienRowFlashClass(active: boolean) {
+    return active
+      ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
+      : '';
+  }
 
   useEffect(() => {
     load();
@@ -249,6 +263,7 @@ export function BuildingsPage() {
             ? {
                 floorCount:
                   floorCountImmeuble.trim() === '' ? undefined : Number(floorCountImmeuble),
+                hasRezDeChaussee: includeRezDeChaussee,
                 apartmentCount:
                   apartmentCountImmeuble.trim() === '' ? undefined : Number(apartmentCountImmeuble),
               }
@@ -268,6 +283,7 @@ export function BuildingsPage() {
       setCityOther('');
       setCommuneOther('');
       setFloorCountImmeuble('');
+      setIncludeRezDeChaussee(true);
       setApartmentCountImmeuble('');
       setTerrainLotCountNew('');
       setAddFormOpen(false);
@@ -282,7 +298,7 @@ export function BuildingsPage() {
   }
 
   const filterHint = genreFilter
-    ? 'Filtre par genre de bien (structure) : immeuble multi-lots, terrain parcelé ou un seul lot — comme dans « Nouveau bien ».'
+    ? 'Filtre par genre de bien (structure) : immeuble multi locataires, terrain avec plusieurs locataires ou un seul lot — comme dans « Nouveau bien ».'
     : '« Tous les biens » : aucun filtre. Choisissez un genre pour restreindre la liste.';
 
   const filteredRows = useMemo(() => {
@@ -443,10 +459,15 @@ export function BuildingsPage() {
           {filteredRows.map((b) => {
             const isImmeuble = b.structureKind === 'IMMEUBLE';
             return (
-              <li key={b.id}>
+              <li
+                key={b.id}
+                id={`bien-row-${b.id}`}
+                className={`scroll-mt-28 ${bienRowFlashClass(flashBuildingId === b.id)}`}
+              >
                 <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/95 to-slate-100/40 shadow-sm transition hover:border-brand-400/55 hover:shadow-md dark:border-slate-700 dark:from-slate-900/80 dark:to-slate-900/40 dark:hover:border-brand-500/45">
                   <SmartLink
                     to={`/biens/${b.id}`}
+                    returnFocusId={b.id}
                     className="group flex flex-1 flex-col p-4 no-underline outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                   >
                     <div className="flex gap-3">
@@ -489,6 +510,7 @@ export function BuildingsPage() {
                   <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200/60 bg-slate-100/40 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50">
                     <SmartLink
                       to={`/biens/${b.id}`}
+                      returnFocusId={b.id}
                       className="text-xs font-medium text-brand-600 transition hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300"
                     >
                       Ouvrir la fiche
@@ -592,7 +614,7 @@ export function BuildingsPage() {
               <div className="mb-4 flex flex-wrap items-center gap-2 pt-2">
                 <HelpHint
                   className="align-middle"
-                  title="Immeuble ou terrain parcelé : un seul bien avec plusieurs unités et plusieurs baux. Villa, entrepôt entier ou parcelle unique sans découpe : un seul lot, une unité, un bail."
+                  title="Immeuble multi locataires ou terrain avec plusieurs locataires : un seul bien avec plusieurs unités et plusieurs baux. Villa, entrepôt entier ou parcelle unique sans découpe : un seul lot, une unité, un bail."
                 />
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   Choisissez d’abord le genre de bien, puis indiquez étages / nombre d’unités si besoin, puis nom et lieu.
@@ -640,15 +662,16 @@ export function BuildingsPage() {
                 Taille de l’immeuble (indicatif)
               </p>
               <p className="mb-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                Par défaut, si le nombre de places au carnet est égal au nombre d’étages, l’application considère{' '}
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">1 appartement par étage</strong>{' '}
-                (ex. 13 niveaux et 13 places = 13 lots au total).
+                Le <strong className="font-semibold text-slate-800 dark:text-slate-200">nombre d’étages</strong> reste
+                exactement ce que vous saisissez (ex. 10). Ensuite vous indiquez combien il y a{' '}
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">d’appartements au total</strong> sur
+                l’immeuble — librement (ex. 20 pour 2 par étage). Rien n’est rempli automatiquement à partir des étages.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
                     <Label htmlFor="new-building-floors" className="mb-0">
-                      Nombre d&apos;étages
+                      Étages au-dessus du RDC
                     </Label>
                     <HelpHint className="align-middle" title={IMMEUBLE_FLOORS_HINT} />
                   </div>
@@ -657,20 +680,14 @@ export function BuildingsPage() {
                     type="number"
                     min={0}
                     value={floorCountImmeuble}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setFloorCountImmeuble(next);
-                      if (apartmentCountImmeuble.trim() === '' && next.trim() !== '') {
-                        setApartmentCountImmeuble(next);
-                      }
-                    }}
-                    placeholder="Ex. 4"
+                    onChange={(e) => setFloorCountImmeuble(e.target.value)}
+                    placeholder="Ex. 10"
                   />
                 </div>
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
                     <Label htmlFor="new-building-apartments" className="mb-0">
-                      Places au carnet (total des appartements)
+                      Nombre total d’appartements (carnet)
                     </Label>
                     <HelpHint className="align-middle" title={IMMEUBLE_CARNET_COUNT_HINT} />
                   </div>
@@ -680,8 +697,29 @@ export function BuildingsPage() {
                     min={0}
                     value={apartmentCountImmeuble}
                     onChange={(e) => setApartmentCountImmeuble(e.target.value)}
-                    placeholder="Ex. 12"
+                    placeholder="Ex. 20"
                   />
+                </div>
+              </div>
+              <div className="sm:col-span-2 flex flex-wrap items-start gap-2 rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/40">
+                <input
+                  id="new-building-has-rdc"
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-900"
+                  checked={includeRezDeChaussee}
+                  onChange={(e) => setIncludeRezDeChaussee(e.target.checked)}
+                />
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="new-building-has-rdc" className="mb-0 cursor-pointer font-medium">
+                    Inclure le rez-de-chaussée dans le carnet
+                  </Label>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs leading-snug text-slate-600 dark:text-slate-400">
+                    <HelpHint title={IMMEUBLE_RDC_CHECKBOX_HINT} className="align-middle shrink-0" />
+                    <span>
+                      Si coché, le rez-de-chaussée (étage 0) apparaît dans les listes d’étages. Le nombre total
+                      d’appartements reste à votre saisie.
+                    </span>
+                  </p>
                 </div>
               </div>
             </div>
