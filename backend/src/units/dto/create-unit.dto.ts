@@ -17,7 +17,7 @@ export class CreateUnitDto {
   @IsInt()
   floor?: number;
 
-  /** Carnet appartements (immeuble) ou lots (terrain) — pas pour entrepôt / commerce en immeuble. */
+  /** Numéro de logement (immeuble) ou de lot (terrain) — pas pour entrepôt / commerce en immeuble. */
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -25,7 +25,7 @@ export class CreateUnitDto {
   @Max(500_000)
   apartmentSlot?: number;
 
-  /** Carnet entrepôts / commerces (immeuble uniquement) — distinct du carnet appartements. */
+  /** Numéro de local entrepôt / commerce (immeuble uniquement) — distinct du numéro de logement. */
   @IsOptional()
   @Type(() => Number)
   @IsInt()

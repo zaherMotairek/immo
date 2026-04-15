@@ -7,13 +7,14 @@ import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
 import { BuildingScopeBadge } from '@/components/BuildingUnitBadges';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 import {
   BUILDING_STRUCTURE_OPTIONS,
-  IMMEUBLE_CARNET_COUNT_HINT,
+  IMMEUBLE_LOGEMENT_TOTAL_HINT,
   IMMEUBLE_FLOORS_HINT,
+  IMMEUBLE_REZ_APARTMENTS_HINT,
   IMMEUBLE_RDC_CHECKBOX_HINT,
   type BuildingStructureValue,
 } from '@/lib/buildingStructure';
@@ -120,6 +121,7 @@ export function BuildingsPage() {
   const [floorCountImmeuble, setFloorCountImmeuble] = useState('');
   const [includeRezDeChaussee, setIncludeRezDeChaussee] = useState(true);
   const [apartmentCountImmeuble, setApartmentCountImmeuble] = useState('');
+  const [rezApartmentImmeuble, setRezApartmentImmeuble] = useState('');
   const [terrainLotCountNew, setTerrainLotCountNew] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
@@ -266,6 +268,11 @@ export function BuildingsPage() {
                 hasRezDeChaussee: includeRezDeChaussee,
                 apartmentCount:
                   apartmentCountImmeuble.trim() === '' ? undefined : Number(apartmentCountImmeuble),
+                rezApartmentCount: includeRezDeChaussee
+                  ? rezApartmentImmeuble.trim() === ''
+                    ? undefined
+                    : Number(rezApartmentImmeuble)
+                  : undefined,
               }
             : {}),
           ...(structureKind === 'TERRAIN_LOTS'
@@ -285,6 +292,7 @@ export function BuildingsPage() {
       setFloorCountImmeuble('');
       setIncludeRezDeChaussee(true);
       setApartmentCountImmeuble('');
+      setRezApartmentImmeuble('');
       setTerrainLotCountNew('');
       setAddFormOpen(false);
       if (back) {
@@ -325,6 +333,7 @@ export function BuildingsPage() {
           iconTo="/biens"
           title="Biens immobiliers"
           hintTitle="Immeuble collectif, villa, entrepôt, terrain… même principe : nom du site + localisation (Côte d’Ivoire). Supprimer un bien : bouton en bas de carte (supprime aussi unités, baux et loyers liés)."
+          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
         />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddForm()}>
           <span className="text-base leading-none" aria-hidden>
@@ -664,7 +673,7 @@ export function BuildingsPage() {
               <p className="mb-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 Le <strong className="font-semibold text-slate-800 dark:text-slate-200">nombre d’étages</strong> reste
                 exactement ce que vous saisissez (ex. 10). Ensuite vous indiquez combien il y a{' '}
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">d’appartements au total</strong> sur
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">de logements au total</strong> sur
                 l’immeuble — librement (ex. 20 pour 2 par étage). Rien n’est rempli automatiquement à partir des étages.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -687,9 +696,9 @@ export function BuildingsPage() {
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
                     <Label htmlFor="new-building-apartments" className="mb-0">
-                      Nombre total d’appartements (carnet)
+                      Nombre total de logements sur ce bien (numérotation)
                     </Label>
-                    <HelpHint className="align-middle" title={IMMEUBLE_CARNET_COUNT_HINT} />
+                    <HelpHint className="align-middle" title={IMMEUBLE_LOGEMENT_TOTAL_HINT} />
                   </div>
                   <Input
                     id="new-building-apartments"
@@ -711,17 +720,35 @@ export function BuildingsPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <Label htmlFor="new-building-has-rdc" className="mb-0 cursor-pointer font-medium">
-                    Inclure le rez-de-chaussée dans le carnet
+                    Inclure le rez-de-chaussée dans les étages
                   </Label>
                   <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs leading-snug text-slate-600 dark:text-slate-400">
                     <HelpHint title={IMMEUBLE_RDC_CHECKBOX_HINT} className="align-middle shrink-0" />
                     <span>
-                      Si coché, le rez-de-chaussée (étage 0) apparaît dans les listes d’étages. Le nombre total
-                      d’appartements reste à votre saisie.
+                      Si coché, le rez-de-chaussée (étage 0) apparaît dans les listes d’étages. Le nombre total de
+                      logements reste à votre saisie.
                     </span>
                   </p>
                 </div>
               </div>
+              {includeRezDeChaussee ? (
+                <div className="sm:col-span-2">
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <Label htmlFor="new-building-rez-apartments" className="mb-0">
+                      Nombre d’unités d’habitation au rez-de-chaussée (plafond)
+                    </Label>
+                    <HelpHint className="align-middle" title={IMMEUBLE_REZ_APARTMENTS_HINT} />
+                  </div>
+                  <Input
+                    id="new-building-rez-apartments"
+                    type="number"
+                    min={0}
+                    value={rezApartmentImmeuble}
+                    onChange={(e) => setRezApartmentImmeuble(e.target.value)}
+                    placeholder="0 = pas d’unité d’habitation au RDC"
+                  />
+                </div>
+              ) : null}
             </div>
           ) : structureKind === 'TERRAIN_LOTS' ? (
             <div className="sm:col-span-2">

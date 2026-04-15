@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Card } from '@/components/ui';
+import { Card, StatTile } from '@/components/ui';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 
 type DepositRow = {
@@ -64,6 +64,7 @@ export function CautionsEncaisséesPage() {
         iconTo="/cautions"
         title="Cautions encaissées"
         hintTitle="Baux avec dépôt marqué encaissé. Colonne « Mois » : équivalent en mois de loyer (caution ÷ loyer). Échéances : Paiements."
+        titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
       />
 
       {rows.length > 0 ? (

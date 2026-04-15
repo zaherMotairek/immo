@@ -60,6 +60,14 @@ export class BuildingsService {
 
   create(dto: CreateBuildingDto, organizationId: string) {
     const kind = dto.structureKind ?? BuildingStructureKind.MONO_LOT;
+    if (kind === BuildingStructureKind.IMMEUBLE) {
+      const hasRz = dto.hasRezDeChaussee !== false;
+      this.assertRezApartmentCoherent({
+        hasRezDeChaussee: hasRz,
+        apartmentCount: dto.apartmentCount ?? null,
+        rezApartmentCount: hasRz ? dto.rezApartmentCount ?? null : null,
+      });
+    }
     try {
       return this.prisma.building.create({
         data: {
@@ -76,6 +84,10 @@ export class BuildingsService {
           hasRezDeChaussee:
             kind === BuildingStructureKind.IMMEUBLE ? dto.hasRezDeChaussee !== false : null,
           apartmentCount: kind === BuildingStructureKind.IMMEUBLE ? dto.apartmentCount ?? null : null,
+          rezApartmentCount:
+            kind === BuildingStructureKind.IMMEUBLE && dto.hasRezDeChaussee !== false
+              ? dto.rezApartmentCount ?? null
+              : null,
           locauxSlotCount: kind === BuildingStructureKind.IMMEUBLE ? dto.locauxSlotCount ?? null : null,
           terrainLotCount: kind === BuildingStructureKind.TERRAIN_LOTS ? dto.terrainLotCount ?? null : null,
         },
@@ -113,7 +125,42 @@ export class BuildingsService {
         );
       }
     }
-    return this.prisma.building.update({ where: { id }, data: dto });
+    const nextKind = dto.structureKind ?? existing.structureKind;
+    const mergedHasRz =
+      dto.hasRezDeChaussee !== undefined ? dto.hasRezDeChaussee !== false : existing.hasRezDeChaussee !== false;
+    const mergedApt = dto.apartmentCount !== undefined ? dto.apartmentCount : existing.apartmentCount;
+    const mergedRez = dto.rezApartmentCount !== undefined ? dto.rezApartmentCount : existing.rezApartmentCount;
+    if (nextKind === BuildingStructureKind.IMMEUBLE) {
+      this.assertRezApartmentCoherent({
+        hasRezDeChaussee: mergedHasRz,
+        apartmentCount: mergedApt,
+        rezApartmentCount: mergedHasRz ? mergedRez : null,
+      });
+    }
+    const data: Prisma.BuildingUpdateInput = { ...dto };
+    if (dto.hasRezDeChaussee === false) {
+      data.rezApartmentCount = null;
+    }
+    return this.prisma.building.update({ where: { id }, data });
+  }
+
+  private assertRezApartmentCoherent(opts: {
+    hasRezDeChaussee: boolean;
+    apartmentCount: number | null;
+    rezApartmentCount: number | null;
+  }) {
+    if (!opts.hasRezDeChaussee) return;
+    const rez = opts.rezApartmentCount;
+    if (rez == null) return;
+    if (rez < 0) {
+      throw new BadRequestException('Le nombre d’unités au rez-de-chaussée doit être positif ou nul.');
+    }
+    const apt = opts.apartmentCount;
+    if (apt != null && apt >= 0 && rez > apt) {
+      throw new BadRequestException(
+        'Le nombre d’unités au rez-de-chaussée ne peut pas dépasser le total des logements déclaré pour ce bien.',
+      );
+    }
   }
 
   async remove(id: string, organizationId: string) {

@@ -7,8 +7,7 @@ import { fcfa } from '@/lib/format';
 import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { SearchableSelect } from '@/components/SearchableSelect';
-import { Button, Card, HelpHint, Label, Select } from '@/components/ui';
+import { Button, Card, HelpHint, Label, Select, StatTile } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -20,6 +19,53 @@ function monthShortLabel(m: number): string {
 
 type BuildingOpt = { id: string; name: string };
 type TenantOpt = { id: string; firstName: string; lastName: string };
+
+/** Réponse JSON parfois enveloppée ; toujours produire un tableau. */
+function extractArray(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.data)) return o.data;
+    if (Array.isArray(o.items)) return o.items;
+    if (Array.isArray(o.results)) return o.results;
+  }
+  return [];
+}
+
+function normalizeTenants(raw: unknown): TenantOpt[] {
+  const seen = new Set<string>();
+  const out: TenantOpt[] = [];
+  for (const t of extractArray(raw)) {
+    if (!t || typeof t !== 'object') continue;
+    const x = t as Record<string, unknown>;
+    const id = x.id != null ? String(x.id) : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      firstName: String(x.firstName ?? ''),
+      lastName: String(x.lastName ?? ''),
+    });
+  }
+  return out;
+}
+
+function normalizeBuildings(raw: unknown): BuildingOpt[] {
+  const seen = new Set<string>();
+  const out: BuildingOpt[] = [];
+  for (const b of extractArray(raw)) {
+    if (!b || typeof b !== 'object') continue;
+    const x = b as Record<string, unknown>;
+    const id = x.id != null ? String(x.id) : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      name: String(x.name ?? ''),
+    });
+  }
+  return out;
+}
 
 function leaseKey(p: PaymentRow): string {
   const id = (p as PaymentRow & { leaseId?: string }).leaseId;
@@ -160,12 +206,27 @@ export function YearlyRentActivityPage() {
   const [err, setErr] = useState<string | null>(null);
   const [tenants, setTenants] = useState<TenantOpt[]>([]);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
+  const [listsErr, setListsErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<TenantOpt[]>('/tenants').then(setTenants).catch(() => setTenants([]));
-    api<BuildingOpt[]>('/buildings')
-      .then((list) => setBuildings(list.map((b) => ({ id: b.id, name: b.name }))))
-      .catch(() => setBuildings([]));
+    let cancelled = false;
+    setListsErr(null);
+    Promise.all([api<unknown>('/tenants'), api<unknown>('/buildings')])
+      .then(([tRaw, bRaw]) => {
+        if (cancelled) return;
+        setTenants(normalizeTenants(tRaw));
+        setBuildings(normalizeBuildings(bRaw));
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setTenants([]);
+          setBuildings([]);
+          setListsErr(e instanceof Error ? e.message : 'Impossible de charger les listes locataires / biens.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadPayments = useCallback(() => {
@@ -324,6 +385,7 @@ export function YearlyRentActivityPage() {
         iconTo="/paiements"
         title="Activité loyers (vue annuelle)"
         hintTitle="Une ligne par bail actif : statut et montants (FCFA) mois par mois. Le lien vers Paiements reprend la même année, le même locataire ou le même bien, et tous les mois. Les baux inactifs ne sont pas listés par l’API."
+        titleExtra={<StatTile className="shrink-0 print:hidden" label="Total" value={String(leaseRows.length)} />}
       />
 
       <Card className="space-y-4 p-4 print:hidden sm:p-5">
@@ -352,6 +414,12 @@ export function YearlyRentActivityPage() {
           </button>
         </div>
 
+        {listsErr ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            {listsErr}
+          </p>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <Label htmlFor="yra-year">Année</Label>
@@ -365,32 +433,46 @@ export function YearlyRentActivityPage() {
           </div>
           {scope === 'tenant' ? (
             <div className="sm:col-span-2">
-              <Label htmlFor="yra-tenant">Locataire</Label>
+              <Label htmlFor="yra-tenant">
+                Locataire <span className="font-normal text-slate-500">({tenantOptions.length})</span>
+              </Label>
               <div className="mt-1">
-                <SearchableSelect
+                <Select
                   id="yra-tenant"
-                  aria-label="Choisir un locataire"
                   value={tenantId}
-                  onChange={setTenantId}
-                  options={tenantOptions}
-                  emptyLabel="— Choisir un locataire —"
-                  placeholder="Tapez un nom pour filtrer…"
-                />
+                  onChange={(e) => setTenantId(e.target.value)}
+                  className="w-full"
+                  aria-label={`Choisir un locataire parmi ${tenantOptions.length} locataires`}
+                >
+                  <option value="">— Choisir un locataire —</option>
+                  {tenantOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
             </div>
           ) : (
             <div className="sm:col-span-2">
-              <Label htmlFor="yra-building">Bien</Label>
+              <Label htmlFor="yra-building">
+                Bien <span className="font-normal text-slate-500">({buildingOptions.length})</span>
+              </Label>
               <div className="mt-1">
-                <SearchableSelect
+                <Select
                   id="yra-building"
-                  aria-label="Choisir un bien"
                   value={buildingId}
-                  onChange={setBuildingId}
-                  options={buildingOptions}
-                  emptyLabel="— Choisir un bien —"
-                  placeholder="Tapez le nom du bien…"
-                />
+                  onChange={(e) => setBuildingId(e.target.value)}
+                  className="w-full"
+                  aria-label={`Choisir un bien parmi ${buildingOptions.length} biens`}
+                >
+                  <option value="">— Choisir un bien —</option>
+                  {buildingOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
             </div>
           )}

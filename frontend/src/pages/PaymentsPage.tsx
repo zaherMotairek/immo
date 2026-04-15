@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
@@ -12,7 +13,7 @@ import { PaymentLineActions } from '@/components/PaymentLineActions';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { AmountFcfaInput, Button, Card, HelpHint, Label, Select } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, HelpHint, Label, Select, StatTile } from '@/components/ui';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import { shouldDeferEscapeCancel } from '@/lib/useEscapeCancel';
@@ -96,7 +97,7 @@ export function PaymentsPage() {
   const [tenants, setTenants] = useState<TenantOpt[]>([]);
 
   const load = useCallback(() => {
-    setPaymentsReady(false);
+    /* Ne pas passer paymentsReady à false : ça déclenche des effets et peut faire « sauter » le scroll. */
     const q = new URLSearchParams();
     if (overdueOnly) q.set('overdue', '1');
     if (leaseIdFilter) q.set('leaseId', leaseIdFilter);
@@ -166,6 +167,62 @@ export function PaymentsPage() {
     load();
   }, [load]);
 
+  /** Après versement partiel / marquer payé / relance / modale : éviter le retour en haut de page. */
+  const scrollRestoreAfterPaymentsRef = useRef<{ paymentId: string; fallbackY: number } | null>(null);
+
+  function scheduleScrollRestoreBeforeLoad(paymentId: string, fallbackY?: number) {
+    scrollRestoreAfterPaymentsRef.current = {
+      paymentId,
+      fallbackY: fallbackY ?? window.scrollY,
+    };
+  }
+
+  function applyPaymentRowScrollRestore(pending: { paymentId: string; fallbackY: number }) {
+    const maxScrollY = () => Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const applyY = (top: number) => {
+      const t = Math.max(0, Math.min(top, maxScrollY()));
+      window.scrollTo({ top: t, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = t;
+      document.body.scrollTop = t;
+    };
+
+    const row = document.getElementById(`payment-${pending.paymentId}`);
+    if (row) {
+      row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      const details = row.querySelector('details');
+      if (details) details.open = true;
+    } else {
+      applyY(pending.fallbackY);
+    }
+  }
+
+  useLayoutEffect(() => {
+    if (!paymentsReady) return;
+    const pending = scrollRestoreAfterPaymentsRef.current;
+    if (!pending) return;
+    scrollRestoreAfterPaymentsRef.current = null;
+
+    const p = rows.find((r) => r.id === pending.paymentId);
+    if (p) {
+      const mk = monthGroupKey(p);
+      flushSync(() => {
+        setCollapsedMonthKeys((prev) => {
+          if (!prev.has(mk)) return prev;
+          const next = new Set(prev);
+          next.delete(mk);
+          return next;
+        });
+      });
+    }
+
+    const run = () => applyPaymentRowScrollRestore(pending);
+    run();
+    requestAnimationFrame(() => {
+      run();
+      window.setTimeout(run, 0);
+    });
+  }, [rows, paymentsReady]);
+
   const flashPaymentRowId = useReturnRowFocus({ rowIdPrefix: 'payment-', ready: paymentsReady });
 
   function paymentRowFlash(active: boolean) {
@@ -231,7 +288,11 @@ export function PaymentsPage() {
 
   const monthKeysSig = useMemo(() => monthGroups.map(([k]) => k).join('\0'), [monthGroups]);
 
-  /** Par défaut : tous les mois sont repliés. Lien direct ?focus= : ne déplier que le mois du paiement ciblé. */
+  /**
+   * Par défaut : tous les mois sont repliés. Lien direct ?focus= : ne déplier que le mois du paiement ciblé.
+   * Ne pas dépendre de `rows` : un simple rechargement des données (versement, marquer payé…) change `rows`
+   * mais pas la liste des clés de mois — sinon on replie tout à chaque `load()` et on perd scroll + menus ouverts.
+   */
   useLayoutEffect(() => {
     const keys = monthGroups.map(([k]) => k);
     if (focusPaymentId && rows.length > 0) {
@@ -247,7 +308,8 @@ export function PaymentsPage() {
       }
     }
     setCollapsedMonthKeys(new Set(keys));
-  }, [monthKeysSig, focusPaymentId, rows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- volontaire : éviter reset au refresh des lignes
+  }, [monthKeysSig, focusPaymentId]);
 
   useEffect(() => {
     if (!zoomPaymentId) return;
@@ -399,6 +461,7 @@ export function PaymentsPage() {
   }
 
   async function markPaid(p: PaymentRow) {
+    const y = window.scrollY;
     await api(`/payments/${p.id}`, {
       method: 'PATCH',
       json: {
@@ -407,6 +470,7 @@ export function PaymentsPage() {
         paidAt: new Date().toISOString().slice(0, 10),
       },
     });
+    scheduleScrollRestoreBeforeLoad(p.id, y);
     load();
   }
 
@@ -439,7 +503,11 @@ export function PaymentsPage() {
         json: { addAmountPaid: n },
       });
       setPartialFor(null);
-      load();
+      /* Après fermeture du modal, la mise en page change : on attend le prochain frame puis on mémorise le scroll et on recharge. */
+      window.setTimeout(() => {
+        scheduleScrollRestoreBeforeLoad(paymentId, window.scrollY);
+        load();
+      }, 0);
     } catch (e) {
       setPartialErr(e instanceof Error ? e.message : 'Enregistrement impossible.');
     } finally {
@@ -454,6 +522,8 @@ export function PaymentsPage() {
         method: 'POST',
       });
       alert(res.message ?? 'Relance envoyée.');
+      const y = window.scrollY;
+      scheduleScrollRestoreBeforeLoad(p.id, y);
       load();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Envoi impossible.');
@@ -491,6 +561,7 @@ export function PaymentsPage() {
               iconTo="/paiements"
               title="Paiements"
               hintTitle="Échéances de loyer uniquement (hors dépôt de garantie). Caution : fiche location. Relances e-mail et WhatsApp."
+              titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
             />
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               {leaseIdFilter ? (
@@ -1115,7 +1186,16 @@ export function PaymentsPage() {
         })}
       </div>
 
-      <PaymentZoomModal paymentId={zoomPaymentId} onClose={() => setZoomPaymentId(null)} onUpdated={load} />
+      <PaymentZoomModal
+        paymentId={zoomPaymentId}
+        onClose={() => setZoomPaymentId(null)}
+        onUpdated={() => {
+          const id = zoomPaymentId;
+          const y = window.scrollY;
+          if (id) scheduleScrollRestoreBeforeLoad(id, y);
+          load();
+        }}
+      />
 
       {rows.length === 0 && (
         <Card className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">

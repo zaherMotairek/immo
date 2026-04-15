@@ -9,7 +9,7 @@ import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { BuildingScopeBadge, UnitScopeBadge } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
-import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import { isMultiLotStructure } from '@/lib/buildingStructure';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
@@ -658,6 +658,7 @@ export function LeasesPage() {
               iconTo="/baux"
               title="Baux & locations"
               hintTitle="À la création, la fin de bail est fixée à un an après la date de début (même jour). Les loyers commencent le mois suivant l’enregistrement du bail (ex. contrat en avril → 1ᵉʳ loyer en mai) ; l’échéance est ce jour dans le mois facturé. Génération jusqu’à la fin de contrat (sauf bail inactif). Le bouton « Générer les échéances » ajoute une autre année civile si besoin. Les filtres ne font que masquer des lignes à l’écran."
+              titleExtra={<StatTile className="shrink-0" label="Total" value={String(leases.length)} />}
             />
             {leaseIdFocus ? (
               <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">

@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { KeyboardEvent, ReactNode } from 'react';
+import { useFixedPanelPosition } from '@/hooks/useFixedPanelPosition';
+import { scrollIntoContainedView } from '@/lib/domScroll';
 import { Input } from '@/components/ui';
 
 export type SearchableSelectOption = { id: string; label: string };
@@ -75,9 +78,12 @@ export function SearchableSelect({
   const [fieldFocused, setFieldFocused] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
   const listId = id ? `${id}-listbox` : undefined;
+  const panelBox = useFixedPanelPosition(wrapRef, open && !disabled);
 
   /** Libellé du choix uniquement : jamais emptyLabel dans le champ (celui-ci reste un placeholder). */
   const selectedLabel = useMemo(() => {
@@ -97,7 +103,10 @@ export function SearchableSelect({
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -128,11 +137,12 @@ export function SearchableSelect({
     setActiveIdx((i) => (rows.length === 0 ? 0 : Math.max(0, Math.min(i, rows.length - 1))));
   }, [rows.length]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
+    const ul = listRef.current;
     const el = rowRefs.current[activeIdx];
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeIdx, open]);
+    if (ul && el) scrollIntoContainedView(ul, el);
+  }, [activeIdx, open, rows.length]);
 
   const inputPad = compact ? 'min-h-[2.5rem] py-2 pl-3 pr-11 text-xs' : 'min-h-[2.75rem] py-2.5 pl-3.5 pr-11';
   const queryForHighlight = text.trim();
@@ -253,7 +263,7 @@ export function SearchableSelect({
             e.preventDefault();
             if (disabled) return;
             setOpen((o) => !o);
-            inputRef.current?.focus();
+            inputRef.current?.focus({ preventScroll: true });
           }}
           className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
         >
@@ -269,31 +279,45 @@ export function SearchableSelect({
         </button>
       </div>
 
-      {open && !disabled ? (
-        <div className="absolute z-[100] mt-2 w-full origin-top">
-          <div className="overflow-hidden rounded-2xl border border-slate-200/95 bg-white shadow-[0_12px_40px_-8px_rgb(15_23_42/0.28),0_4px_16px_-4px_rgb(15_23_42/0.12)] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_16px_48px_-8px_rgb(0_0_0/0.55)] dark:ring-white/[0.06]">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-3 py-2 dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
-              <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                {fold(text.trim()) ? (
-                  <>
-                    <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">{filtered.length}</span>
-                    {' résultat'}
-                    {filtered.length !== 1 ? 's' : ''}
-                  </>
-                ) : (
-                  <>
-                    <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">{options.length}</span>
-                    {' proposition'}
-                    {options.length !== 1 ? 's' : ''}
-                  </>
-                )}
-              </p>
-              <span className="hidden text-[10px] text-slate-400 sm:inline dark:text-slate-500">
-                Flèches · Entrée · Échap.
-              </span>
-            </div>
+      {open && !disabled && panelBox
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="fixed z-[10000] origin-top"
+              style={{ top: panelBox.top, left: panelBox.left, width: panelBox.width }}
+              onMouseDown={(e) => {
+                /* Évite le blur du champ (fermeture intempestive) quand on clique dans la liste ou sur la barre de défilement */
+                e.preventDefault();
+              }}
+            >
+              <div className="overflow-hidden rounded-2xl border border-slate-200/95 bg-white shadow-[0_12px_40px_-8px_rgb(15_23_42/0.28),0_4px_16px_-4px_rgb(15_23_42/0.12)] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_16px_48px_-8px_rgb(0_0_0/0.55)] dark:ring-white/[0.06]">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-3 py-2 dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
+                  <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                    {fold(text.trim()) ? (
+                      <>
+                        <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">{filtered.length}</span>
+                        {' résultat'}
+                        {filtered.length !== 1 ? 's' : ''}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">{options.length}</span>
+                        {' proposition'}
+                        {options.length !== 1 ? 's' : ''}
+                      </>
+                    )}
+                  </p>
+                  <span className="hidden text-[10px] text-slate-400 sm:inline dark:text-slate-500">
+                    Flèches · Entrée · Échap.
+                  </span>
+                </div>
 
-            <ul id={listId} role="listbox" className="max-h-[min(18rem,50vh)] overflow-y-auto overscroll-contain py-1.5">
+                <ul
+                  ref={listRef}
+                  id={listId}
+                  role="listbox"
+                  className="max-h-[min(18rem,50vh)] overflow-y-auto overscroll-contain py-1.5"
+                >
               {rows.length === 0 ? (
                 <li
                   role="status"
@@ -350,10 +374,12 @@ export function SearchableSelect({
                   );
                 })
               )}
-            </ul>
-          </div>
-        </div>
-      ) : null}
+                </ul>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

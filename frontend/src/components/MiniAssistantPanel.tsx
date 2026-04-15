@@ -52,7 +52,7 @@ async function executeCommand(parsed: ParsedAssistantCommand): Promise<string> {
             apartmentCount: parsed.units,
           },
         });
-        return `Bien « ${parsed.name} » créé (immeuble indicatif ${parsed.units} étages, même nombre de places carnet — ajustez sur la fiche si besoin). Ouvrez Biens pour les unités.`;
+        return `Bien « ${parsed.name} » créé (immeuble indicatif ${parsed.units} étages, autant de logements prévus — ajustez sur la fiche si besoin). Ouvrez Biens pour les unités.`;
       }
       await api('/buildings', {
         method: 'POST',
@@ -140,8 +140,8 @@ export function MiniAssistantPanel() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`fixed bottom-4 z-[48] flex items-center gap-2 rounded-full border border-brand-500/40 bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-900/20 transition hover:bg-brand-700 md:left-[calc(15.5rem+1rem)] ${
-          open ? 'left-4 opacity-90' : 'left-4'
+        className={`fixed z-[52] flex min-h-[44px] items-center gap-2 rounded-full border border-brand-500/40 bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-900/20 transition hover:bg-brand-700 max-lg:bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] bottom-4 left-4 lg:left-[calc(15.5rem+1rem)] ${
+          open ? 'opacity-90' : ''
         }`}
         aria-expanded={open}
         aria-controls="mini-assistant-panel"
@@ -154,7 +154,7 @@ export function MiniAssistantPanel() {
         <div
           id="mini-assistant-panel"
           data-escape-modal="true"
-          className="fixed inset-y-0 left-0 z-[47] flex w-[min(100%,20rem)] max-w-[100vw] flex-col border-r border-slate-200/90 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 md:left-[15.5rem]"
+          className="fixed inset-y-0 left-0 z-[47] flex w-[min(100%,20rem)] max-w-[100vw] flex-col border-r border-slate-200/90 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 lg:left-[15.5rem]"
           role="dialog"
           aria-label="Assistant prototype"
         >
@@ -224,7 +224,7 @@ export function MiniAssistantPanel() {
       {open ? (
         <button
           type="button"
-          className="fixed inset-0 z-[46] bg-black/25 md:left-[15.5rem]"
+          className="fixed inset-0 z-[46] bg-black/25 lg:left-[15.5rem]"
           aria-hidden
           onClick={() => setOpen(false)}
         />

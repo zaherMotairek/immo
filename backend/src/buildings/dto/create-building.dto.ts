@@ -70,7 +70,7 @@ export class CreateBuildingDto {
   @IsBoolean()
   hasRezDeChaussee?: boolean;
 
-  /** Pour un immeuble : nombre de places au carnet appartements uniquement (indicatif). */
+  /** Immeuble : nombre total de logements d’habitation à numéroter sur ce bien (1…N). */
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -78,7 +78,18 @@ export class CreateBuildingDto {
   @Max(50_000)
   apartmentCount?: number;
 
-  /** Pour un immeuble : places au carnet entrepôts + commerces (distinct des appartements). */
+  /**
+   * Immeuble avec RDC dans les étages : plafond d’unités d’habitation au rez-de-chaussée.
+   * Ne peut pas dépasser apartmentCount si celui-ci est renseigné.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50_000)
+  rezApartmentCount?: number;
+
+  /** Immeuble : plafond optionnel pour numéros entrepôt / commerce (distinct des logements). */
   @IsOptional()
   @Type(() => Number)
   @IsInt()

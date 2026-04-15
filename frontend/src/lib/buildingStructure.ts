@@ -43,11 +43,15 @@ export const BUILDING_STRUCTURE_OPTIONS: {
   },
 ];
 
-export const IMMEUBLE_CARNET_COUNT_HINT =
-  'Nombre de places pour numéroter les appartements (1…N). Le rez-de-chaussée (étage 0) ne concerne pas ce carnet : entrepôt et commerce au RDC utilisent leur propre numéro saisi à la création.';
+/** Combien de logements d’habitation peuvent recevoir un numéro sur ce bien (1…N), tous étages confondus. */
+export const IMMEUBLE_LOGEMENT_TOTAL_HINT =
+  'Indiquez combien de logements d’habitation vous voulez pouvoir numéroter sur ce bien (1…N). Les entrepôts / commerces au RDC ont leur propre numéro de local (récapitulatif dans cette section).';
 
 export const IMMEUBLE_FLOORS_HINT =
   'Indiquez combien d’étages il y a au-dessus du sol (ex. 10). Si vous cochez « inclure le rez-de-chaussée », l’immeuble a en tout 11 niveaux : l’étage 0 = rez-de-chaussée, puis les étages 1 à 10. Au RDC, seuls entrepôt et commerce sont prévus à la création d’unité. Si vous décochez le RDC : pas de niveau 0, seulement les étages 1 à 10.';
 
 export const IMMEUBLE_RDC_CHECKBOX_HINT =
-  'Si coché : étage 0 = rez-de-chaussée dans les listes, en plus des étages 1…N saisis au-dessus. Le carnet « appartements » compte uniquement les appartements ; le RDC est pour entrepôt / commerce.';
+  'Si coché : étage 0 = rez-de-chaussée. Indiquez combien d’unités d’habitation au RDC (champ dédié ci-dessous). Si 0 : au RDC seuls entrepôt et commerce à la création d’unité.';
+
+export const IMMEUBLE_REZ_APARTMENTS_HINT =
+  'Nombre maximum d’unités d’habitation au rez-de-chaussée (étage 0). Ne peut pas dépasser le total des logements déclaré ci-dessus. Mettez 0 si au RDC il n’y a que des locaux entrepôt / commerce.';

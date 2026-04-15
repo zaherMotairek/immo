@@ -28,6 +28,14 @@ html.dark {
   color-scheme: dark;
 }
 
+/* Encoche / barre d’accueil mobile : évite que le contenu colle aux bords */
+.safe-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-app-bg-deep);

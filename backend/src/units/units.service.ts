@@ -43,7 +43,7 @@ export class UnitsService {
     if (building.structureKind === BuildingStructureKind.IMMEUBLE) {
       if (kind === UnitKind.APARTMENT && dto.locauxSlot != null) {
         throw new BadRequestException(
-          'Les appartements utilisent le carnet « appartements » uniquement, pas le carnet entrepôts / commerces.',
+          'Les logements d’habitation utilisent uniquement le numéro de logement, pas le numéro entrepôt / commerce.',
         );
       }
       if (
@@ -51,7 +51,7 @@ export class UnitsService {
         dto.apartmentSlot != null
       ) {
         throw new BadRequestException(
-          'Les entrepôts et commerces utilisent le carnet dédié (entrepôts / commerces), pas le numéro d’appartement.',
+          'Les entrepôts et commerces utilisent leur propre numéro de local, pas le numéro de logement.',
         );
       }
     }
@@ -92,7 +92,7 @@ export class UnitsService {
         (dto.apartmentSlot < 1 || dto.apartmentSlot > building.apartmentCount)
       ) {
         throw new BadRequestException(
-          `Le numéro d’appartement doit être entre 1 et ${building.apartmentCount} (carnet appartements sur l’immeuble).`,
+          `Le numéro de logement doit être entre 1 et ${building.apartmentCount} (déclaré sur ce bien).`,
         );
       }
       if (
@@ -110,12 +110,12 @@ export class UnitsService {
     if (dto.locauxSlot != null) {
       if (building.structureKind !== BuildingStructureKind.IMMEUBLE) {
         throw new BadRequestException(
-          'Le carnet entrepôts / commerces ne s’applique qu’aux immeubles.',
+          'Les numéros entrepôt / commerce ne s’appliquent qu’aux immeubles.',
         );
       }
       if (kind !== UnitKind.WAREHOUSE && kind !== UnitKind.COMMERCIAL) {
         throw new BadRequestException(
-          'Le carnet entrepôts / commerces est réservé aux unités entrepôt ou commerce.',
+          'Le numéro de local pro est réservé aux unités entrepôt ou commerce.',
         );
       }
       const dup = await this.prisma.unit.findFirst({
@@ -133,7 +133,7 @@ export class UnitsService {
         (dto.locauxSlot < 1 || dto.locauxSlot > building.locauxSlotCount)
       ) {
         throw new BadRequestException(
-          `Le numéro doit être entre 1 et ${building.locauxSlotCount} (carnet entrepôts / commerces sur l’immeuble).`,
+          `Le numéro doit être entre 1 et ${building.locauxSlotCount} (plafond déclaré sur ce bien).`,
         );
       }
     }
@@ -143,11 +143,16 @@ export class UnitsService {
       if (dto.floor < minFloor || dto.floor > building.floorCount) {
         throw new BadRequestException(
           minFloor === 1
-            ? `L’étage doit être entre 1 et ${building.floorCount} pour cet immeuble (pas de rez-de-chaussée au carnet).`
+            ? `L’étage doit être entre 1 et ${building.floorCount} pour cet immeuble (pas de rez-de-chaussée dans la structure).`
             : `L’étage doit être entre 0 (rez-de-chaussée) et ${building.floorCount} pour cet immeuble.`,
         );
       }
     }
+
+    await this.assertRdcApartmentCapacity(building, {
+      kind,
+      floor: dto.floor ?? null,
+    });
 
     const data: Prisma.UnitCreateInput = {
       label: dto.label,
@@ -177,7 +182,7 @@ export class UnitsService {
     if (unit.building.structureKind === BuildingStructureKind.IMMEUBLE) {
       if (nextKind === UnitKind.APARTMENT && dto.locauxSlot !== undefined && dto.locauxSlot != null) {
         throw new BadRequestException(
-          'Les appartements utilisent le carnet « appartements » uniquement.',
+          'Les logements d’habitation utilisent uniquement le numéro de logement.',
         );
       }
       if (
@@ -186,7 +191,7 @@ export class UnitsService {
         dto.apartmentSlot != null
       ) {
         throw new BadRequestException(
-          'Les entrepôts et commerces utilisent le carnet entrepôts / commerces, pas le numéro d’appartement.',
+          'Les entrepôts et commerces utilisent le numéro de local pro, pas le numéro de logement.',
         );
       }
     }
@@ -215,7 +220,7 @@ export class UnitsService {
         (dto.apartmentSlot < 1 || dto.apartmentSlot > b.apartmentCount)
       ) {
         throw new BadRequestException(
-          `Le numéro d’appartement doit être entre 1 et ${b.apartmentCount} (carnet appartements sur l’immeuble).`,
+          `Le numéro de logement doit être entre 1 et ${b.apartmentCount} (déclaré sur ce bien).`,
         );
       }
       if (
@@ -233,11 +238,11 @@ export class UnitsService {
     if (dto.locauxSlot !== undefined && dto.locauxSlot != null) {
       const b = unit.building;
       if (b.structureKind !== BuildingStructureKind.IMMEUBLE) {
-        throw new BadRequestException('Le carnet entrepôts / commerces ne s’applique qu’aux immeubles.');
+        throw new BadRequestException('Les numéros entrepôt / commerce ne s’appliquent qu’aux immeubles.');
       }
       if (nextKind !== UnitKind.WAREHOUSE && nextKind !== UnitKind.COMMERCIAL) {
         throw new BadRequestException(
-          'Le carnet entrepôts / commerces est réservé aux unités entrepôt ou commerce.',
+          'Le numéro de local pro est réservé aux unités entrepôt ou commerce.',
         );
       }
       const dup = await this.prisma.unit.findFirst({
@@ -259,7 +264,7 @@ export class UnitsService {
         (dto.locauxSlot < 1 || dto.locauxSlot > b.locauxSlotCount)
       ) {
         throw new BadRequestException(
-          `Le numéro doit être entre 1 et ${b.locauxSlotCount} (carnet entrepôts / commerces).`,
+          `Le numéro doit être entre 1 et ${b.locauxSlotCount} (plafond déclaré sur ce bien).`,
         );
       }
     }
@@ -270,11 +275,19 @@ export class UnitsService {
       if (floorVal < minFloor || floorVal > unit.building.floorCount) {
         throw new BadRequestException(
           minFloor === 1
-            ? `L’étage doit être entre 1 et ${unit.building.floorCount} pour cet immeuble (pas de rez-de-chaussée au carnet).`
+            ? `L’étage doit être entre 1 et ${unit.building.floorCount} pour cet immeuble (pas de rez-de-chaussée dans la structure).`
             : `L’étage doit être entre 0 (rez-de-chaussée) et ${unit.building.floorCount} pour cet immeuble.`,
         );
       }
     }
+
+    const nextFloorForRz = dto.floor !== undefined ? dto.floor : unit.floor;
+    const nextKindForRz = dto.kind !== undefined ? dto.kind : unit.kind;
+    await this.assertRdcApartmentCapacity(unit.building, {
+      kind: nextKindForRz,
+      floor: nextFloorForRz,
+      excludeUnitId: unit.id,
+    });
 
     const data: Prisma.UnitUpdateInput = {};
     if (dto.label !== undefined) data.label = dto.label;
@@ -306,5 +319,38 @@ export class UnitsService {
       where: { id, building: { organizationId } },
     });
     if (!n) throw new NotFoundException('Unité introuvable');
+  }
+
+  /**
+   * Immeuble : limite le nombre d’unités d’habitation au rez-de-chaussée selon rezApartmentCount sur le bien.
+   */
+  private async assertRdcApartmentCapacity(
+    building: {
+      id: string;
+      structureKind: BuildingStructureKind;
+      rezApartmentCount: number | null;
+    },
+    opts: { kind: UnitKind; floor: number | null; excludeUnitId?: string },
+  ) {
+    if (building.structureKind !== BuildingStructureKind.IMMEUBLE) return;
+    if (opts.kind !== UnitKind.APARTMENT || opts.floor !== 0) return;
+    const maxRz = building.rezApartmentCount ?? 0;
+    if (maxRz <= 0) {
+      throw new BadRequestException(
+        'Au rez-de-chaussée, les unités d’habitation ne sont pas prévues (0 déclaré). Indiquez un nombre d’unités au RDC dans « Organisation du bien », ou choisissez un étage ≥ 1.',
+      );
+    }
+    const where: Prisma.UnitWhereInput = {
+      buildingId: building.id,
+      kind: UnitKind.APARTMENT,
+      floor: 0,
+    };
+    if (opts.excludeUnitId) where.NOT = { id: opts.excludeUnitId };
+    const others = await this.prisma.unit.count({ where });
+    if (others + 1 > maxRz) {
+      throw new BadRequestException(
+        `Nombre maximum d’unités d’habitation au rez-de-chaussée atteint (${maxRz} déclaré(s) sur la fiche du bien).`,
+      );
+    }
   }
 }

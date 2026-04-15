@@ -1,4 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useFixedPanelPosition } from '@/hooks/useFixedPanelPosition';
+import { scrollIntoContainedView } from '@/lib/domScroll';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { maybeSaveSearchReturnFocus, saveScrollForPath, type AppNavigateState } from '@/lib/navigation';
@@ -244,6 +247,8 @@ export function GlobalSearchBar() {
   const [activeIdx, setActiveIdx] = useState(0);
   const [recent, setRecent] = useState<string[]>(() => readRecent());
   const wrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const resultsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (debounced.length < 2) {
@@ -348,14 +353,11 @@ export function GlobalSearchBar() {
   }, [debounced, items.length]);
 
   useEffect(() => {
-    if (!open || items.length === 0) return;
-    const el = document.querySelector<HTMLElement>(`[data-search-idx="${activeIdx}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [activeIdx, open, items.length]);
-
-  useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -422,6 +424,16 @@ export function GlobalSearchBar() {
   const total = items.length;
   const needle = debounced;
   const listKeyboardActive = showResultsBlock && !loading && total > 0;
+
+  const needsFixedPanel = showRecentPanel || showHint || showResultsBlock;
+  const panelBox = useFixedPanelPosition(wrapRef, needsFixedPanel);
+
+  useLayoutEffect(() => {
+    if (!open || items.length === 0 || !listKeyboardActive) return;
+    const container = resultsScrollRef.current;
+    const el = document.getElementById(`search-opt-${activeIdx}`);
+    if (container && el) scrollIntoContainedView(container, el);
+  }, [activeIdx, open, items.length, listKeyboardActive]);
 
   return (
     <div ref={wrapRef} className="relative z-50" data-global-search-open={open ? 'true' : undefined}>
@@ -495,86 +507,87 @@ export function GlobalSearchBar() {
         )}
       </div>
 
-      {showRecentPanel && (
-        <div
-          className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 py-2 text-sm shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10"
-          id={listId}
-          role="listbox"
-          aria-label="Recherches récentes"
-        >
-          <p className="border-b border-slate-100 px-4 pb-2 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:text-slate-400">
-            Recherches récentes
-          </p>
-          <ul className="max-h-48 overflow-auto py-1">
-            {recent.map((r) => (
-              <li key={r}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-slate-800 transition hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700/60"
-                  onClick={() => applyRecent(r)}
+      {needsFixedPanel && panelBox
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="fixed z-[10000]"
+              style={{ top: panelBox.top, left: panelBox.left, width: panelBox.width }}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {showRecentPanel ? (
+                <div
+                  className="rounded-xl border border-slate-200/90 bg-slate-50/98 py-2 text-sm shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10"
+                  id={listId}
+                  role="listbox"
+                  aria-label="Recherches récentes"
                 >
-                  <svg className="size-4 shrink-0 text-slate-500 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" />
-                    <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="min-w-0 truncate">{r}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {showHint && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 px-4 py-3 text-sm text-slate-700 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
-          <p className="font-semibold text-slate-900 dark:text-slate-100">Encore une lettre</p>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-            La recherche démarre à <strong>2 caractères</strong> (noms de biens, locataires, villes, montants…).
-          </p>
-        </div>
-      )}
-
-      {showResultsBlock && loading && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm text-slate-700 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
-          <div className="flex items-center gap-3">
-            <span className="inline-block size-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600 dark:border-slate-600" />
-            Recherche en cours…
-          </div>
-        </div>
-      )}
-
-      {showResultsBlock && !loading && error && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-xl dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
-          {error}
-        </div>
-      )}
-
-      {showResultsBlock && !loading && !error && data && total === 0 && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[70vh] overflow-auto rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
-          <p className="font-semibold text-slate-900 dark:text-slate-100">Aucun résultat pour « {debounced} »</p>
-          <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-            Essayez un nom de bien, un locataire, une ville, un libellé de charge ou une période (ex. 2026-03).
-          </p>
-        </div>
-      )}
-
-      {showResultsBlock && !loading && !error && total > 0 && (
-        <div
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(72vh,32rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/98 text-sm shadow-2xl shadow-slate-900/8 ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:shadow-black/40 dark:ring-white/10"
-          id={listId}
-          role="listbox"
-          aria-label="Résultats de recherche"
-          aria-activedescendant={listKeyboardActive ? `search-opt-${activeIdx}` : undefined}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-600">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              {total} résultat{total > 1 ? 's' : ''}
-            </p>
-            <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
-              <span className="hidden sm:inline">↑↓ naviguer · </span>Entrée ouvrir · Échap fermer
-            </p>
-          </div>
-          <div className="max-h-[min(64vh,28rem)] overflow-y-auto overscroll-contain py-1">
+                  <p className="border-b border-slate-100 px-4 pb-2 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:text-slate-400">
+                    Recherches récentes
+                  </p>
+                  <ul className="max-h-48 overflow-auto py-1">
+                    {recent.map((r) => (
+                      <li key={r}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-4 py-2 text-left text-slate-800 transition hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700/60"
+                          onClick={() => applyRecent(r)}
+                        >
+                          <svg className="size-4 shrink-0 text-slate-500 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" />
+                            <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          <span className="min-w-0 truncate">{r}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : showHint ? (
+                <div className="rounded-xl border border-slate-200/90 bg-slate-50/98 px-4 py-3 text-sm text-slate-700 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">Encore une lettre</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                    La recherche démarre à <strong>2 caractères</strong> (noms de biens, locataires, villes, montants…).
+                  </p>
+                </div>
+              ) : showResultsBlock && loading ? (
+                <div className="rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm text-slate-700 shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-block size-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600 dark:border-slate-600" />
+                    Recherche en cours…
+                  </div>
+                </div>
+              ) : showResultsBlock && !loading && error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-xl dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                  {error}
+                </div>
+              ) : showResultsBlock && !loading && !error && data && total === 0 ? (
+                <div className="max-h-[70vh] overflow-auto rounded-xl border border-slate-200/90 bg-slate-50/98 p-4 text-sm shadow-xl ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:ring-white/10">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">Aucun résultat pour « {debounced} »</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    Essayez un nom de bien, un locataire, une ville, un libellé de charge ou une période (ex. 2026-03).
+                  </p>
+                </div>
+              ) : showResultsBlock && !loading && !error && total > 0 ? (
+                <div
+                  className="max-h-[min(72vh,32rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/98 text-sm shadow-2xl shadow-slate-900/8 ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-800 dark:shadow-black/40 dark:ring-white/10"
+                  id={listId}
+                  role="listbox"
+                  aria-label="Résultats de recherche"
+                  aria-activedescendant={listKeyboardActive ? `search-opt-${activeIdx}` : undefined}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-600">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                      {total} résultat{total > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                      <span className="hidden sm:inline">↑↓ naviguer · </span>Entrée ouvrir · Échap fermer
+                    </p>
+                  </div>
+                  <div
+                    ref={resultsScrollRef}
+                    className="max-h-[min(64vh,28rem)] overflow-y-auto overscroll-contain py-1"
+                  >
             {(() => {
               let prevSection = '';
               return items.map((item, idx) => {
@@ -635,9 +648,13 @@ export function GlobalSearchBar() {
                 );
               });
             })()}
-          </div>
-        </div>
-      )}
+                  </div>
+                </div>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

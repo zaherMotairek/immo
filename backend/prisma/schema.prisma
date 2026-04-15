@@ -56,11 +56,13 @@ model Building {
   structureKind  BuildingStructureKind  @default(MONO_LOT) @map("structure_kind")
   /** Nombre d’étages du bâtiment (immeuble) — indicatif. */
   floorCount     Int?                   @map("floor_count")
-  /** Immeuble : le rez-de-chaussée (étage 0) fait partie du carnet. Si false, étages 1…floorCount seulement. */
+  /** Immeuble : le rez-de-chaussée (étage 0) compte dans les étages. Si false, étages 1…floorCount seulement. */
   hasRezDeChaussee Boolean?            @map("has_rez_de_chaussee")
-  /** Nombre d’appartements prévus / déclarés (immeuble) — carnet réservé aux unités de type appartement uniquement. */
+  /** Nombre total de logements d’habitation à numéroter sur l’immeuble (1…N). */
   apartmentCount Int?                   @map("apartment_count")
-  /** Immeuble : places au carnet pour entrepôts et commerces (distinct du carnet appartements). */
+  /** Plafond d’unités d’habitation au rez-de-chaussée. Null/0 = pas de logement habitable au RDC. */
+  rezApartmentCount Int?               @map("rez_apartment_count")
+  /** Plafond optionnel pour numéros entrepôt / commerce (distinct des logements). */
   locauxSlotCount Int?                 @map("locaux_slot_count")
   /** Nombre de lots prévus sur le terrain (terrain multi locataires) — indicatif. */
   terrainLotCount Int?                 @map("terrain_lot_count")
@@ -90,9 +92,9 @@ model Unit {
   label         String
   kind          UnitKind @default(APARTMENT)
   floor         Int?
-  /** Numéro au carnet appartements (1…apartmentCount), réservé aux appartements en immeuble. */
+  /** Numéro de logement (1…apartmentCount), pour logements d’habitation en immeuble. */
   apartmentSlot Int?     @map("apartment_slot")
-  /** Numéro au carnet entrepôts / commerces (1…locauxSlotCount), pour WAREHOUSE et COMMERCIAL en immeuble. */
+  /** Numéro de local pro (1…locauxSlotCount si plafond défini), pour WAREHOUSE et COMMERCIAL en immeuble. */
   locauxSlot   Int?     @map("locaux_slot")
   surfaceM2     Decimal? @map("surface_m2") @db.Decimal(10, 2)
   rooms         Int?

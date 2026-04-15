@@ -6,7 +6,7 @@ import { fcfa } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
+import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 
 type OverviewRow = {
@@ -277,6 +277,7 @@ export function LocationsPage() {
           iconTo="/locations"
           title="Locations"
           hintTitle="Pour chaque bail : localisation, locataire, loyer, statut du mois. Fiche = détail. Supprimer = supprime le bail et les paiements (pas le bien ni le locataire)."
+          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
         />
         <Button variant={showAll ? 'primary' : 'secondary'} className="py-2 text-xs" onClick={() => setShowAll((v) => !v)}>
           {showAll ? 'Actives seulement' : 'Voir aussi inactives'}

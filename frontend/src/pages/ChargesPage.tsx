@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import { chargeCategoryLabel, chargeCategoryOptions } from '@/lib/chargeCategories';
 import { listBlockRowClass } from '@/lib/listTableStyles';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -255,6 +255,7 @@ export function ChargesPage() {
           iconTo="/charges"
           title="Charges & impôts"
           hintTitle="Vue normale : un mois précis (salaires, factures mensuelles). Basculer sur « Toute l’année » pour voir toutes les lignes de l’exercice, y compris les charges saisies « année entière » sans mois. Montants en FCFA."
+          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
         />
         <div className="flex flex-wrap items-end gap-4">
           <div>

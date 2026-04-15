@@ -34,7 +34,7 @@ export function StatTile({
   label: string;
   value: string;
   sub?: string;
-  /** Met en avant (ex. lots encore à créer au carnet). */
+  /** Met en avant (ex. unités encore à créer par rapport au total déclaré). */
   emphasize?: boolean;
   className?: string;
 }) {
@@ -193,12 +193,7 @@ export function Label({
   );
 }
 
-const selectBaseClass =
-  'w-full min-h-10 rounded-xl border border-slate-200/95 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/18 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:focus:bg-slate-950';
-
-export function Select({ className = '', ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={`${selectBaseClass} ${className}`} {...props} />;
-}
+export { Select } from '@/components/Select';
 
 /** Aide discrète : détail au survol / focus (title), sans alourdir la page. */
 export function HelpHint({ title, className = '' }: { title: string; className?: string }) {

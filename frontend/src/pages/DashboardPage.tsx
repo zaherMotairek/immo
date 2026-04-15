@@ -17,7 +17,7 @@ import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { LinkButton } from '@/components/LinkButton';
 import { SmartLink } from '@/components/SmartLink';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
-import { Button, Card, HelpHint } from '@/components/ui';
+import { Button, Card, HelpHint, StatTile } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
 import {
   formatPhoneForWhatsApp,
@@ -171,6 +171,7 @@ export function DashboardPage() {
         title="Tableau de bord"
         subtitle="Vue d’ensemble de votre parc : encaissements du mois, impayés et raccourcis vers l’essentiel."
         hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
+        titleExtra={<StatTile className="shrink-0" label="Total" value={String(kpis.tenants)} />}
       />
 
       {showUpcomingReminder ? (

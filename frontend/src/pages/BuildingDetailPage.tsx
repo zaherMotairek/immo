@@ -11,15 +11,16 @@ import { SidebarNavIcon } from '@/components/SidebarNavIcons';
 import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import {
   BUILDING_STRUCTURE_OPTIONS,
-  IMMEUBLE_CARNET_COUNT_HINT,
+  IMMEUBLE_LOGEMENT_TOTAL_HINT,
   IMMEUBLE_FLOORS_HINT,
+  IMMEUBLE_REZ_APARTMENTS_HINT,
   IMMEUBLE_RDC_CHECKBOX_HINT,
   type BuildingStructureValue,
 } from '@/lib/buildingStructure';
 import {
   IMMEUBLE_NEW_UNIT_KIND_OPTIONS,
-  IMMEUBLE_RDC_UNIT_KIND_OPTIONS,
-  isImmeubleCarnetFlowKind,
+  immeubleRdcUnitKindOptions,
+  isImmeubleSlotFlowKind,
   UNIT_KIND_OPTIONS,
   unitKindLabel,
 } from '@/lib/unitKind';
@@ -56,6 +57,7 @@ type Building = {
   floorCount?: number | null;
   hasRezDeChaussee?: boolean | null;
   apartmentCount?: number | null;
+  rezApartmentCount?: number | null;
   locauxSlotCount?: number | null;
   terrainLotCount?: number | null;
   units: Unit[];
@@ -158,6 +160,7 @@ export function BuildingDetailPage() {
   const [floorCountDraft, setFloorCountDraft] = useState('');
   const [hasRezDeChausseeDraft, setHasRezDeChausseeDraft] = useState(true);
   const [apartmentCountDraft, setApartmentCountDraft] = useState('');
+  const [rezApartmentCountDraft, setRezApartmentCountDraft] = useState('');
   const [terrainLotCountDraft, setTerrainLotCountDraft] = useState('');
   const [structureErr, setStructureErr] = useState<string | null>(null);
   const [structureSaving, setStructureSaving] = useState(false);
@@ -188,6 +191,7 @@ export function BuildingDetailPage() {
         setFloorCountDraft(data.floorCount != null ? String(data.floorCount) : '');
         setHasRezDeChausseeDraft(data.hasRezDeChaussee !== false);
         setApartmentCountDraft(data.apartmentCount != null ? String(data.apartmentCount) : '');
+        setRezApartmentCountDraft(data.rezApartmentCount != null ? String(data.rezApartmentCount) : '');
         setTerrainLotCountDraft(data.terrainLotCount != null ? String(data.terrainLotCount) : '');
         setLoadError(null);
       })
@@ -202,6 +206,24 @@ export function BuildingDetailPage() {
     load();
   }, [load]);
 
+  /** Ancien plafond de numérotation entrepôt/commerce : supprimé, plage libre côté API. */
+  useEffect(() => {
+    if (!id || !b || b.structureKind !== 'IMMEUBLE') return;
+    if (b.locauxSlotCount == null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await api(`/buildings/${id}`, { method: 'PATCH', json: { locauxSlotCount: null } });
+        if (!cancelled) load();
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, b?.id, b?.structureKind, b?.locauxSlotCount, load]);
+
   const immeubleLocked = b?.structureKind === 'IMMEUBLE' || b?.structureKind === 'TERRAIN_LOTS';
 
   const immeubleFloorPickerActive =
@@ -213,8 +235,8 @@ export function BuildingDetailPage() {
   const immeubleSlotPickerActive =
     immeubleFloorPickerActive && (b?.apartmentCount ?? 0) > 0;
 
-  const immeubleCarnetFlowActive =
-    immeubleFloorPickerActive && isImmeubleCarnetFlowKind(kind);
+  const immeubleSlotFlowActive =
+    immeubleFloorPickerActive && isImmeubleSlotFlowKind(kind);
 
   const terrainPlanActive =
     !!b &&
@@ -255,6 +277,25 @@ export function BuildingDetailPage() {
     return s;
   }, [b?.units]);
 
+  /** Plage du menu numéro local (entrepôt / commerce) : sans plafond en base, on propose toujours de la marge. */
+  const locauxSlotOptionsCount = useMemo(() => {
+    const maxUsed =
+      usedLocauxSlots.size === 0 ? 0 : Math.max(...Array.from(usedLocauxSlots));
+    return Math.max(maxUsed + 5, 5);
+  }, [usedLocauxSlots]);
+
+  const rdcHabitationUnitsCreated = useMemo(() => {
+    if (!b?.units?.length) return 0;
+    return b.units.filter((u) => u.kind === 'APARTMENT' && u.floor === 0).length;
+  }, [b?.units]);
+
+  const rdcLocauxUnitsCreated = useMemo(() => {
+    if (!b?.units?.length) return 0;
+    return b.units.filter(
+      (u) => (u.kind === 'WAREHOUSE' || u.kind === 'COMMERCIAL') && u.floor === 0,
+    ).length;
+  }, [b?.units]);
+
   const immeubleOnePerFloorLayout = useMemo(
     () => !!b && b.structureKind === 'IMMEUBLE' && immeubleOnePerFloorMatch(b),
     [b],
@@ -273,12 +314,34 @@ export function BuildingDetailPage() {
     return base.filter((f) => !taken.has(f));
   }, [b, immeubleOnePerFloorLayout]);
 
+  /** Appartements : pas de RDC dans la liste tant qu’aucun créneau appartement au RDC n’est déclaré. */
+  const availableApartmentFloors = useMemo(() => {
+    const floors = availableImmeubleFloors;
+    const rez = b?.rezApartmentCount ?? 0;
+    if (rez <= 0) return floors.filter((f) => f !== 0);
+    return floors;
+  }, [availableImmeubleFloors, b?.rezApartmentCount]);
+
   const immeubleFloorsWhComm = useMemo(() => {
     if (!b?.floorCount) return [];
     const fc = b.floorCount;
     const all = [0, ...Array.from({ length: fc }, (_, i) => i + 1)];
     return b.hasRezDeChaussee === false ? all.filter((f) => f !== 0) : all;
   }, [b]);
+
+  /** Entrepôt / commerce : uniquement le rez-de-chaussée (étage 0). */
+  const immeubleFloorsEntrepotCommerce = useMemo(() => {
+    if (!b?.floorCount) return [];
+    if (b.hasRezDeChaussee === false) return [];
+    return [0];
+  }, [b]);
+
+  const floorsForImmeubleKind =
+    kind === 'APARTMENT'
+      ? availableApartmentFloors
+      : kind === 'WAREHOUSE' || kind === 'COMMERCIAL'
+        ? immeubleFloorsEntrepotCommerce
+        : immeubleFloorsWhComm;
 
   const buildingStats = useMemo(() => {
     if (!b?.units) return null;
@@ -336,27 +399,24 @@ export function BuildingDetailPage() {
         unitsSub =
           b.structureKind === 'TERRAIN_LOTS'
             ? `Lots déclarés : ${declaredCapacity}`
-            : `Carnet appartements : ${declaredCapacity} place${declaredCapacity !== 1 ? 's' : ''}`;
+            : `Logements prévus : ${declaredCapacity} place${declaredCapacity !== 1 ? 's' : ''}`;
       } else if (overDeclared != null && overDeclared > 0) {
         unitsSub =
           b.structureKind === 'IMMEUBLE'
-            ? `${overDeclared} appartement${overDeclared !== 1 ? 's' : ''} au-delà du carnet (${declaredCapacity} déclaré${declaredCapacity !== 1 ? 's' : ''})`
-            : `${overDeclared} unité${overDeclared !== 1 ? 's' : ''} au-delà du carnet (${declaredCapacity} déclaré${declaredCapacity !== 1 ? 's' : ''})`;
+            ? `${overDeclared} appartement${overDeclared !== 1 ? 's' : ''} au-delà du nombre déclaré (${declaredCapacity} prévu${declaredCapacity !== 1 ? 's' : ''})`
+            : `${overDeclared} unité${overDeclared !== 1 ? 's' : ''} au-delà du nombre déclaré (${declaredCapacity} prévu${declaredCapacity !== 1 ? 's' : ''})`;
       } else {
         const onePerEtage =
           b.structureKind === 'IMMEUBLE' && immeubleOnePerFloorMatch(b) ? ' · 1 app./étage' : '';
         unitsSub =
           b.structureKind === 'TERRAIN_LOTS'
             ? `Tous les lots déclarés sont créés (${declaredCapacity})`
-            : `Carnet appartements complet — ${declaredCapacity} place${declaredCapacity !== 1 ? 's' : ''} créée${declaredCapacity !== 1 ? 's' : ''}${onePerEtage}`;
+            : `Tous les logements prévus sont créés (${declaredCapacity})${onePerEtage}`;
       }
     }
-    if (b.structureKind === 'IMMEUBLE' && locauxUnits > 0) {
-      const extra =
-        unitsSub != null
-          ? ` · ${locauxUnits} local${locauxUnits !== 1 ? 'ux' : ''} entrepôt / commerce`
-          : `${locauxUnits} local${locauxUnits !== 1 ? 'ux' : ''} entrepôt / commerce`;
-      unitsSub = unitsSub != null ? `${unitsSub}${extra}` : extra;
+    if (b.structureKind === 'IMMEUBLE' && total > 0) {
+      const br = `${aptUnits} logement${aptUnits !== 1 ? 's' : ''} · ${locauxUnits} entrepôt / commerce`;
+      unitsSub = unitsSub != null ? `${br} — ${unitsSub}` : br;
     }
 
     return {
@@ -467,18 +527,18 @@ export function BuildingDetailPage() {
   }, [id, b?.id, b?.units, focusUnitId, filteredUnits, tableUnits]);
 
   useEffect(() => {
-    if (!immeubleFloorPickerActive || !isImmeubleCarnetFlowKind(kind)) return;
+    if (!immeubleFloorPickerActive || !isImmeubleSlotFlowKind(kind)) return;
     if (immeubleEtage === '') return;
-    const ét = immeubleEtage === '0' ? 'RDC' : `ét. ${immeubleEtage}`;
+    const eta = immeubleEtage;
     if (kind === 'APARTMENT') {
       if (immeubleAppNo === '') return;
-      setLabel(`App. ${immeubleAppNo} · ${ét}`);
+      setLabel(`App${immeubleAppNo}_Eta${eta}`);
     } else {
       if (immeubleLocauxNo === '') return;
       if (kind === 'WAREHOUSE') {
-        setLabel(`Entrepôt ${immeubleLocauxNo} · ${ét}`);
+        setLabel(`Ent${immeubleLocauxNo}_Eta${eta}`);
       } else {
-        setLabel(`Commerce ${immeubleLocauxNo} · ${ét}`);
+        setLabel(`Com${immeubleLocauxNo}_Eta${eta}`);
       }
     }
   }, [immeubleFloorPickerActive, kind, immeubleEtage, immeubleAppNo, immeubleLocauxNo]);
@@ -508,34 +568,41 @@ export function BuildingDetailPage() {
   useEffect(() => {
     if (!b || b.structureKind !== 'IMMEUBLE') return;
     if (immeubleEtage === '0') {
-      if (kind === 'APARTMENT') setKind('COMMERCIAL');
+      if (kind === 'APARTMENT' && (b.rezApartmentCount ?? 0) <= 0) setKind('COMMERCIAL');
     } else if (immeubleEtage !== '') {
       const allowed = new Set(['APARTMENT', 'WAREHOUSE', 'COMMERCIAL']);
       if (!allowed.has(kind)) setKind('APARTMENT');
     }
-  }, [b?.structureKind, b?.id, kind, immeubleEtage]);
+  }, [b?.structureKind, b?.id, b?.rezApartmentCount, kind, immeubleEtage]);
+
+  useEffect(() => {
+    if (!b || b.structureKind !== 'IMMEUBLE') return;
+    if ((kind === 'WAREHOUSE' || kind === 'COMMERCIAL') && b.hasRezDeChaussee !== false) {
+      setImmeubleEtage('0');
+    }
+  }, [kind, b?.structureKind, b?.hasRezDeChaussee, b?.id]);
 
   async function addUnit(e: React.FormEvent) {
     e.preventDefault();
     if (!id) return;
     setErr(null);
     if (immeubleFloorPickerActive && kind === 'APARTMENT') {
-      if (immeubleEtage === '0') {
-        setErr('Au rez-de-chaussée, choisissez entrepôt ou commerce (pas appartement).');
+      if (immeubleEtage === '0' && (b?.rezApartmentCount ?? 0) <= 0) {
+        setErr('Au rez-de-chaussée, choisissez entrepôt ou commerce, ou indiquez des unités d’habitation au RDC dans « Organisation du bien ».');
         return;
       }
       if (immeubleEtage === '' || immeubleAppNo === '') {
-        setErr('Choisissez l’étage et le numéro au carnet appartements.');
+        setErr('Choisissez l’étage et le numéro de logement.');
         return;
       }
       if (!immeubleSlotPickerActive) {
         const appN = Number(immeubleAppNo);
         if (!Number.isInteger(appN) || appN < 1) {
-          setErr('Le n° au carnet appartements doit être un entier ≥ 1.');
+          setErr('Le numéro de logement doit être un entier ≥ 1.');
           return;
         }
         if (usedApartmentSlots.has(appN)) {
-          setErr(`Le numéro d’appartement ${appN} est déjà utilisé sur ce bien.`);
+          setErr(`Le numéro de logement ${appN} est déjà utilisé sur ce bien.`);
           return;
         }
       }
@@ -643,17 +710,30 @@ export function BuildingDetailPage() {
     setStructureErr(null);
     const fc = parseOptionalInt(floorCountDraft);
     const ac = parseOptionalInt(apartmentCountDraft);
+    const rac = parseOptionalInt(rezApartmentCountDraft);
     const tlc = parseOptionalInt(terrainLotCountDraft);
-    const immeubleCarnetShape = immeubleLocked
+    const immeubleOrgShape = immeubleLocked
       ? b!.structureKind === 'IMMEUBLE'
       : structureKindDraft === 'IMMEUBLE';
     const terrainLotsShape = immeubleLocked
       ? b!.structureKind === 'TERRAIN_LOTS'
       : structureKindDraft === 'TERRAIN_LOTS';
-    if (immeubleCarnetShape && (!fc.ok || !ac.ok)) {
+    if (immeubleOrgShape && (!fc.ok || !ac.ok || !rac.ok)) {
       setStructureErr(
-        'Nombre d’étages et carnet appartements doivent être des entiers positifs ou vides.',
+        'Nombre d’étages et totaux (logements, RDC) doivent être des entiers positifs ou vides.',
       );
+      return;
+    }
+    if (
+      immeubleOrgShape &&
+      hasRezDeChausseeDraft &&
+      rac.ok &&
+      rac.value != null &&
+      ac.ok &&
+      ac.value != null &&
+      rac.value > ac.value
+    ) {
+      setStructureErr('Le nombre d’unités au rez-de-chaussée ne peut pas dépasser le total des logements déclaré pour ce bien.');
       return;
     }
     if (terrainLotsShape && !tlc.ok) {
@@ -665,9 +745,11 @@ export function BuildingDetailPage() {
       const json: Record<string, unknown> = {
         structureKind: immeubleLocked ? b!.structureKind : structureKindDraft,
       };
-      if (immeubleCarnetShape) {
+      if (immeubleOrgShape) {
         json.floorCount = fc.ok ? fc.value : null;
         json.apartmentCount = ac.ok ? ac.value : null;
+        json.rezApartmentCount =
+          hasRezDeChausseeDraft && rac.ok ? rac.value : null;
         json.locauxSlotCount = null;
         json.hasRezDeChaussee = hasRezDeChausseeDraft;
         json.terrainLotCount = null;
@@ -676,12 +758,14 @@ export function BuildingDetailPage() {
         json.apartmentCount = null;
         json.locauxSlotCount = null;
         json.hasRezDeChaussee = null;
+        json.rezApartmentCount = null;
         json.terrainLotCount = tlc.ok ? tlc.value : null;
       } else {
         json.floorCount = null;
         json.apartmentCount = null;
         json.locauxSlotCount = null;
         json.hasRezDeChaussee = null;
+        json.rezApartmentCount = null;
         json.terrainLotCount = null;
       }
       await api(`/buildings/${id}`, { method: 'PATCH', json });
@@ -697,8 +781,8 @@ export function BuildingDetailPage() {
     !!b &&
     (floorCountDraft.trim() !== (b.floorCount != null ? String(b.floorCount) : '') ||
       apartmentCountDraft.trim() !== (b.apartmentCount != null ? String(b.apartmentCount) : '') ||
-      hasRezDeChausseeDraft !== (b.hasRezDeChaussee !== false) ||
-      (b.locauxSlotCount != null && b.locauxSlotCount > 0));
+      rezApartmentCountDraft.trim() !== (b.rezApartmentCount != null ? String(b.rezApartmentCount) : '') ||
+      hasRezDeChausseeDraft !== (b.hasRezDeChaussee !== false));
   const dirtyTerrainLots =
     !!b &&
     terrainLotCountDraft.trim() !== (b.terrainLotCount != null ? String(b.terrainLotCount) : '');
@@ -719,6 +803,7 @@ export function BuildingDetailPage() {
     setFloorCountDraft(b.floorCount != null ? String(b.floorCount) : '');
     setHasRezDeChausseeDraft(b.hasRezDeChaussee !== false);
     setApartmentCountDraft(b.apartmentCount != null ? String(b.apartmentCount) : '');
+    setRezApartmentCountDraft(b.rezApartmentCount != null ? String(b.rezApartmentCount) : '');
     setTerrainLotCountDraft(b.terrainLotCount != null ? String(b.terrainLotCount) : '');
     setStructureErr(null);
   }
@@ -805,26 +890,30 @@ export function BuildingDetailPage() {
       ? 'Ce terrain est en multi locataires : le type ne peut plus être repassé en « un seul lot ».'
       : 'Ce bien est enregistré comme immeuble : le type ne peut plus être repassé en « un seul lot ».'
     : (BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKindDraft)?.description ?? '');
-  const IMMEUBLE_APARTMENT_CARNET_BADGE_HINT =
-    'Ce nombre compte uniquement les appartements (numéros 1…N). Les entrepôts et commerces au rez-de-chaussée sont des unités en plus : chacun a son propre numéro de local et ne réduit pas ce carnet.';
+  const IMMEUBLE_LOGEMENT_BADGE_HINT =
+    'Ce nombre compte uniquement les logements d’habitation (numéros 1…N). Les entrepôts et commerces au RDC sont des unités à part : chacun a son numéro de local et ne diminue pas ce total.';
 
-  const carnetHint =
+  const immeubleStructureHint =
     immeubleFloorPickerActive && b
       ? (() => {
           const onePerFloor = immeubleOnePerFloorMatch(b)
-            ? ' Même nombre d’étages habitables et de places au carnet appartements : 1 appartement par étage (répartition par défaut).'
+            ? ' Même nombre d’étages habitables et de logements prévus : 1 logement par étage (répartition par défaut).'
             : '';
           const niveaux =
             b.hasRezDeChaussee === false
               ? `étages 1…${b.floorCount} (sans rez-de-chaussée)`
               : `RDC + étages 1…${b.floorCount}`;
           if (b.apartmentCount != null && b.apartmentCount > 0) {
-            return `Structure : ${b.floorCount} étage(s) au-dessus du sol, ${niveaux}. Carnet appartements : ${b.apartmentCount} numéro(s) (1…${b.apartmentCount}) — indépendant des entrepôts / commerces au RDC. Les numéros d’appartement déjà pris sont masqués.${onePerFloor}`;
+            const rez =
+              (b.rezApartmentCount ?? 0) > 0
+                ? ` Plafond RDC (habitation) : ${b.rezApartmentCount} unité(s).`
+                : '';
+            return `Structure : ${b.floorCount} étage(s) au-dessus du sol, ${niveaux}. Logements prévus sur ce bien : ${b.apartmentCount} numéro(s) (1…${b.apartmentCount}).${rez} Entrepôts / commerces au RDC : numérotation séparée. Numéros déjà pris masqués.${onePerFloor}`;
           }
-          return `Structure : ${b.floorCount} étage(s) au-dessus du sol — choisissez l’étage, puis le n° d’appartement. Pour un menu 1…N, renseignez le nombre d’appartements dans « Organisation du bien ».`;
+          return `Structure : ${b.floorCount} étage(s) au-dessus du sol — choisissez l’étage, puis le numéro de logement. Pour une liste 1…N, indiquez combien de logements sur ce bien dans « Organisation du bien ».`;
         })()
       : '';
-  const terrainCarnetHint =
+  const terrainLotsHint =
     terrainPlanActive && b
       ? `${b.terrainLotCount} lot(s) déclaré(s) sur ce terrain : ajoutez au plus une unité par numéro (unité 1, unité 2…). Les numéros déjà utilisés sont masqués ; pas d’étage.`
       : '';
@@ -899,14 +988,14 @@ export function BuildingDetailPage() {
                       {b.apartmentCount != null ? (
                         <>
                           <span>
-                            Carnet appartements : {b.apartmentCount} numéro{b.apartmentCount !== 1 ? 's' : ''} (1…
+                            Logements prévus : {b.apartmentCount} numéro{b.apartmentCount !== 1 ? 's' : ''} (1…
                             {b.apartmentCount})
-                            {immeubleOnePerFloorMatch(b) ? ' · 1 app./étage' : ''}
+                            {immeubleOnePerFloorMatch(b) ? ' · 1 logement/étage' : ''}
                           </span>
-                          <HelpHint title={IMMEUBLE_APARTMENT_CARNET_BADGE_HINT} className="align-middle shrink-0" />
+                          <HelpHint title={IMMEUBLE_LOGEMENT_BADGE_HINT} className="align-middle shrink-0" />
                         </>
                       ) : (
-                        'Nombre d’appartements (carnet) non renseigné'
+                        'Nombre de logements prévu non renseigné'
                       )}
                     </span>
                   </>
@@ -949,7 +1038,7 @@ export function BuildingDetailPage() {
                   sub={
                     buildingStats.structureKind === 'TERRAIN_LOTS'
                       ? `sur ${buildingStats.declaredCapacity} lot${buildingStats.declaredCapacity !== 1 ? 's' : ''} déclaré${buildingStats.declaredCapacity !== 1 ? 's' : ''}`
-                      : `sur ${buildingStats.declaredCapacity} appartement${buildingStats.declaredCapacity !== 1 ? 's' : ''} prévu${buildingStats.declaredCapacity !== 1 ? 's' : ''} au carnet`
+                      : `sur ${buildingStats.declaredCapacity} logement${buildingStats.declaredCapacity !== 1 ? 's' : ''} prévu${buildingStats.declaredCapacity !== 1 ? 's' : ''} sur ce bien`
                   }
                 />
               ) : null}
@@ -1064,7 +1153,7 @@ export function BuildingDetailPage() {
                 {b.structureKind === 'TERRAIN_LOTS'
                   ? 'Terrain avec plusieurs locataires (plusieurs parcelles / baux)'
                   : `Immeuble ou bâtiment multi locataires${
-                      b.hasRezDeChaussee === false ? ' (sans rez-de-chaussée au carnet)' : ''
+                      b.hasRezDeChaussee === false ? ' (sans rez-de-chaussée dans la structure)' : ''
                     }`}
               </p>
             ) : (
@@ -1109,7 +1198,7 @@ export function BuildingDetailPage() {
                 />
                 <div>
                   <Label htmlFor="building-has-rdc" className="mb-0 cursor-pointer font-medium">
-                    Inclure le rez-de-chaussée dans le carnet
+                    Inclure le rez-de-chaussée dans les étages
                   </Label>
                   <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs leading-snug text-slate-600 dark:text-slate-400">
                     <HelpHint title={IMMEUBLE_RDC_CHECKBOX_HINT} className="align-middle shrink-0" />
@@ -1123,7 +1212,7 @@ export function BuildingDetailPage() {
                         </>
                       ) : (
                         <>
-                          Pas de rez-de-chaussée au carnet : étages 1…{floorCountDraft.trim() || '…'} uniquement (
+                          Pas de rez-de-chaussée dans la structure : étages 1…{floorCountDraft.trim() || '…'} uniquement (
                           {floorCountDraft.trim() !== '' && Number.isFinite(Number(floorCountDraft))
                             ? `${floorCountDraft.trim()} niveau${Number(floorCountDraft) === 1 ? '' : 'x'}`
                             : '…'}
@@ -1134,13 +1223,34 @@ export function BuildingDetailPage() {
                   </p>
                 </div>
               </div>
+              {hasRezDeChausseeDraft ? (
+                <div className="w-full min-w-[8rem] sm:max-w-xs">
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <Label htmlFor="building-rez-apartments" className="mb-0">
+                      Nombre d’unités d’habitation au rez-de-chaussée
+                    </Label>
+                    <HelpHint className="align-middle" title={IMMEUBLE_REZ_APARTMENTS_HINT} />
+                  </div>
+                  <Input
+                    id="building-rez-apartments"
+                    type="number"
+                    min={0}
+                    value={rezApartmentCountDraft}
+                    onChange={(e) => setRezApartmentCountDraft(e.target.value)}
+                    placeholder="Ex. 2"
+                  />
+                  <p className="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                    Plafond pour les logements à l’étage 0 (distinct des entrepôts / commerces, voir le récapitulatif).
+                  </p>
+                </div>
+              ) : null}
               <div className="w-full min-w-[8rem] sm:w-auto">
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
                   <Label htmlFor="building-apartment-count" className="mb-0">
-                    Nombre total d’appartements (carnet)
+                    Nombre total de logements sur ce bien (numérotation)
                   </Label>
                   <HelpHint
-                    title={`${IMMEUBLE_CARNET_COUNT_HINT} À l’ajout d’unités, les numéros déjà attribués sont masqués.`}
+                    title={`${IMMEUBLE_LOGEMENT_TOTAL_HINT} À l’ajout d’unités, les numéros déjà attribués sont masqués.`}
                     className="align-middle"
                   />
                 </div>
@@ -1153,6 +1263,25 @@ export function BuildingDetailPage() {
                   placeholder="—"
                 />
               </div>
+              {hasRezDeChausseeDraft ? (
+                <div className="w-full sm:col-span-2 lg:col-span-3">
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/50">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      Rez-de-chaussée — unités déjà créées
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                      <strong className="tabular-nums text-slate-800 dark:text-slate-100">
+                        {rdcHabitationUnitsCreated}
+                      </strong>{' '}
+                      unité(s) d’habitation ·{' '}
+                      <strong className="tabular-nums text-slate-800 dark:text-slate-100">
+                        {rdcLocauxUnitsCreated}
+                      </strong>{' '}
+                      entrepôt(s) / commerce(s)
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </>
           ) : structureKindDraft === 'TERRAIN_LOTS' ? (
             <div className="w-full min-w-[10rem] sm:max-w-xs">
@@ -1228,10 +1357,10 @@ export function BuildingDetailPage() {
             <div className="border-t border-slate-200/90 px-4 pb-5 pt-2 dark:border-slate-700 sm:px-5">
               <div className="mb-3 flex flex-wrap items-center gap-2 pt-2">
                 <HelpHint title={UNIT_SECTION_HINT} className="align-middle" />
-                {immeubleCarnetFlowActive ? (
-                  <HelpHint title={carnetHint} className="align-middle" />
+                {immeubleSlotFlowActive ? (
+                  <HelpHint title={immeubleStructureHint} className="align-middle" />
                 ) : null}
-                {terrainPlanActive ? <HelpHint title={terrainCarnetHint} className="align-middle" /> : null}
+                {terrainPlanActive ? <HelpHint title={terrainLotsHint} className="align-middle" /> : null}
               </div>
               {terrainLotsFull ? (
                 <p className="flex flex-wrap items-center gap-2 text-sm text-amber-800 dark:text-amber-200/90">
@@ -1255,7 +1384,9 @@ export function BuildingDetailPage() {
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                     {b.structureKind === 'IMMEUBLE'
-                      ? 'Appartements : carnet « appartements » (étages habitables). Au rez-de-chaussée (étage 0), seuls entrepôt et commerce : vous saisissez un numéro libre pour le local, distinct des numéros d’appartement.'
+                      ? (b.rezApartmentCount ?? 0) > 0
+                        ? `Logements numérotés 1…${b.apartmentCount ?? 'N'} sur ce bien. Au RDC, jusqu’à ${b.rezApartmentCount} unité(s) d’habitation prévue(s) ; entrepôt et commerce : numéros de locaux séparés.`
+                        : 'Logements d’habitation : numérotation par étage. À partir de l’étage 1 ; pour le RDC, indiquez d’abord le nombre d’unités d’habitation au rez-de-chaussée dans Organisation. Sans ce plafond au RDC : seuls entrepôt et commerce au rez — numéros distincts.'
                       : 'Indiquez si ce lot est un appartement, une maison, un bureau, un entrepôt, un commerce, un terrain, etc. Vous pourrez ajouter d’autres unités avec un autre type sur le même bien.'}
                   </p>
                   <div className="mt-3 max-w-md">
@@ -1268,7 +1399,7 @@ export function BuildingDetailPage() {
                     <Select id="new-unit-kind" value={kind} onChange={(e) => setKind(e.target.value)} required>
                       {(b.structureKind === 'IMMEUBLE'
                         ? immeubleEtage === '0'
-                          ? IMMEUBLE_RDC_UNIT_KIND_OPTIONS
+                          ? immeubleRdcUnitKindOptions(b.rezApartmentCount)
                           : IMMEUBLE_NEW_UNIT_KIND_OPTIONS
                         : UNIT_KIND_OPTIONS
                       ).map((o) => (
@@ -1292,7 +1423,7 @@ export function BuildingDetailPage() {
                     </p>
                   ) : null}
                 </div>
-                {immeubleCarnetFlowActive ? (
+                {immeubleSlotFlowActive ? (
                   <>
                     <div>
                       <div className="mb-1 flex flex-wrap items-center gap-1.5">
@@ -1301,17 +1432,25 @@ export function BuildingDetailPage() {
                         </Label>
                         {immeubleOnePerFloorLayout && kind === 'APARTMENT' ? (
                           <HelpHint
-                            title="Pour les appartements : les étages où un appartement existe déjà sont retirés (1 app. par étage si déclaré ainsi). Entrepôts et commerces voient tous les étages."
+                            title="Pour les appartements : les étages où un appartement existe déjà sont retirés (1 app. par étage si déclaré ainsi)."
+                            className="align-middle"
+                          />
+                        ) : kind === 'WAREHOUSE' || kind === 'COMMERCIAL' ? (
+                          <HelpHint
+                            title="Entrepôt et commerce : uniquement le rez-de-chaussée (étage 0). Cochez « inclure le rez-de-chaussée » dans Organisation du bien si la liste est vide."
                             className="align-middle"
                           />
                         ) : null}
                       </div>
-                      {(kind === 'APARTMENT' ? availableImmeubleFloors : immeubleFloorsWhComm).length ===
-                      0 ? (
+                      {floorsForImmeubleKind.length === 0 ? (
                         <p className="rounded-lg border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100">
                           {kind === 'APARTMENT'
-                            ? 'Tous les étages prévus ont déjà une unité appartement. Supprimez ou modifiez une unité, ou ajustez le carnet dans « Organisation du bien ».'
-                            : 'Aucun étage disponible : vérifiez le nombre d’étages sur le bien.'}
+                            ? availableImmeubleFloors.length > 0 && availableApartmentFloors.length === 0
+                              ? 'Sans unités d’habitation au RDC déclarées dans Organisation du bien, le rez-de-chaussée n’est pas proposé : choisissez l’étage 1 ou plus, ou renseignez le nombre d’unités au rez-de-chaussée.'
+                              : 'Tous les étages prévus ont déjà une unité logement. Supprimez ou modifiez une unité, ou ajustez les totaux dans « Organisation du bien ».'
+                            : kind === 'WAREHOUSE' || kind === 'COMMERCIAL'
+                              ? 'Cochez « inclure le rez-de-chaussée » dans Organisation du bien pour placer un entrepôt ou un commerce au RDC.'
+                              : 'Aucun étage disponible : vérifiez le nombre d’étages sur le bien.'}
                         </p>
                       ) : (
                         <Select
@@ -1320,14 +1459,14 @@ export function BuildingDetailPage() {
                           onChange={(e) => {
                             const v = e.target.value;
                             setImmeubleEtage(v);
-                            if (v === '0') {
+                            if (v === '0' && (b?.rezApartmentCount ?? 0) <= 0) {
                               setKind((k) => (k === 'APARTMENT' ? 'COMMERCIAL' : k));
                             }
                           }}
                           required
                         >
                           <option value="">Choisir…</option>
-                          {(kind === 'APARTMENT' ? availableImmeubleFloors : immeubleFloorsWhComm).map((n) => (
+                          {floorsForImmeubleKind.map((n) => (
                             <option key={n} value={String(n)}>
                               {n === 0 ? 'Rez-de-chaussée' : `Étage ${n}`}
                             </option>
@@ -1337,7 +1476,7 @@ export function BuildingDetailPage() {
                     </div>
                     {kind === 'APARTMENT' ? (
                       <div>
-                        <Label htmlFor="immeuble-app-no">N° au carnet appartements</Label>
+                        <Label htmlFor="immeuble-app-no">N° de logement</Label>
                         {immeubleSlotPickerActive ? (
                           <>
                             <Select
@@ -1359,7 +1498,7 @@ export function BuildingDetailPage() {
                               usedApartmentSlots.has(n),
                             ) && (
                               <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                                Tous les numéros du carnet appartements sont déjà attribués.
+                                Tous les numéros de logement prévus sont déjà attribués.
                               </p>
                             )}
                           </>
@@ -1379,16 +1518,28 @@ export function BuildingDetailPage() {
                     ) : (
                       <div>
                         <Label htmlFor="immeuble-locaux-no">N° du local (entrepôt / commerce)</Label>
-                        <Input
+                        <Select
                           id="immeuble-locaux-no"
-                          type="number"
-                          min={1}
-                          step={1}
                           value={immeubleLocauxNo}
                           onChange={(e) => setImmeubleLocauxNo(e.target.value)}
                           required
-                          placeholder="Ex. 2"
-                        />
+                        >
+                          <option value="">Choisir…</option>
+                          {Array.from({ length: locauxSlotOptionsCount }, (_, i) => i + 1)
+                            .filter((n) => !usedLocauxSlots.has(n))
+                            .map((n) => (
+                              <option key={n} value={String(n)}>
+                                Local n° {n}
+                              </option>
+                            ))}
+                        </Select>
+                        {Array.from({ length: locauxSlotOptionsCount }, (_, i) => i + 1).every((n) =>
+                          usedLocauxSlots.has(n),
+                        ) ? (
+                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                            Tous les numéros proposés sont déjà attribués. La liste s’élargit automatiquement (marge de numéros).
+                          </p>
+                        ) : null}
                       </div>
                     )}
                   </>
@@ -1403,8 +1554,8 @@ export function BuildingDetailPage() {
                     <Label htmlFor="new-unit-label" className="mb-0">
                       Nom ou référence du local
                     </Label>
-                    {immeubleCarnetFlowActive ? (
-                      <HelpHint title="Rempli automatiquement à partir de l’étage et du n° au carnet ; vous pouvez le modifier." />
+                    {immeubleSlotFlowActive ? (
+                      <HelpHint title="Rempli automatiquement à partir de l’étage et du numéro de logement ; vous pouvez le modifier." />
                     ) : terrainPlanActive ? (
                       <HelpHint title="Rempli automatiquement à partir du numéro d’unité ; vous pouvez le modifier." />
                     ) : null}
@@ -1417,7 +1568,7 @@ export function BuildingDetailPage() {
                     placeholder="A12, Bureau 2, Entrepôt B…"
                   />
                 </div>
-                {!immeubleCarnetFlowActive && !terrainPlanActive ? (
+                {!immeubleSlotFlowActive && !terrainPlanActive ? (
                   <div>
                     <Label>Étage (si pertinent)</Label>
                     <Input value={floor} onChange={(e) => setFloor(e.target.value)} type="number" />

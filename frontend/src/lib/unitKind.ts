@@ -23,13 +23,24 @@ export const IMMEUBLE_NEW_UNIT_KIND_OPTIONS = (['APARTMENT', 'WAREHOUSE', 'COMME
   (value) => ({ value, label: UNIT_KIND_LABELS[value] }),
 );
 
-/** Rez-de-chaussée (étage 0) : réservé aux entrepôts et commerces. */
+/** Rez-de-chaussée (étage 0) : par défaut entrepôts et commerces seuls. */
 export const IMMEUBLE_RDC_UNIT_KIND_OPTIONS = (['WAREHOUSE', 'COMMERCIAL'] as const).map((value) => ({
   value,
   label: UNIT_KIND_LABELS[value],
 }));
 
-export function isImmeubleCarnetFlowKind(k: string): boolean {
+/** Options pour l’étage 0 : appartements autorisés si rezApartmentCount > 0 sur le bien. */
+export function immeubleRdcUnitKindOptions(rezApartmentCount: number | null | undefined) {
+  const n = rezApartmentCount ?? 0;
+  if (n <= 0) return IMMEUBLE_RDC_UNIT_KIND_OPTIONS;
+  return [
+    { value: 'APARTMENT' as const, label: UNIT_KIND_LABELS.APARTMENT },
+    ...IMMEUBLE_RDC_UNIT_KIND_OPTIONS,
+  ];
+}
+
+/** Immeuble : types pour lesquels on choisit étage + numéro (logement ou local pro). */
+export function isImmeubleSlotFlowKind(k: string): boolean {
   return k === 'APARTMENT' || k === 'WAREHOUSE' || k === 'COMMERCIAL';
 }
 
