@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -120,8 +125,12 @@ export class PaymentsService {
       },
     });
     if (!p) throw new NotFoundException('Paiement introuvable');
-    if (p.status === PaymentStatus.PAID || p.status === PaymentStatus.CANCELLED) {
-      throw new BadRequestException('Cette échéance est déjà soldée ou annulée.');
+    if (
+      p.status === PaymentStatus.PAID ||
+      p.status === PaymentStatus.CANCELLED ||
+      p.status === PaymentStatus.WAIVED
+    ) {
+      throw new BadRequestException('Cette échéance est déjà soldée, annulée ou marquée en gratuité.');
     }
     const today = startOfTodayUtc();
     const overdue =
@@ -165,8 +174,54 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Gratuité : le montant dû reste en base (audit), aucun encaissement.
+   * Réservé aux échéances encore exigibles (PENDING / LATE).
+   */
+  async waiveRent(id: string, organizationId: string, reason: string) {
+    await this.ensure(id, organizationId);
+    const trimmed = reason.trim();
+    if (trimmed.length < 3) {
+      throw new BadRequestException('Le motif de la gratuité doit contenir au moins 3 caractères.');
+    }
+    const cur = await this.prisma.payment.findUnique({ where: { id } });
+    if (!cur) throw new NotFoundException('Paiement introuvable');
+    if (
+      cur.status === PaymentStatus.PAID ||
+      cur.status === PaymentStatus.CANCELLED ||
+      String(cur.status) === 'WAIVED'
+    ) {
+      throw new BadRequestException('Cette échéance ne peut pas être marquée en gratuité dans son état actuel.');
+    }
+    if (!(PaymentStatus as { WAIVED?: string }).WAIVED) {
+      throw new InternalServerErrorException(
+        'Client Prisma obsolète : arrêtez le serveur backend, puis dans le dossier backend exécutez « npx prisma generate » et « npx prisma migrate deploy », puis redémarrez.',
+      );
+    }
+    const today = startOfTodayUtc();
+    return this.prisma.payment.update({
+      where: { id },
+      data: {
+        status: PaymentStatus.WAIVED,
+        waiveReason: trimmed,
+        waivedAt: today,
+        amountPaid: null,
+        paidAt: null,
+      },
+      include: {
+        lease: { include: { tenant: true, unit: { include: { building: true } } } },
+      },
+    });
+  }
+
   async update(id: string, organizationId: string, dto: UpdatePaymentDto) {
     await this.ensure(id, organizationId);
+
+    if (dto.status === PaymentStatus.WAIVED) {
+      throw new BadRequestException(
+        'Utilisez POST /payments/:id/waive avec un motif pour enregistrer une gratuité de loyer.',
+      );
+    }
 
     if (dto.addAmountPaid !== undefined && dto.amountPaid !== undefined) {
       throw new BadRequestException(
@@ -182,8 +237,12 @@ export class PaymentsService {
       }
       const cur = await this.prisma.payment.findUnique({ where: { id } });
       if (!cur) throw new NotFoundException('Paiement introuvable');
-      if (cur.status === PaymentStatus.PAID || cur.status === PaymentStatus.CANCELLED) {
-        throw new BadRequestException('Cette échéance est déjà soldée ou annulée.');
+      if (
+        cur.status === PaymentStatus.PAID ||
+        cur.status === PaymentStatus.CANCELLED ||
+        cur.status === PaymentStatus.WAIVED
+      ) {
+        throw new BadRequestException('Cette échéance est déjà soldée, annulée ou marquée en gratuité.');
       }
       const due = cur.amountDue.toNumber();
       const already = cur.amountPaid?.toNumber() ?? 0;
@@ -262,8 +321,33 @@ export class PaymentsService {
     }).format(n);
   }
 
+  private formatBuildingAddress(b: {
+    address: string | null;
+    postalCode: string | null;
+    commune: string;
+    city: string;
+  }): string {
+    const locality = [b.commune, b.city].filter(Boolean).join(' ');
+    const parts = [b.address?.trim() || null, b.postalCode?.trim() || null, locality].filter(Boolean);
+    return parts.join(' · ') || '—';
+  }
+
+  private unitKindFr(kind: string): string {
+    const m: Record<string, string> = {
+      APARTMENT: 'Appartement',
+      HOUSE: 'Maison',
+      LAND: 'Terrain',
+      OFFICE: 'Bureau',
+      WAREHOUSE: 'Entrepôt',
+      COMMERCIAL: 'Local commercial',
+      GARAGE: 'Garage / parking',
+      OTHER: 'Autre',
+    };
+    return m[kind] ?? kind;
+  }
+
   /**
-   * Reçu PDF (1 à 24 échéances) : loyer soldé ou acompte (dès qu’un encaissement est enregistré). Reçu groupé = même bail uniquement.
+   * PDF « quittance » (1 à 24 échéances) : loyer soldé ou acompte. Reçu groupé = même bail uniquement.
    */
   async buildReceiptPdf(paymentIds: string[], organizationId: string): Promise<Buffer> {
     if (!paymentIds.length || paymentIds.length > 24) {
@@ -275,7 +359,14 @@ export class PaymentsService {
         id: { in: uniqueIds },
         lease: { unit: { building: { organizationId } } },
       },
-      include: { lease: { include: { tenant: true, unit: { include: { building: true } } } } },
+      include: {
+        lease: {
+          include: {
+            tenant: true,
+            unit: { include: { building: { include: { organization: { select: { name: true } } } } } },
+          },
+        },
+      },
       orderBy: [{ periodYear: 'asc' }, { periodMonth: 'asc' }],
     });
     if (payments.length !== uniqueIds.length) {
@@ -305,91 +396,195 @@ export class PaymentsService {
     const t = first.lease.tenant;
     const u = first.lease.unit;
     const b = u.building;
+    const orgName = b.organization?.name?.trim();
+    const bailleurLabel = orgName || 'Le bailleur';
     const tenantName = `${t.firstName} ${t.lastName}`.trim();
-    const loc = [b.commune, b.city].filter(Boolean).join(', ');
+    const lieuFait = [b.commune, b.city].filter(Boolean).join(' ') || '—';
+    const adresseLogement = this.formatBuildingAddress(b);
 
     const anyPartial = payments.some((p) => {
       const enc = p.amountPaid?.toNumber() ?? 0;
       return enc + eps < p.amountDue.toNumber();
     });
+
+    const totalEncaissé = payments.reduce((s, p) => s + (p.amountPaid?.toNumber() ?? 0), 0);
+    const totalDû = payments.reduce((s, p) => s + p.amountDue.toNumber(), 0);
+
+    const left = 48;
+    const right = 547;
+    const contentW = right - left;
+    const lineGrey = '#c4c4c4';
+    const blue = '#1e3a5f';
+
+    const hr = () => {
+      const y = doc.y + 4;
+      doc.strokeColor(lineGrey).lineWidth(0.5).moveTo(left, y).lineTo(right, y).stroke();
+      doc.strokeColor('#000000').lineWidth(1);
+      doc.moveDown(0.85);
+    };
+
+    const boxBlock = (title: string, lines: string[]) => {
+      const pad = 10;
+      const startY = doc.y;
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(blue).text(title.toUpperCase(), left, startY, {
+        width: contentW,
+      });
+      doc.moveDown(0.35);
+      doc.font('Helvetica').fontSize(10).fillColor('#111');
+      for (const line of lines) {
+        doc.text(line, { width: contentW - pad * 2, align: 'left' });
+      }
+      const endY = doc.y + 6;
+      doc
+        .rect(left, startY - 4, contentW, endY - startY + 8)
+        .strokeColor(lineGrey)
+        .lineWidth(0.75)
+        .stroke();
+      doc.strokeColor('#000000').lineWidth(1);
+      doc.moveDown(1);
+    };
+
+    const ensureSpace = (need: number) => {
+      if (doc.y + need > 780) {
+        doc.addPage();
+        doc.font('Helvetica').fillColor('#111');
+      }
+    };
+
+    // — En-tête
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(blue).text('QUITTANCE DE LOYER', left, 48, {
+      width: contentW,
+      align: 'center',
+    });
+    doc.moveDown(0.35);
     doc
-      .fontSize(20)
-      .text(anyPartial ? 'Reçu d’acompte — loyer' : 'Reçu de paiement — loyer', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(10).fillColor('#444').text('ImmoPilot — Gestion immobilière', { align: 'center' });
-    doc.fillColor('#000000');
-    doc.moveDown(1.2);
-
-    doc.fontSize(11).text(`Locataire : ${tenantName}`);
-    if (t.phone?.trim()) doc.text(`Téléphone : ${t.phone}`);
-    if (t.email?.trim()) doc.text(`E-mail : ${t.email}`);
-    doc.moveDown(0.5);
-    doc.text(`Bien : ${b.name}`);
-    doc.text(`Local / unité : ${u.label}`);
-    doc.text(`Lieu : ${loc || '—'}`);
-    doc.moveDown(1);
-
-    if (payments.length === 1) {
-      const p = first;
-      const periodLabel = `${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`;
-      const monthLong = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
-        new Date(p.periodYear, p.periodMonth - 1, 1),
+      .font('Helvetica-Oblique')
+      .fontSize(10)
+      .fillColor('#555')
+      .text(
+        anyPartial
+          ? 'Reçu d’acompte sur loyer (solde non entièrement acquitté sur au moins une période)'
+          : 'Attestation de paiement du loyer (solde acquitté pour les périodes concernées)',
+        { width: contentW, align: 'center' },
       );
+    doc.font('Helvetica').fillColor('#111');
+    doc.moveDown(0.6);
+    doc.fontSize(8).fillColor('#888').text('Document émis via ImmoPilot — gestion immobilière', {
+      width: contentW,
+      align: 'center',
+    });
+    doc.fillColor('#111');
+    doc.moveDown(1);
+    hr();
+
+    boxBlock('Émetteur (bailleur)', [bailleurLabel, b.country?.trim() ? `Pays : ${b.country}` : ''].filter(Boolean));
+    boxBlock('Locataire', [
+      tenantName,
+      ...(t.phone?.trim() ? [`Tél. : ${t.phone}`] : []),
+      ...(t.email?.trim() ? [`E-mail : ${t.email}`] : []),
+    ]);
+    boxBlock('Logement loué', [
+      `Immeuble / désignation : ${b.name}`,
+      `Lot / unité : ${u.label} (${this.unitKindFr(String(u.kind))})`,
+      `Adresse : ${adresseLogement}`,
+    ]);
+
+    ensureSpace(120);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(blue).text('Attestation', left, doc.y, { width: contentW });
+    doc.moveDown(0.45);
+    doc.font('Helvetica').fontSize(10).fillColor('#222');
+    const attestationIntro = anyPartial
+      ? `Le soussigné, ${bailleurLabel}, atteste avoir reçu de ${tenantName}, en qualité de locataire du logement désigné ci-dessus, les sommes détaillées ci-dessous, au titre du loyer (acompte ou versement partiel selon les périodes).`
+      : `Le soussigné, ${bailleurLabel}, atteste avoir reçu de ${tenantName}, en qualité de locataire du logement désigné ci-dessus, les sommes détaillées ci-dessous, au titre du loyer pour les périodes indiquées, le solde étant acquitté pour ces périodes.`;
+    doc.text(attestationIntro, { width: contentW, align: 'justify' });
+    doc.moveDown(0.9);
+
+    // Tableau
+    ensureSpace(80);
+    doc.font('Helvetica-Bold').fontSize(10).text('Détail des paiements', { underline: true });
+    doc.moveDown(0.5);
+
+    const col = { p: left, d: left + 78, e: left + 168, r: left + 268, date: left + 358, ref: left + 430 };
+    const rowH = 14;
+    const tableHeaderY = doc.y;
+    doc.save();
+    doc.fillColor('#e8eef5').rect(left, tableHeaderY - 2, contentW, rowH + 4).fill();
+    doc.strokeColor(lineGrey).lineWidth(0.5).rect(left, tableHeaderY - 2, contentW, rowH + 4).stroke();
+    doc.restore();
+    doc.fillColor('#111');
+    doc.font('Helvetica-Bold').fontSize(8);
+    doc.text('Période', col.p, tableHeaderY + 1, { width: 70 });
+    doc.text('Montant dû', col.d, tableHeaderY + 1, { width: 88 });
+    doc.text('Encaissé', col.e, tableHeaderY + 1, { width: 96 });
+    doc.text('Solde', col.r, tableHeaderY + 1, { width: 86 });
+    doc.text('Date solde', col.date, tableHeaderY + 1, { width: 68 });
+    doc.text('Réf.', col.ref, tableHeaderY + 1, { width: right - col.ref });
+    doc.font('Helvetica');
+    let rowY = tableHeaderY + rowH + 6;
+
+    for (const p of payments) {
+      ensureSpace(28);
+      if (rowY > 760) {
+        doc.addPage();
+        rowY = 60;
+      }
       const dueN = p.amountDue.toNumber();
       const encN = p.amountPaid?.toNumber() ?? 0;
       const rest = Math.max(0, dueN - encN);
-      const paidAtStr = p.paidAt
-        ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(p.paidAt)
-        : '—';
-      doc.fontSize(12).text('Détail', { underline: true });
-      doc.moveDown(0.4);
-      doc.fontSize(10);
-      doc.text(`Période facturée : ${monthLong} (${periodLabel})`);
-      doc.text(`Échéance prévue : ${p.dueDate.toISOString().slice(0, 10)}`);
-      doc.text(`Montant dû : ${this.fcfa(dueN)}`);
-      doc.text(`Montant encaissé (cumul) : ${this.fcfa(encN)}`);
-      if (rest > eps) {
-        doc.text(`Solde restant dû : ${this.fcfa(rest)}`);
-      } else {
-        doc.text('Solde : acquitté');
-      }
-      doc.text(`Date d’encaissement enregistrée (solde) : ${paidAtStr}`);
-      doc.text(`Réf. échéance : ${p.id}`);
-    } else {
-      doc.fontSize(12).text('Détail des versements', { underline: true });
-      doc.moveDown(0.5);
-      doc.fontSize(9);
-      let totalEnc = 0;
-      let totalDue = 0;
-      for (const p of payments) {
-        const dueN = p.amountDue.toNumber();
-        const encN = p.amountPaid?.toNumber() ?? 0;
-        totalEnc += encN;
-        totalDue += dueN;
-        const periodLabel = `${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`;
-        const paidAtStr = p.paidAt ? p.paidAt.toISOString().slice(0, 10) : '—';
-        const restLine = Math.max(0, dueN - encN);
-        doc.text(
-          `• ${periodLabel} · encaissé ${this.fcfa(encN)} / dû ${this.fcfa(dueN)}${restLine > eps ? ` · reste ${this.fcfa(restLine)}` : ''} · solde le ${paidAtStr} · ref. ${p.id.slice(0, 8)}…`,
-        );
-        doc.moveDown(0.2);
-      }
-      doc.moveDown(0.4);
-      doc.fontSize(11).text(`Total encaissé : ${this.fcfa(totalEnc)} · total dû (périodes) : ${this.fcfa(totalDue)}`);
+      const periodShort = `${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`;
+      const monthLong = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' }).format(
+        new Date(p.periodYear, p.periodMonth - 1, 1),
+      );
+      const paidAtStr = p.paidAt ? p.paidAt.toISOString().slice(0, 10) : '—';
+      doc.fontSize(8);
+      doc.text(`${monthLong}`, col.p, rowY, { width: 70 });
+      doc.text(this.fcfa(dueN), col.d, rowY, { width: 88 });
+      doc.text(this.fcfa(encN), col.e, rowY, { width: 96 });
+      doc.text(rest > eps ? this.fcfa(rest) : '0', col.r, rowY, { width: 86 });
+      doc.text(paidAtStr, col.date, rowY, { width: 68 });
+      doc.text(p.id.slice(0, 8) + '…', col.ref, rowY, { width: right - col.ref });
+      doc.fontSize(7).fillColor('#666').text(`(${periodShort})`, col.p, rowY + 9, { width: 70 });
+      doc.fillColor('#111');
+      rowY += 22;
     }
 
-    doc.moveDown(1.2);
-    doc
-      .fontSize(9)
-      .fillColor('#555555')
-      .text(
-        'Document généré par ImmoPilot à partir des données enregistrées. Conservez ce reçu pour votre comptabilité.',
-        { align: 'left' },
-      );
-    doc.fillColor('#888888');
+    doc.y = rowY + 8;
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text(`Total encaissé (ce document) : ${this.fcfa(totalEncaissé)}`, left, doc.y, { width: contentW });
+    doc.moveDown(0.35);
+    doc.font('Helvetica').fontSize(9).fillColor('#444');
+    doc.text(`Somme des loyers dus sur les périodes listées : ${this.fcfa(totalDû)}`, { width: contentW });
+    doc.fillColor('#111');
+    doc.moveDown(1.1);
+
+    ensureSpace(100);
+    doc.font('Helvetica-Oblique').fontSize(9).fillColor('#333');
     doc.text(
-      `Édition le ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`,
-      { align: 'right' },
+      'Pour servir et valoir ce que de droit. La présente quittance annule et remplace tout reçu ou titre du même objet antérieur, le cas échéant.',
+      { width: contentW, align: 'justify' },
+    );
+    doc.font('Helvetica').fillColor('#111');
+    doc.moveDown(1);
+    doc.fontSize(10).text(`Fait à ${lieuFait}, le ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date())}.`);
+    doc.moveDown(1.2);
+    doc.text('Signature du bailleur (ou du mandataire)', { width: 220 });
+    doc.moveDown(2.5);
+    doc.strokeColor(lineGrey).lineWidth(0.5).moveTo(left, doc.y).lineTo(left + 220, doc.y).stroke();
+    doc.strokeColor('#000000');
+    doc.moveDown(0.3);
+    doc.fontSize(8).fillColor('#888').text(bailleurLabel, left, doc.y, { width: 220 });
+
+    doc.moveDown(1.5);
+    doc.font('Helvetica').fontSize(8).fillColor('#777');
+    doc.text(
+      'Document généré électroniquement à partir des données enregistrées dans ImmoPilot. Conservez-le pour votre comptabilité et vos obligations fiscales éventuelles.',
+      left,
+      doc.y,
+      { width: contentW, align: 'left' },
+    );
+    doc.text(
+      `Horodatage d’édition : ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`,
+      { width: contentW, align: 'right' },
     );
 
     doc.end();

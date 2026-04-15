@@ -169,6 +169,8 @@ enum PaymentStatus {
   PAID
   LATE
   CANCELLED
+  /** Loyer offert (geste commercial) — pas d’encaissement, montant dû conservé pour l’audit. */
+  WAIVED
 }
 
 model Payment {
@@ -182,6 +184,9 @@ model Payment {
   amountPaid  Decimal?      @map("amount_paid") @db.Decimal(12, 2)
   status      PaymentStatus @default(PENDING)
   notes       String?
+  /** Motif obligatoire si status = WAIVED (traçabilité). */
+  waiveReason String?       @map("waive_reason")
+  waivedAt    DateTime?     @map("waived_at") @db.Date
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
   lease       Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)

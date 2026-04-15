@@ -103,6 +103,13 @@ function paymentSearchBadge(p: { status: string; dueDate: string }): { label: st
       className: 'bg-slate-200 text-slate-700 ring-1 ring-slate-400/30 dark:bg-slate-700 dark:text-slate-200',
     };
   }
+  if (p.status === 'WAIVED') {
+    return {
+      label: 'Loyer offert',
+      className:
+        'bg-violet-100 text-violet-950 ring-1 ring-violet-400/40 dark:bg-violet-950/55 dark:text-violet-200 dark:ring-violet-700/50',
+    };
+  }
   const today = new Date().toISOString().slice(0, 10);
   const d = p.dueDate.slice(0, 10);
   const overdue = p.status === 'LATE' || (p.status === 'PENDING' && d < today);

@@ -17,6 +17,8 @@ function paymentStatusFr(s: PaymentStatus | undefined): string {
       return 'En retard';
     case PaymentStatus.CANCELLED:
       return 'Annulé';
+    case PaymentStatus.WAIVED:
+      return 'Loyer offert';
     default:
       return 'Impayé';
   }

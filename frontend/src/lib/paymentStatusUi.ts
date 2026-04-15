@@ -10,6 +10,8 @@ export function statusStyle(status: string) {
       return 'bg-amber-100 text-amber-900 dark:bg-amber-950/65 dark:text-amber-200';
     case 'CANCELLED':
       return 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+    case 'WAIVED':
+      return 'bg-violet-100 text-violet-900 dark:bg-violet-950/60 dark:text-violet-200';
     default:
       return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
   }
@@ -25,6 +27,8 @@ export function statusLabel(status: string) {
       return 'À venir';
     case 'CANCELLED':
       return 'Annulé';
+    case 'WAIVED':
+      return 'Loyer offert';
     default:
       return status;
   }

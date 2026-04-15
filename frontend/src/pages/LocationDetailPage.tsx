@@ -11,6 +11,7 @@ import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { resolveReturnTarget } from '@/lib/navigation';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
+import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 
 type Fiche = {
   leaseId: string;
@@ -52,9 +53,23 @@ type Fiche = {
     depositPaidAt: string | null;
     currentPeriodYear: number;
     currentPeriodMonth: number;
+    currentPaymentStatus?: string | null;
     currentPaymentStatusFr: string;
     currentPaymentDueDate: string | null;
   };
+  /** Dernières échéances du bail (ordre chronologique). */
+  paymentSchedule?: Array<{
+    id: string;
+    periodYear: number;
+    periodMonth: number;
+    dueDate: string;
+    amountDue: number;
+    amountPaid: number | null;
+    status: string;
+    statusFr: string;
+    waiveReason: string | null;
+    waivedAt: string | null;
+  }>;
   contract: {
     fileName: string | null;
     mimeType: string | null;
@@ -62,13 +77,6 @@ type Fiche = {
     uploadedAt: string | null;
   } | null;
 };
-
-function badge(fr: string) {
-  if (fr === 'Payé') return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-200';
-  if (fr === 'En retard') return 'bg-amber-100 text-amber-900 dark:bg-amber-950/65 dark:text-amber-200';
-  if (fr === 'Annulé') return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
-  return 'bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200';
-}
 
 function SectionHeader({ title, hintTitle }: { title: string; hintTitle?: string }) {
   return (
@@ -111,6 +119,10 @@ export function LocationDetailPage() {
   const [prepayBusy, setPrepayBusy] = useState(false);
   const [prepayErr, setPrepayErr] = useState<string | null>(null);
   const [depositActBusy, setDepositActBusy] = useState(false);
+  const [waiveTargetId, setWaiveTargetId] = useState<string | null>(null);
+  const [waiveReason, setWaiveReason] = useState('');
+  const [waiveBusy, setWaiveBusy] = useState(false);
+  const [waiveErr, setWaiveErr] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     if (!id) return;
@@ -237,6 +249,27 @@ export function LocationDetailPage() {
     }
   }
 
+  async function submitWaiveRent() {
+    if (!waiveTargetId) return;
+    const r = waiveReason.trim();
+    if (r.length < 3) {
+      setWaiveErr('Indiquez un motif d’au moins 3 caractères.');
+      return;
+    }
+    setWaiveBusy(true);
+    setWaiveErr(null);
+    try {
+      await api(`/payments/${waiveTargetId}/waive`, { method: 'POST', json: { reason: r } });
+      setWaiveTargetId(null);
+      setWaiveReason('');
+      await reload();
+    } catch (e2) {
+      setWaiveErr(e2 instanceof Error ? e2.message : 'Enregistrement impossible.');
+    } finally {
+      setWaiveBusy(false);
+    }
+  }
+
   async function prepayRent() {
     if (!data) return;
     const n = Number(prepayMonths);
@@ -345,8 +378,10 @@ export function LocationDetailPage() {
               <span className="text-slate-500 dark:text-slate-400">·</span>
               <span className="font-medium text-slate-800 dark:text-slate-200">Échéance le {financial.rentDueDay} / mois</span>
               <span className="text-slate-500 dark:text-slate-400">·</span>
-              <span className={`inline-flex rounded-md px-2.5 py-1 text-sm font-bold ${badge(financial.currentPaymentStatusFr)}`}>
-                {financial.currentPaymentStatusFr}
+              <span
+                className={`inline-flex rounded-md px-2.5 py-1 text-sm font-bold ${statusStyle(financial.currentPaymentStatus ?? '')}`}
+              >
+                {statusLabel(financial.currentPaymentStatus ?? '')}
               </span>
             </div>
 
@@ -437,6 +472,73 @@ export function LocationDetailPage() {
             <p className="mb-4 text-[15px] font-medium text-slate-800 dark:text-slate-200">
               Détail mois par mois : bouton <span className="font-bold text-slate-950 dark:text-white">Paiements</span> en haut de page.
             </p>
+
+            {(data.paymentSchedule ?? []).length ? (
+              <div className="mb-5 rounded-lg border-2 border-slate-200/95 bg-white p-4 dark:border-slate-500/60 dark:bg-slate-950/60">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">
+                    Loyers & gestes commerciaux
+                  </span>
+                  <HelpHint title="Gratuité : le mois reste tracé avec son montant théorique, sans encaissement. Motif obligatoire." />
+                </div>
+                <div className="max-h-72 overflow-auto rounded-md border border-slate-200/90 dark:border-slate-600/70">
+                  <table className="w-full min-w-[28rem] text-left text-sm">
+                    <thead className="sticky top-0 bg-slate-100/95 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/95 dark:text-slate-300">
+                      <tr>
+                        <th className="px-3 py-2">Période</th>
+                        <th className="px-3 py-2">Montant dû</th>
+                        <th className="px-3 py-2">Statut</th>
+                        <th className="px-3 py-2 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/90 dark:divide-slate-600/80">
+                      {(data.paymentSchedule ?? []).map((row) => {
+                        const canWaive =
+                          data.active && (row.status === 'PENDING' || row.status === 'LATE');
+                        return (
+                          <tr key={row.id} className="bg-white/80 dark:bg-slate-950/40">
+                            <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-slate-100">
+                              {monthTitle(row.periodYear, row.periodMonth)}
+                            </td>
+                            <td className="px-3 py-2.5 tabular-nums text-slate-800 dark:text-slate-200">{fcfa(row.amountDue)}</td>
+                            <td className="px-3 py-2.5">
+                              <span
+                                className={`inline-flex rounded-md px-2 py-0.5 text-xs font-bold ${statusStyle(row.status)}`}
+                              >
+                                {statusLabel(row.status)}
+                              </span>
+                              {row.status === 'WAIVED' && row.waiveReason?.trim() ? (
+                                <p className="mt-1 max-w-[14rem] text-xs text-slate-600 dark:text-slate-400" title={row.waiveReason}>
+                                  {row.waiveReason}
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              {canWaive ? (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  className="py-1.5 text-xs"
+                                  onClick={() => {
+                                    setWaiveErr(null);
+                                    setWaiveReason('');
+                                    setWaiveTargetId(row.id);
+                                  }}
+                                >
+                                  Offrir ce mois
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-lg border-2 border-slate-200/95 bg-white p-4 dark:border-slate-500/60 dark:bg-slate-950/60">
               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -600,6 +702,54 @@ export function LocationDetailPage() {
           </Button>
         </div>
       </Card>
+
+      {waiveTargetId ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="waive-dialog-title"
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+            <h2 id="waive-dialog-title" className="text-lg font-bold text-slate-950 dark:text-slate-50">
+              Gratuité de loyer
+            </h2>
+            <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              Le montant théorique du mois est conservé pour l’audit. Aucun encaissement n’est enregistré. Cette action est traçable via le motif ci-dessous.
+            </p>
+            <div className="mt-4">
+              <Label htmlFor="waive-reason">Motif (obligatoire)</Label>
+              <textarea
+                id="waive-reason"
+                rows={4}
+                value={waiveReason}
+                onChange={(e) => setWaiveReason(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-200/95 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm placeholder:font-normal placeholder:text-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/18 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:placeholder:text-slate-400 dark:focus:bg-slate-950 dark:focus:ring-brand-500/22"
+                placeholder="Ex. : arrangement travaux, geste commercial convenu avec le locataire…"
+                autoFocus
+              />
+            </div>
+            {waiveErr ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{waiveErr}</p> : null}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={waiveBusy}
+                onClick={() => {
+                  setWaiveTargetId(null);
+                  setWaiveReason('');
+                  setWaiveErr(null);
+                }}
+              >
+                Annuler
+              </Button>
+              <Button type="button" disabled={waiveBusy} onClick={() => void submitWaiveRent()}>
+                {waiveBusy ? 'Enregistrement…' : 'Confirmer la gratuité'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

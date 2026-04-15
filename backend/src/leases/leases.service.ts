@@ -29,6 +29,8 @@ function paymentStatusFr(s: PaymentStatus | undefined): string {
       return 'En retard';
     case PaymentStatus.CANCELLED:
       return 'Annulé';
+    case PaymentStatus.WAIVED:
+      return 'Loyer offert';
     default:
       return 'Impayé';
   }
@@ -208,6 +210,22 @@ export class LeasesService {
             uploadedAt: l.contractUploadedAt?.toISOString() ?? null,
           }
         : null,
+      paymentSchedule: [...l.payments]
+        .sort((a, b) =>
+          a.periodYear !== b.periodYear ? a.periodYear - b.periodYear : a.periodMonth - b.periodMonth,
+        )
+        .map((p) => ({
+          id: p.id,
+          periodYear: p.periodYear,
+          periodMonth: p.periodMonth,
+          dueDate: p.dueDate.toISOString().slice(0, 10),
+          amountDue: p.amountDue.toNumber(),
+          amountPaid: p.amountPaid?.toNumber() ?? null,
+          status: p.status,
+          statusFr: paymentStatusFr(p.status),
+          waiveReason: p.waiveReason,
+          waivedAt: p.waivedAt ? p.waivedAt.toISOString().slice(0, 10) : null,
+        })),
     };
   }
 

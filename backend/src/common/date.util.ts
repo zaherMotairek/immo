@@ -21,6 +21,12 @@ export function startOfTodayUtc(): Date {
   return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
 }
 
+export function addDaysUtc(d: Date, days: number): Date {
+  const x = new Date(d);
+  x.setUTCDate(x.getUTCDate() + days);
+  return x;
+}
+
 /**
  * Fin de bail par défaut : même jour un an plus tard (29 fév. → 28 fév. si l’année cible n’a pas le 29).
  */

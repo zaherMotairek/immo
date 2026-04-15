@@ -9,6 +9,9 @@ export type PaymentRow = {
   amountDue: unknown;
   amountPaid: unknown | null;
   paidAt: string | null;
+  /** Si statut WAIVED : motif et date du geste commercial. */
+  waiveReason?: string | null;
+  waivedAt?: string | null;
   lease: {
     tenant: {
       id: string;
@@ -22,6 +25,7 @@ export type PaymentRow = {
 };
 
 export function isOverduePayment(p: PaymentRow) {
+  if (p.status === 'WAIVED' || p.status === 'CANCELLED') return false;
   if (p.status === 'LATE') return true;
   if (p.status !== 'PENDING') return false;
   const d = p.dueDate.slice(0, 10);

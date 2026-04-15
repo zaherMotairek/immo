@@ -56,7 +56,21 @@ type Overview = {
     commune?: string;
     city?: string;
   }>;
+  upcomingCollections?: {
+    count: number;
+    totalRemaining: number;
+    windowStart: string;
+    windowEnd: string;
+  };
 };
+
+function formatEncaissementWindowFr(startIso: string, endIso: string) {
+  const s = new Date(`${startIso}T12:00:00`);
+  const e = new Date(`${endIso}T12:00:00`);
+  const d1 = s.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const d2 = e.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return `${d1} → ${d2}`;
+}
 
 function alertRemaining(a: Overview['alerts'][number]) {
   return a.amountRemaining ?? a.amountDue;
@@ -140,7 +154,14 @@ export function DashboardPage() {
   }
 
   const { kpis, alerts } = data;
+  const upcomingCollections = data.upcomingCollections ?? {
+    count: 0,
+    totalRemaining: 0,
+    windowStart: '',
+    windowEnd: '',
+  };
   const isEmptyPortfolio = kpis.buildings === 0;
+  const showUpcomingReminder = !isEmptyPortfolio && upcomingCollections.count > 0;
 
   return (
     <div className="space-y-6">
@@ -151,6 +172,44 @@ export function DashboardPage() {
         subtitle="Vue d’ensemble de votre parc : encaissements du mois, impayés et raccourcis vers l’essentiel."
         hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
       />
+
+      {showUpcomingReminder ? (
+        <div
+          className="rounded-2xl border border-sky-200/90 bg-gradient-to-br from-sky-50/95 to-white px-4 py-3.5 shadow-sm shadow-sky-900/5 dark:border-sky-800/60 dark:from-sky-950/40 dark:to-slate-900/90 dark:shadow-black/20 sm:px-5"
+          role="status"
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200/95">
+                Rappel encaissements
+              </p>
+              <p className="mt-1 text-sm font-medium leading-snug text-slate-800 dark:text-slate-100">
+                <span className="font-semibold text-sky-900 dark:text-sky-100">
+                  {upcomingCollections.count} échéance{upcomingCollections.count !== 1 ? 's' : ''}
+                </span>{' '}
+                à encaisser{' '}
+                <span className="whitespace-nowrap font-medium text-slate-700 dark:text-slate-200">
+                  (aujourd’hui et dans les 2 jours qui suivent)
+                </span>
+                {' — '}
+                <span className="text-slate-600 dark:text-slate-300">
+                  reste environ <strong className="font-semibold text-slate-900 dark:text-slate-50">{fcfa(upcomingCollections.totalRemaining)}</strong>
+                </span>
+                .
+              </p>
+              <p className="mt-1.5 text-xs capitalize text-slate-500 dark:text-slate-400">
+                {formatEncaissementWindowFr(upcomingCollections.windowStart, upcomingCollections.windowEnd)}
+              </p>
+            </div>
+            <SmartLink
+              to="/paiements?year=all&month=all"
+              className="shrink-0 self-start rounded-xl border border-sky-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-sky-900 underline-offset-2 transition hover:bg-sky-50 dark:border-sky-700 dark:bg-slate-800/90 dark:text-sky-100 dark:hover:bg-slate-800"
+            >
+              Voir les paiements →
+            </SmartLink>
+          </div>
+        </div>
+      ) : null}
 
       {isEmptyPortfolio ? (
         <EmptyState

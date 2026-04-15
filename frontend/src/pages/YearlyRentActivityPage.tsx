@@ -114,6 +114,14 @@ function cellContent(p: PaymentRow | undefined): CellBlock {
       amountLines: [`Dû ${fcfa(due)}`, `Reste ${fcfa(rem)}`],
     };
   }
+  if (p.status === 'WAIVED') {
+    return {
+      statusText: 'Loyer offert',
+      className: statusStyle(p.status),
+      title: `Gratuité · référence loyer ${fcfa(due)}`,
+      amountLines: [`Réf. ${fcfa(due)}`],
+    };
+  }
   if (p.status === 'CANCELLED') {
     return {
       statusText: 'Annulé',

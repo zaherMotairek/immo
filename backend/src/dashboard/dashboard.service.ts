@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
-import { startOfTodayUtc } from '../common/date.util';
+import { addDaysUtc, startOfTodayUtc } from '../common/date.util';
 
 @Injectable()
 export class DashboardService {
@@ -21,8 +21,10 @@ export class DashboardService {
     const nextMonthStartUtc = new Date(Date.UTC(y, m, 1));
 
     const leaseInOrg = { unit: { building: { organizationId } } };
+    const todayUtc = startOfTodayUtc();
+    const upcomingWindowEnd = addDaysUtc(todayUtc, 2);
 
-    const [buildings, units, tenants, paymentsThisMonth, overduePayments, expectedRent, depositLeasesThisMonth] =
+    const [buildings, units, tenants, paymentsThisMonth, overduePayments, expectedRent, depositLeasesThisMonth, upcomingPending] =
       await Promise.all([
         this.prisma.building.count({ where: { organizationId } }),
         this.prisma.unit.count({ where: { building: { organizationId } } }),
@@ -66,6 +68,14 @@ export class DashboardService {
           },
           select: { depositAmount: true },
         }),
+        this.prisma.payment.findMany({
+          where: {
+            lease: leaseInOrg,
+            status: PaymentStatus.PENDING,
+            dueDate: { gte: todayUtc, lte: upcomingWindowEnd },
+          },
+          select: { amountDue: true, amountPaid: true },
+        }),
       ]);
 
     const collectedThisMonth = paymentsThisMonth.reduce((s, p) => {
@@ -82,6 +92,17 @@ export class DashboardService {
       return s + Math.max(0, due - paid);
     }, 0);
 
+    let upcomingCollectionsCount = 0;
+    let upcomingCollectionsRemaining = 0;
+    for (const p of upcomingPending) {
+      const dueN = p.amountDue.toNumber();
+      const paidN = p.amountPaid?.toNumber() ?? 0;
+      const rem = Math.max(0, dueN - paidN);
+      if (rem <= 0) continue;
+      upcomingCollectionsCount += 1;
+      upcomingCollectionsRemaining += rem;
+    }
+
     return {
       kpis: {
         buildings,
@@ -92,6 +113,12 @@ export class DashboardService {
         depositsCollectedThisMonth,
         overdueCount: overduePayments.length,
         overdueAmount,
+      },
+      upcomingCollections: {
+        count: upcomingCollectionsCount,
+        totalRemaining: upcomingCollectionsRemaining,
+        windowStart: todayUtc.toISOString().slice(0, 10),
+        windowEnd: upcomingWindowEnd.toISOString().slice(0, 10),
       },
       alerts: overduePayments.map((p) => {
         const dueN = p.amountDue.toNumber();

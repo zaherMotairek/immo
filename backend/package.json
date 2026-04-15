@@ -17,7 +17,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "seed:dashboard-reminder": "node scripts/seed-dashboard-reminder-one-lease.cjs"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

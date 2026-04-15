@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BulkReceiptDto } from './dto/bulk-receipt.dto';
+import { WaivePaymentDto } from './dto/waive-payment.dto';
 
 @Controller('payments')
 @UseGuards(JwtAuthGuard)
@@ -50,6 +51,12 @@ export class PaymentsController {
   @Post(':id/send-reminder')
   sendReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.payments.sendOverdueReminder(id, user.organizationId);
+  }
+
+  /** Gratuité de loyer (geste commercial) : motif obligatoire, pas d’encaissement. */
+  @Post(':id/waive')
+  waive(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: WaivePaymentDto) {
+    return this.payments.waiveRent(id, user.organizationId, dto.reason);
   }
 
   /** Reçu PDF pour une échéance déjà marquée payée (impression / archivage). */

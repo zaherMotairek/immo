@@ -198,6 +198,21 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
                 <p className="mt-1 text-sm font-semibold text-emerald-900 dark:text-emerald-200">Payé le {p.paidAt.slice(0, 10)}</p>
               </div>
             ) : null}
+            {p.status === 'WAIVED' ? (
+              <div className="sm:col-span-2 rounded-xl border border-violet-200/90 bg-violet-50/80 px-3 py-3 dark:border-violet-800/45 dark:bg-violet-950/30">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-800 dark:text-violet-300">
+                  Gratuité de loyer
+                </p>
+                {p.waivedAt ? (
+                  <p className="mt-1 text-sm font-semibold text-violet-900 dark:text-violet-200">
+                    Enregistrée le {String(p.waivedAt).slice(0, 10)}
+                  </p>
+                ) : null}
+                {p.waiveReason?.trim() ? (
+                  <p className="mt-2 text-sm font-medium leading-snug text-violet-950 dark:text-violet-100">{p.waiveReason}</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
