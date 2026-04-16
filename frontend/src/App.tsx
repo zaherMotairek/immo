@@ -16,6 +16,7 @@ import { YearlyRentActivityPage } from './pages/YearlyRentActivityPage';
 import { CautionsEncaisséesPage } from './pages/CautionsEncaisséesPage';
 import { ChargesPage } from './pages/ChargesPage';
 import { ExportsPage } from './pages/ExportsPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 function Protected({ children }: { children: ReactElement }) {
   const { user, ready } = useAuth();
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="cautions" element={<CautionsEncaisséesPage />} />
         <Route path="charges" element={<ChargesPage />} />
         <Route path="exports" element={<ExportsPage />} />
+        <Route path="profil" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

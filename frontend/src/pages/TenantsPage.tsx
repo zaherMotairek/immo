@@ -5,6 +5,7 @@ import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/l
 import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
 import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
@@ -301,7 +302,15 @@ export function TenantsPage() {
           iconTo="/locataires"
           title="Locataires"
           hintTitle="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
-          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
+          titleExtra={
+            <div className="flex flex-wrap items-center gap-2">
+              <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
+              <PdfPrintButton
+                path="/reports/table-locataires.pdf"
+                title="Liste de tous les locataires en PDF (aperçu comme le tableau)"
+              />
+            </div>
+          }
         />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
           <span className="text-base leading-none" aria-hidden>

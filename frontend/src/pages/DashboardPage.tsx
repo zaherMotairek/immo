@@ -17,6 +17,7 @@ import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { LinkButton } from '@/components/LinkButton';
 import { SmartLink } from '@/components/SmartLink';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { Button, Card, HelpHint, StatTile } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
 import {
@@ -171,7 +172,15 @@ export function DashboardPage() {
         title="Tableau de bord"
         subtitle="Vue d’ensemble de votre parc : encaissements du mois, impayés et raccourcis vers l’essentiel."
         hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
-        titleExtra={<StatTile className="shrink-0" label="Total" value={String(kpis.tenants)} />}
+        titleExtra={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatTile className="shrink-0" label="Total" value={String(kpis.tenants)} />
+            <PdfPrintButton
+              path="/dashboard/worksheet.pdf"
+              title="Feuille de route PDF : cases « perçu », notes manuscrites, puis saisie dans Paiements"
+            />
+          </div>
+        }
       />
 
       {showUpcomingReminder ? (

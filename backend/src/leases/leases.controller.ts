@@ -8,12 +8,13 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -43,6 +44,15 @@ export class LeasesController {
   @Get()
   list(@CurrentUser() user: JwtAuthUser) {
     return this.leases.list(user.organizationId);
+  }
+
+  /** PDF fiche location (détail bail) — doit rester avant les routes « :id » ambiguës. */
+  @Get(':id/fiche.pdf')
+  async fichePdf(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Res() res: Response) {
+    const buf = await this.leases.buildFichePdf(id, user.organizationId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="fiche-location.pdf"');
+    res.send(buf);
   }
 
   @Get(':id/fiche')

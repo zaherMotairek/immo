@@ -48,6 +48,44 @@ export class PaymentsController {
     });
   }
 
+  /** Feuille de route imprimable : cases « perçu », colonne notes — mêmes filtres que la liste. */
+  @Get('worksheet.pdf')
+  async worksheetPdf(
+    @CurrentUser() user: JwtAuthUser,
+    @Res() res: Response,
+    @Query('overdue') overdue?: string,
+    @Query('leaseId') leaseId?: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+    @Query('buildingId') buildingId?: string,
+    @Query('unitId') unitId?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    const overdueOnly = overdue === '1' || overdue === 'true';
+    let periodYear: number | undefined;
+    if (yearRaw !== undefined && yearRaw.trim() !== '') {
+      const y = Number(yearRaw);
+      if (Number.isInteger(y) && y >= 1990 && y <= 2100) periodYear = y;
+    }
+    let periodMonth: number | undefined;
+    if (monthRaw !== undefined && monthRaw.trim() !== '') {
+      const m = Number(monthRaw);
+      if (Number.isInteger(m) && m >= 1 && m <= 12) periodMonth = m;
+    }
+    const buf = await this.payments.buildWorksheetPdf(user.organizationId, {
+      overdueOnly,
+      leaseId,
+      periodYear,
+      periodMonth,
+      buildingId,
+      unitId,
+      tenantId,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="immopilot-feuille-route-paiements.pdf"');
+    res.send(buf);
+  }
+
   @Post(':id/send-reminder')
   sendReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.payments.sendOverdueReminder(id, user.organizationId);

@@ -110,6 +110,15 @@ export function SidebarNavIcon({ to, className = '' }: { to: string; className?:
           </>
         ),
       });
+    case '/profil':
+      return svg({
+        children: (
+          <>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ),
+      });
     default:
       return svg({ children: <circle cx="12" cy="12" r="9" /> });
   }

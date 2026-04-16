@@ -2,21 +2,33 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useNavigate } from 'react-router-dom';
 import { api, getStoredUser, getToken, setStoredUser, setToken } from '@/lib/api';
 
-type User = { id: string; email: string; name: string | null; organizationId?: string };
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  organizationId: string;
+  organizationName: string | null;
+};
 
 type AuthState = {
-  user: User | null;
+  user: AuthUser | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  applyUser: (u: AuthUser) => void;
 };
 
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
   const navigate = useNavigate();
+
+  const applyUser = useCallback((u: AuthUser) => {
+    setStoredUser(u);
+    setUser(u);
+  }, []);
 
   useEffect(() => {
     const t = getToken();
@@ -25,7 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       setUser(null);
     } else if (t && u) {
-      setUser(u);
+      setUser({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        organizationId: u.organizationId ?? '',
+        organizationName: u.organizationName ?? null,
+      });
     }
     setReady(true);
   }, []);
@@ -39,16 +57,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('immopilot:logout', onOut);
   }, [navigate]);
 
+  useEffect(() => {
+    if (!ready) return;
+    const t = getToken();
+    if (!t) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const u = await api<AuthUser>('/auth/profile');
+        if (!cancelled) applyUser(u);
+      } catch {
+        /* 401 géré par api */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, applyUser]);
+
   const login = useCallback(async (email: string, password: string) => {
-    const res = await api<{ accessToken: string; user: User }>('/auth/login', {
+    const res = await api<{ accessToken: string; user: AuthUser }>('/auth/login', {
       method: 'POST',
       json: { email, password },
     });
     setToken(res.accessToken);
-    setStoredUser(res.user);
-    setUser(res.user);
+    applyUser(res.user);
     navigate('/', { replace: true });
-  }, [navigate]);
+  }, [navigate, applyUser]);
 
   const logout = useCallback(() => {
     setToken(null);
@@ -58,8 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   const value = useMemo(
-    () => ({ user: getToken() ? user : null, ready, login, logout }),
-    [user, ready, login, logout],
+    () => ({ user: getToken() ? user : null, ready, login, logout, applyUser }),
+    [user, ready, login, logout, applyUser],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

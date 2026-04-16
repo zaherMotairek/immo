@@ -10,17 +10,25 @@ export function setToken(t: string | null) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-export function getStoredUser(): { id: string; email: string; name: string | null } | null {
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  organizationId?: string;
+  organizationName?: string | null;
+};
+
+export function getStoredUser(): SessionUser | null {
   try {
     const s = localStorage.getItem(USER_KEY);
     if (!s) return null;
-    return JSON.parse(s) as { id: string; email: string; name: string | null };
+    return JSON.parse(s) as SessionUser;
   } catch {
     return null;
   }
 }
 
-export function setStoredUser(u: { id: string; email: string; name: string | null } | null) {
+export function setStoredUser(u: SessionUser | null) {
   if (u) localStorage.setItem(USER_KEY, JSON.stringify(u));
   else localStorage.removeItem(USER_KEY);
 }
@@ -322,4 +330,71 @@ export function downloadReport(kind: 'pdf' | 'xlsx', year: number) {
   } else {
     a.click();
   }
+}
+
+/** Ouvre un PDF généré par l’API (JWT) dans un nouvel onglet — aperçu / impression. */
+export function openPrintablePdf(path: string) {
+  const token = getToken();
+  fetch(`${baseUrl()}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    .then((r) => {
+      if (r.status === 401) {
+        setToken(null);
+        setStoredUser(null);
+        window.dispatchEvent(new Event('immopilot:logout'));
+      }
+      if (!r.ok) throw new Error('PDF indisponible');
+      return r.blob();
+    })
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+    })
+    .catch(() => alert('Impossible d’ouvrir le PDF. Vérifiez la connexion et votre session.'));
+}
+
+export type ExcelImportResult = {
+  ok: boolean;
+  buildingsCreated: number;
+  unitsCreated: number;
+  tenantsCreated: number;
+  leasesCreated: number;
+  leasesUpdated: number;
+  paymentsUpserted: number;
+  chargesCreated: number;
+  errors: string[];
+  warnings: string[];
+};
+
+/** Importe un classeur au même format que l’export (feuilles Biens, Baux, Paiements, Charges, etc.). */
+export async function importReportExcel(file: File): Promise<ExcelImportResult> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const token = getToken();
+  const res = await fetch(`${baseUrl()}/reports/import.xlsx`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (res.status === 401) {
+    setToken(null);
+    setStoredUser(null);
+    window.dispatchEvent(new Event('immopilot:logout'));
+  }
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const j = (await res.json()) as { message?: string | string[]; errors?: string[] };
+      if (j?.message) {
+        msg = Array.isArray(j.message) ? j.message.join(', ') : String(j.message);
+      }
+      if (j?.errors?.length) {
+        msg = `${msg}\n${j.errors.slice(0, 20).join('\n')}`;
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return (await res.json()) as ExcelImportResult;
 }

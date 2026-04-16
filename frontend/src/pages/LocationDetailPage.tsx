@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { fcfa, formatAmountDigitsGrouped, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { resolveReturnTarget } from '@/lib/navigation';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
@@ -350,6 +351,15 @@ export function LocationDetailPage() {
         backLabel={back.label}
         breadcrumbCurrent={locationHeadline}
         breadcrumbTitle={locationHeadline}
+        headerEnd={
+          data.leaseId ? (
+            <PdfPrintButton
+              path={`/leases/${data.leaseId}/fiche.pdf`}
+              title="Ouvrir cette fiche location en PDF (impression)"
+              variant="labeled"
+            />
+          ) : null
+        }
       >
         <div className="flex flex-wrap items-start gap-3 sm:gap-4">
           <div

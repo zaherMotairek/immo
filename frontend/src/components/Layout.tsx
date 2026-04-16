@@ -31,8 +31,12 @@ const navGroups: { title?: string; items: NavItem[] }[] = [
       { to: '/activite-loyers', label: 'Activité loyers' },
       { to: '/cautions', label: 'Cautions' },
       { to: '/charges', label: 'Charges' },
-      { to: '/exports', label: 'Exports' },
+      { to: '/exports', label: 'Export / import' },
     ],
+  },
+  {
+    title: 'Compte',
+    items: [{ to: '/profil', label: 'Profil' }],
   },
 ];
 

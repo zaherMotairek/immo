@@ -95,7 +95,7 @@ export function inferBackLabelFromPath(fullPath: string): string {
     '/paiements': 'Paiements',
     '/charges': 'Charges',
     '/cautions': 'Cautions',
-    '/exports': 'Exports',
+    '/exports': 'Export / import',
     '/login': 'Connexion',
     '/activite-loyers': 'Activité loyers',
   };

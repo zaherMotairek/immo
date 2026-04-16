@@ -3,6 +3,16 @@ import { PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { addDaysUtc, startOfTodayUtc } from '../common/date.util';
+import {
+  drawDashboardKpiSummary,
+  drawFooter,
+  drawSectionHeading,
+  drawTopBanner,
+  drawWorksheetImpayesTable,
+  drawWorksheetInstructionBox,
+  drawWorksheetLegend,
+  type WorksheetAlertRow,
+} from '../common/immo-pdf';
 
 @Injectable()
 export class DashboardService {
@@ -148,5 +158,74 @@ export class DashboardService {
         };
       }),
     };
+  }
+
+  async buildWorksheetPdf(organizationId: string): Promise<Buffer> {
+    const data = await this.overview(organizationId);
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    });
+
+    const PDFDocument = require('pdfkit') as typeof import('pdfkit');
+    const chunks: Buffer[] = [];
+    const margin = 40;
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin });
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    const pageH = doc.page.height;
+    const contentW = doc.page.width - margin * 2;
+    const pageTop = margin;
+    const reservedBottom = 52;
+    const pageBottom = pageH - margin - reservedBottom;
+
+    const fcfa = (n: number) =>
+      new Intl.NumberFormat('fr-CI', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(
+        n,
+      );
+
+    drawTopBanner(doc, margin, contentW, {
+      eyebrow: org?.name?.trim() || 'Organisation',
+      title: 'Feuille de route — Suivi des encaissements',
+      subtitle: `Document terrain & bureau · ${new Date().toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })}`,
+    });
+
+    drawWorksheetInstructionBox(doc, margin, contentW);
+    drawDashboardKpiSummary(doc, margin, contentW, data.kpis, fcfa);
+    drawSectionHeading(doc, margin, contentW, 'Impayés et échéances à traiter', '1');
+
+    const rows: WorksheetAlertRow[] = data.alerts.map((a) => {
+      const due =
+        a.dueDate instanceof Date
+          ? a.dueDate.toISOString().slice(0, 10)
+          : String(a.dueDate).slice(0, 10);
+      const place = [a.building, a.unit].filter(Boolean).join(' — ') || '—';
+      return {
+        tenant: a.tenant || '—',
+        place,
+        period: a.period,
+        dueDate: due,
+        remaining: fcfa(a.amountRemaining),
+      };
+    });
+
+    const startY = doc.y;
+    drawWorksheetImpayesTable(doc, margin, contentW, pageTop, pageBottom, startY, rows);
+
+    const legendRoom = 28;
+    const footerRoom = 30;
+    if (doc.y > pageH - margin - legendRoom - footerRoom) {
+      doc.addPage();
+    }
+    drawWorksheetLegend(doc, margin, contentW);
+    drawFooter(doc, margin, contentW, pageH);
+
+    doc.end();
+    await new Promise<void>((resolve) => doc.on('end', () => resolve()));
+    return Buffer.concat(chunks);
   }
 }

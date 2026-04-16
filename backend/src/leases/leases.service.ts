@@ -15,6 +15,13 @@ import {
   LEASE_CONTRACT_MAX_BYTES,
   LEASE_CONTRACT_MIME_TO_EXT,
 } from './lease-contract.constants';
+import {
+  drawField,
+  drawFooter,
+  drawScheduleTable,
+  drawSectionHeading,
+  drawTopBanner,
+} from '../common/immo-pdf';
 
 function leaseBelongsToOrg(organizationId: string) {
   return { unit: { building: { organizationId } } };
@@ -34,6 +41,31 @@ function paymentStatusFr(s: PaymentStatus | undefined): string {
     default:
       return 'Impayé';
   }
+}
+
+function unitKindFr(kind: string): string {
+  const m: Record<string, string> = {
+    APARTMENT: 'Appartement',
+    HOUSE: 'Maison',
+    LAND: 'Terrain',
+    OFFICE: 'Bureau',
+    WAREHOUSE: 'Entrepôt',
+    COMMERCIAL: 'Local commercial',
+    GARAGE: 'Garage / parking',
+    OTHER: 'Autre',
+  };
+  return m[kind] ?? kind;
+}
+
+function fmtDateFr(d: unknown): string {
+  if (d == null) return '—';
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  const s = String(d);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function fcfaPdf(n: number) {
+  return new Intl.NumberFormat('fr-CI', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
 }
 
 @Injectable()
@@ -590,6 +622,106 @@ export class LeasesService {
       paymentIds: ids,
       periods: unpaid.map((p) => `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`),
     };
+  }
+
+  /** PDF imprimable : fiche location (mise en page sobre, prête impression ou archivage). */
+  async buildFichePdf(id: string, organizationId: string): Promise<Buffer> {
+    const [f, org] = await Promise.all([
+      this.getFiche(id, organizationId),
+      this.prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const PDFDocument = require('pdfkit') as typeof import('pdfkit');
+    const chunks: Buffer[] = [];
+    const margin = 48;
+    const doc = new PDFDocument({ size: 'A4', margin });
+    doc.on('data', (c: Buffer) => chunks.push(c));
+
+    const contentW = doc.page.width - margin * 2;
+    const pageH = doc.page.height;
+    const pageTop = margin;
+    const pageBottom = pageH - margin - 36;
+
+    const orgEyebrow = org?.name?.trim() || 'Organisation';
+    const subtitle = [
+      `${f.property.buildingName} — ${f.property.unitLabel}`,
+      `Référence bail : ${f.leaseId} · ${f.active ? 'Bail actif' : 'Bail inactif'}`,
+    ].join('\n');
+
+    drawTopBanner(doc, margin, contentW, {
+      eyebrow: orgEyebrow,
+      title: 'Fiche de location',
+      subtitle,
+    });
+
+    const locLine =
+      f.localization.shortLabel?.trim() ||
+      [f.localization.commune, f.localization.city].filter(Boolean).join(', ') ||
+      '—';
+    const addrParts = [f.localization.address, f.localization.postalCode].filter((s) => s?.trim());
+    const fullAddr = addrParts.length ? addrParts.join(' · ') : null;
+
+    drawSectionHeading(doc, margin, contentW, 'Localisation du bien', '1');
+    drawField(doc, margin, contentW, 'Commune & ville', locLine);
+    if (fullAddr) drawField(doc, margin, contentW, 'Adresse postale', fullAddr);
+    drawField(doc, margin, contentW, 'Pays', f.localization.country || '—');
+
+    const bits: string[] = [unitKindFr(String(f.property.kind))];
+    if (f.property.surfaceM2 != null) bits.push(`${f.property.surfaceM2} m²`);
+    if (f.property.rooms != null) bits.push(`${f.property.rooms} pièce(s)`);
+    if (f.property.floor != null) bits.push(f.property.floor === 0 ? 'Rez-de-chaussée' : `Étage ${f.property.floor}`);
+    drawSectionHeading(doc, margin, contentW, 'Caractéristiques du logement', '2');
+    drawField(doc, margin, contentW, 'Synthèse', bits.join(' · ') || '—');
+    const desc = [f.property.description, f.property.notes].filter((s) => s?.trim()).join('\n\n') || '';
+    if (desc) drawField(doc, margin, contentW, 'Description & remarques', desc);
+
+    drawSectionHeading(doc, margin, contentW, 'Occupant (locataire)', '3');
+    drawField(doc, margin, contentW, 'Identité', f.tenant.fullName);
+    if (f.tenant.phone?.trim()) drawField(doc, margin, contentW, 'Téléphone', f.tenant.phone);
+    if (f.tenant.email?.trim()) drawField(doc, margin, contentW, 'Adresse e-mail', f.tenant.email);
+
+    drawSectionHeading(doc, margin, contentW, 'Conditions financières & bail', '4');
+    drawField(doc, margin, contentW, 'Loyer mensuel hors charges', fcfaPdf(f.financial.monthlyRent));
+    drawField(doc, margin, contentW, 'Jour d’échéance chaque mois', `Le ${f.financial.rentDueDay}`);
+    drawField(doc, margin, contentW, 'Date de prise d’effet / fin du bail', `${fmtDateFr(f.startDate)}  →  ${f.endDate ? fmtDateFr(f.endDate) : 'Sans date de fin (tacite reconduction possible selon contrat)'}`);
+    drawField(doc, margin, contentW, 'État du bail', f.active ? 'Actif' : 'Inactif');
+    if (f.financial.depositAmount != null && f.financial.depositAmount > 0) {
+      const dep = `${fcfaPdf(f.financial.depositAmount)} (${f.financial.depositPaidAt ? 'dépôt encaissé' : 'dépôt non encaissé'})`;
+      drawField(doc, margin, contentW, 'Dépôt de garantie (caution)', dep);
+    }
+    drawField(
+      doc,
+      margin,
+      contentW,
+      'Loyer — mois en cours (situation à la génération)',
+      f.financial.currentPaymentStatusFr,
+    );
+
+    const schedule = (f.paymentSchedule ?? []).slice(0, 48).map((p) => ({
+      periodYear: p.periodYear,
+      periodMonth: p.periodMonth,
+      dueDate: p.dueDate,
+      amountDue: p.amountDue,
+      amountPaid: p.amountPaid,
+      statusFr: p.statusFr,
+    }));
+
+    drawSectionHeading(doc, margin, contentW, 'Historique des échéances (extraits)', '5');
+    const yTable = doc.y;
+    if (schedule.length > 0) {
+      drawScheduleTable(doc, margin, contentW, pageTop, pageBottom, schedule, fcfaPdf, yTable);
+    } else {
+      doc.fillColor('#64748b').font('Helvetica').fontSize(9).text('Aucune échéance enregistrée pour ce bail.', margin, yTable, {
+        width: contentW,
+      });
+      doc.moveDown(1);
+    }
+
+    drawFooter(doc, margin, contentW, pageH);
+
+    doc.end();
+    await new Promise<void>((resolve) => doc.on('end', () => resolve()));
+    return Buffer.concat(chunks);
   }
 
   private async ensure(id: string, organizationId: string) {

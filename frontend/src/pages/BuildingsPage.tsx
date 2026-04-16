@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
 import { BuildingScopeBadge } from '@/components/BuildingUnitBadges';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
@@ -333,7 +334,15 @@ export function BuildingsPage() {
           iconTo="/biens"
           title="Biens immobiliers"
           hintTitle="Immeuble collectif, villa, entrepôt, terrain… même principe : nom du site + localisation (Côte d’Ivoire). Supprimer un bien : bouton en bas de carte (supprime aussi unités, baux et loyers liés)."
-          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
+          titleExtra={
+            <div className="flex flex-wrap items-center gap-2">
+              <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
+              <PdfPrintButton
+                path="/reports/table-biens.pdf"
+                title="Liste de tous les biens en PDF (aperçu comme la liste ci-dessous)"
+              />
+            </div>
+          }
         />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddForm()}>
           <span className="text-base leading-none" aria-hidden>

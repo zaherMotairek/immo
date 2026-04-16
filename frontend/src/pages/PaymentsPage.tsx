@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
@@ -83,6 +84,21 @@ export function PaymentsPage() {
     if (overdueOnly) return 'all';
     return new Date().getMonth() + 1;
   }, [monthParam, overdueOnly]);
+
+  const worksheetPdfPath = useMemo(() => {
+    const q = new URLSearchParams();
+    if (overdueOnly) q.set('overdue', '1');
+    if (leaseIdFilter) q.set('leaseId', leaseIdFilter);
+    else {
+      if (buildingIdFilter) q.set('buildingId', buildingIdFilter);
+      if (unitIdFilter) q.set('unitId', unitIdFilter);
+      if (tenantIdFilter) q.set('tenantId', tenantIdFilter);
+    }
+    if (yearFilter !== 'all') q.set('year', String(yearFilter));
+    if (monthFilter !== 'all') q.set('month', String(monthFilter));
+    const s = q.toString();
+    return `/payments/worksheet.pdf${s ? `?${s}` : ''}`;
+  }, [overdueOnly, leaseIdFilter, buildingIdFilter, unitIdFilter, tenantIdFilter, yearFilter, monthFilter]);
 
   const [rows, setRows] = useState<PaymentRow[]>([]);
   const [paymentsReady, setPaymentsReady] = useState(false);
@@ -561,7 +577,15 @@ export function PaymentsPage() {
               iconTo="/paiements"
               title="Paiements"
               hintTitle="Échéances de loyer uniquement (hors dépôt de garantie). Caution : fiche location. Relances e-mail et WhatsApp."
-              titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
+              titleExtra={
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
+                  <PdfPrintButton
+                    path={worksheetPdfPath}
+                    title="Feuille de route PDF (mêmes filtres que la liste) : cases perçu, notes, puis saisie dans l’app"
+                  />
+                </div>
+              }
             />
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               {leaseIdFilter ? (

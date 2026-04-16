@@ -1,12 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { ChargeCategory, PaymentStatus, UnitKind } from '@prisma/client';
+import { BuildingStructureKind, ChargeCategory, PaymentStatus, UnitKind } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit') as typeof import('pdfkit');
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ChargesService } from '../charges/charges.service';
+import { LeasesService } from '../leases/leases.service';
+import { TenantsService } from '../tenants/tenants.service';
+import { BuildingsService } from '../buildings/buildings.service';
 import { startOfTodayUtc } from '../common/date.util';
+import {
+  drawFooter,
+  drawSectionHeading,
+  drawTopBanner,
+  drawZebraTableEqualCols,
+  IMMO_PDF,
+} from '../common/immo-pdf';
 
 function paymentStatusFr(s: PaymentStatus | undefined): string {
   if (!s) return '—';
@@ -58,12 +68,15 @@ export class ReportsService {
     private readonly prisma: PrismaService,
     private readonly payments: PaymentsService,
     private readonly charges: ChargesService,
+    private readonly leases: LeasesService,
+    private readonly tenants: TenantsService,
+    private readonly buildings: BuildingsService,
   ) {}
 
   async buildPdf(year: number, organizationId: string): Promise<Buffer> {
     await this.payments.syncLateStatuses();
     const leaseInOrg = { unit: { building: { organizationId } } };
-    const [chargeSummary, overdue, allPaidYear] = await Promise.all([
+    const [chargeSummary, overdue, allPaidYear, org] = await Promise.all([
       this.charges.summary(organizationId, year),
       this.prisma.payment.findMany({
         where: {
@@ -85,55 +98,69 @@ export class ReportsService {
           lease: { include: { tenant: true, unit: { include: { building: true } } } },
         },
       }),
+      this.prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
     ]);
 
     const chunks: Buffer[] = [];
-    const doc = new PDFDocument({ margin: 48, size: 'A4' });
+    const margin = 48;
+    const doc = new PDFDocument({ margin, size: 'A4' });
     doc.on('data', (c: Buffer) => chunks.push(c));
+    const contentW = doc.page.width - margin * 2;
+    const pageH = doc.page.height;
 
-    doc.fontSize(18).text('ImmoPilot — Rapport annuel', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(11).fillColor('#444').text(`Année ${year}`, { align: 'center' });
-    doc.fillColor('#000');
-    doc.moveDown(1.5);
+    drawTopBanner(doc, margin, contentW, {
+      eyebrow: org?.name?.trim() || 'Organisation',
+      title: 'Rapport financier annuel',
+      subtitle: `Année civile ${year} · Charges, encaissement des loyers et points de vigilance`,
+    });
 
-    doc.fontSize(12).text('Synthèse charges & impôts', { underline: true });
-    doc.moveDown(0.3);
-    doc.fontSize(10).text(`Total charges enregistrées : ${this.fcfa(chargeSummary.totalCharges)}`);
-    doc.text(`Dont non réglées : ${this.fcfa(chargeSummary.unpaidCharges)}`);
-    doc.text(`Impôts / taxes (catégorie TAX) : ${this.fcfa(chargeSummary.highlights.impotsEtTaxes)}`);
-    doc.text(`Charges copro / honoraires (FEES) : ${this.fcfa(chargeSummary.highlights.chargesCoproEtHonoraires)}`);
-    doc.text(`Sécurité / gardiennage (SECURITY) : ${this.fcfa(chargeSummary.highlights.securite)}`);
-    doc.text(`Salaires & personnel (PAYROLL) : ${this.fcfa(chargeSummary.highlights.personnel)}`);
-    doc.moveDown(1);
+    drawSectionHeading(doc, margin, contentW, 'Charges & fiscalité (synthèse)', '1');
+    doc.font('Helvetica').fontSize(10).fillColor(IMMO_PDF.ink);
+    doc.text(`Total des charges enregistrées sur l’année : ${this.fcfa(chargeSummary.totalCharges)}`, { width: contentW });
+    doc.text(`Dont charges encore non réglées : ${this.fcfa(chargeSummary.unpaidCharges)}`, { width: contentW });
+    doc.moveDown(0.35);
+    doc.fontSize(9.5).text(`Détail par grande famille :`, { width: contentW });
+    doc.text(`· Impôts & taxes (TAX) : ${this.fcfa(chargeSummary.highlights.impotsEtTaxes)}`, { width: contentW });
+    doc.text(`· Copropriété & honoraires (FEES) : ${this.fcfa(chargeSummary.highlights.chargesCoproEtHonoraires)}`, { width: contentW });
+    doc.text(`· Sécurité & gardiennage (SECURITY) : ${this.fcfa(chargeSummary.highlights.securite)}`, { width: contentW });
+    doc.text(`· Salaires & personnel (PAYROLL) : ${this.fcfa(chargeSummary.highlights.personnel)}`, { width: contentW });
+    doc.moveDown(0.9);
 
-    doc.fontSize(12).text('Loyers encaissés (année)', { underline: true });
-    doc.moveDown(0.3);
+    drawSectionHeading(doc, margin, contentW, 'Encaissement des loyers (année)', '2');
     const encaisse = allPaidYear.reduce((s, p) => s + (p.amountPaid?.toNumber() ?? p.amountDue.toNumber()), 0);
-    doc.fontSize(10).text(`Nombre d’échéances payées : ${allPaidYear.length}`);
-    doc.text(`Montant total enregistré : ${this.fcfa(encaisse)}`);
-    doc.moveDown(1);
+    doc.font('Helvetica').fontSize(10).fillColor(IMMO_PDF.ink);
+    doc.text(`Nombre d’échéances enregistrées comme payées : ${allPaidYear.length}`, { width: contentW });
+    doc.text(`Montant total encaissé (selon saisies) : ${this.fcfa(encaisse)}`, { width: contentW });
+    doc.moveDown(0.9);
 
-    doc.fontSize(12).text('Alertes — échéances en retard ou impayées', { underline: true });
-    doc.moveDown(0.3);
+    drawSectionHeading(doc, margin, contentW, 'Points de vigilance — impayés & retards', '3');
     if (overdue.length === 0) {
-      doc.fontSize(10).text('Aucune échéance en retard pour cette année.');
+      doc.font('Helvetica').fontSize(10).fillColor(IMMO_PDF.muted).text('Aucune échéance en retard pour cette année.', {
+        width: contentW,
+      });
     } else {
-      doc.fontSize(9);
+      doc.font('Helvetica').fontSize(9).fillColor(IMMO_PDF.ink);
       for (const p of overdue.slice(0, 25)) {
         const t = p.lease.tenant;
         const name = t ? `${t.firstName} ${t.lastName}` : '—';
         const unitLabel = p.lease.unit?.label ?? '—';
         const im = p.lease.unit?.building?.name ?? '—';
         doc.text(
-          `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')} · ${name} · ${unitLabel} (${im}) · ${this.fcfa(p.amountDue.toNumber())} · échéance ${p.dueDate.toISOString().slice(0, 10)}`,
+          `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')} · ${name} · ${unitLabel} (${im}) · ${this.fcfa(
+            p.amountDue.toNumber(),
+          )} · échéance ${p.dueDate.toISOString().slice(0, 10)}`,
+          { width: contentW },
         );
+        doc.moveDown(0.25);
       }
-      if (overdue.length > 25) doc.text(`… et ${overdue.length - 25} autre(s) ligne(s).`);
+      if (overdue.length > 25) {
+        doc.fillColor(IMMO_PDF.muted).text(`… et ${overdue.length - 25} autre(s) ligne(s) non détaillées ici.`, {
+          width: contentW,
+        });
+      }
     }
 
-    doc.moveDown(1.5);
-    doc.fontSize(8).fillColor('#888').text(`Généré le ${new Date().toLocaleString('fr-FR')}`, { align: 'right' });
+    drawFooter(doc, margin, contentW, pageH);
 
     doc.end();
     await new Promise<void>((resolve) => doc.on('end', () => resolve()));
@@ -530,6 +557,125 @@ export class ReportsService {
         }
       }
     }
+  }
+
+  /** Tableau récapitulatif (paysage) pour export « comme à l’écran ». */
+  async buildLeasesTablePdf(organizationId: string): Promise<Buffer> {
+    await this.payments.syncLateStatuses();
+    const list = await this.leases.list(organizationId);
+    const headers = ['Locataire', 'Bien', 'Unité', 'Loyer / mois', 'Début', 'Fin', 'Statut'];
+    const rows = list.map((l) => [
+      this.truncPdfCell(`${l.tenant.firstName} ${l.tenant.lastName}`, 28),
+      this.truncPdfCell(l.unit.building.name, 32),
+      this.truncPdfCell(`${l.unit.label} (${unitKindFr(l.unit.kind)})`, 24),
+      this.truncPdfCell(this.fcfa(l.monthlyRent.toNumber()), 16),
+      l.startDate.toISOString().slice(0, 10),
+      l.endDate ? l.endDate.toISOString().slice(0, 10) : '—',
+      l.active ? 'Actif' : 'Inactif',
+    ]);
+    const n = list.length;
+    const sub = `${n} contrat${n === 1 ? '' : 's'} de location enregistré${n === 1 ? '' : 's'}`;
+    return this.renderDataTablePdf('Registre des baux', sub, headers, rows);
+  }
+
+  async buildTenantsTablePdf(organizationId: string): Promise<Buffer> {
+    const list = await this.tenants.list(organizationId);
+    const headers = ['Locataire', 'Téléphone', 'E-mail', 'Bien / unité'];
+    const rows = list.map((t) => {
+      const lease = t.leases[0];
+      const bu = lease ? `${lease.unit.building.name} — ${lease.unit.label}` : '—';
+      return [
+        this.truncPdfCell(`${t.firstName} ${t.lastName}`, 32),
+        this.truncPdfCell(t.phone ?? '—', 22),
+        this.truncPdfCell(t.email ?? '—', 36),
+        this.truncPdfCell(bu, 48),
+      ];
+    });
+    return this.renderDataTablePdf(
+      'Registre des locataires',
+      `${list.length} fiche${list.length === 1 ? '' : 's'} locataire${list.length === 1 ? '' : 's'}`,
+      headers,
+      rows,
+    );
+  }
+
+  async buildBuildingsTablePdf(organizationId: string): Promise<Buffer> {
+    const list = await this.buildings.list(organizationId);
+    const headers = ['Nom du bien', 'Lieu', 'Type', 'Nb unités'];
+    const rows = list.map((b) => [
+      this.truncPdfCell(b.name, 40),
+      this.truncPdfCell([b.commune, b.city].filter(Boolean).join(' · ') || '—', 44),
+      this.structureKindLabel(b.structureKind),
+      String(b._count.units),
+    ]);
+    return this.renderDataTablePdf(
+      'Patrimoine — synthèse des biens',
+      `${list.length} site${list.length === 1 ? '' : 's'} immobilier${list.length === 1 ? '' : 's'}`,
+      headers,
+      rows,
+    );
+  }
+
+  async buildLocationsTablePdf(organizationId: string, activeOnly: boolean): Promise<Buffer> {
+    const overview = await this.leases.listOverview(organizationId, activeOnly);
+    const headers = ['Lieu', 'Bien — unité', 'Locataire', 'Loyer', 'Échéance', 'Mois en cours', 'Bail'];
+    const rows = overview.map((r) => [
+      this.truncPdfCell(r.localizationLine, 28),
+      this.truncPdfCell(`${r.buildingName} — ${r.unitLabel}`, 36),
+      this.truncPdfCell(r.tenantFullName, 28),
+      this.truncPdfCell(this.fcfa(r.monthlyRent), 14),
+      `le ${r.rentDueDay}`,
+      this.truncPdfCell(r.currentMonthStatusFr, 14),
+      r.active ? 'Actif' : 'Inactif',
+    ]);
+    const sub = `${overview.length} occupation${overview.length === 1 ? '' : 's'}${activeOnly ? ' · baux actifs uniquement' : ' · tous statuts'}`;
+    return this.renderDataTablePdf('Locations & statut des loyers', sub, headers, rows);
+  }
+
+  private structureKindLabel(k: BuildingStructureKind): string {
+    switch (k) {
+      case BuildingStructureKind.IMMEUBLE:
+        return 'Multi locataires';
+      case BuildingStructureKind.TERRAIN_LOTS:
+        return 'Terrain lots';
+      default:
+        return 'Un seul lot';
+    }
+  }
+
+  private truncPdfCell(s: string, maxChars: number): string {
+    const t = String(s).replace(/\s+/g, ' ').trim();
+    return t.length <= maxChars ? t : `${t.slice(0, Math.max(0, maxChars - 1))}…`;
+  }
+
+  private async renderDataTablePdf(
+    title: string,
+    subtitle: string,
+    headers: string[],
+    rows: string[][],
+  ): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    const margin = 44;
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin });
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    const contentW = doc.page.width - margin * 2;
+    const pageH = doc.page.height;
+    const pageTop = margin;
+    const pageBottom = pageH - margin - 34;
+
+    drawTopBanner(doc, margin, contentW, {
+      eyebrow: 'Synthèse exportable',
+      title,
+      subtitle,
+    });
+
+    const startY = doc.y + 6;
+    drawZebraTableEqualCols(doc, margin, contentW, pageTop, pageBottom, headers, rows, startY);
+
+    drawFooter(doc, margin, contentW, pageH);
+    doc.end();
+    await new Promise<void>((resolve) => doc.on('end', () => resolve()));
+    return Buffer.concat(chunks);
   }
 
   private fcfa(n: number) {

@@ -67,7 +67,7 @@ export const NAV_ROUTE_LABELS: Record<string, string> = {
   '/paiements': 'Paiements',
   '/cautions': 'Cautions',
   '/charges': 'Charges',
-  '/exports': 'Exports',
+  '/exports': 'Export / import',
 };
 
 const NAV_VERB =
@@ -119,7 +119,10 @@ function tryParseNavigation(t: string): ParsedAssistantCommand | null {
     },
     { path: '/cautions', patterns: [...navPatterns('cautions?'), ...navPatterns('dépôts?'), ...navPatterns('depots?')] },
     { path: '/charges', patterns: [...navPatterns('charges?'), ...navPatterns('dépenses?'), ...navPatterns('depenses?')] },
-    { path: '/exports', patterns: [...navPatterns('exports?'), /^export\s*$/i] },
+    {
+      path: '/exports',
+      patterns: [...navPatterns('exports?'), /^export\s*$/i, /^import\s*$/i, /export\s*\/\s*import/i],
+    },
   ];
 
   for (const { path, patterns } of routes) {
@@ -212,7 +215,7 @@ export const ASSISTANT_HELP_FR = `Exemples (prototype, sans vrai modèle IA) :
 Navigation (ouvrir une page) :
 • Tableau de bord / accueil / montrez le tableau de bord
 • Les biens / voir les locataires / ouvrez les baux / les locations
-• Paiements / échéances / cautions / charges / exports
+• Paiements / échéances / cautions / charges / export–import
 
 Paiements (échéances loyer) :
 • Payer pour Jean Dupont — solde la prochaine échéance impayée de ce locataire

@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
@@ -277,7 +278,19 @@ export function LocationsPage() {
           iconTo="/locations"
           title="Locations"
           hintTitle="Pour chaque bail : localisation, locataire, loyer, statut du mois. Fiche = détail. Supprimer = supprime le bail et les paiements (pas le bien ni le locataire)."
-          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
+          titleExtra={
+            <div className="flex flex-wrap items-center gap-2">
+              <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
+              <PdfPrintButton
+                path={`/reports/table-locations.pdf${showAll ? '?all=1' : ''}`}
+                title={
+                  showAll
+                    ? 'Liste des locations en PDF (actives et inactives)'
+                    : 'Liste des locations en PDF (baux actifs — comme le filtre ci-dessous)'
+                }
+              />
+            </div>
+          }
         />
         <Button variant={showAll ? 'primary' : 'secondary'} className="py-2 text-xs" onClick={() => setShowAll((v) => !v)}>
           {showAll ? 'Actives seulement' : 'Voir aussi inactives'}
