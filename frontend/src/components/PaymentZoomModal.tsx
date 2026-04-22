@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
-import { paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
+import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { unitKindLabel } from '@/lib/unitKind';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
-import { AmountFcfaInput, Button, Card, Label } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, Input, Label } from '@/components/ui';
+import { COLLECTION_METHOD_OPTIONS, reminderChannelLabel } from '@/lib/collectionMethodUi';
+import { formatPhoneForWhatsApp } from '@/lib/whatsappReminder';
 
 export type PaymentZoomModalProps = {
   paymentId: string | null;
@@ -23,6 +25,11 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
   const [partialAmount, setPartialAmount] = useState('');
   const [partialErr, setPartialErr] = useState('');
   const [partialSubmitting, setPartialSubmitting] = useState(false);
+
+  const [methodDraft, setMethodDraft] = useState('');
+  const [refDraft, setRefDraft] = useState('');
+  const [savingCollection, setSavingCollection] = useState(false);
+  const [loggingWa, setLoggingWa] = useState(false);
 
   const reloadRow = useCallback(() => {
     if (!paymentId) return Promise.resolve();
@@ -53,6 +60,12 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
   }, [paymentId]);
 
   useEffect(() => {
+    if (!row) return;
+    setMethodDraft(row.collectionMethod ?? '');
+    setRefDraft(row.collectionReference ?? '');
+  }, [row?.id, row?.collectionMethod, row?.collectionReference]);
+
+  useEffect(() => {
     if (!paymentId) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -62,16 +75,51 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
   }, [paymentId, onClose]);
 
   async function markPaid(p: PaymentRow) {
-    await api(`/payments/${p.id}`, {
-      method: 'PATCH',
-      json: {
-        status: 'PAID',
-        amountPaid: Number(p.amountDue),
-        paidAt: new Date().toISOString().slice(0, 10),
-      },
-    });
+    const json: Record<string, unknown> = {
+      status: 'PAID',
+      amountPaid: Number(p.amountDue),
+      paidAt: new Date().toISOString().slice(0, 10),
+    };
+    if (methodDraft) json.collectionMethod = methodDraft;
+    if (refDraft.trim()) json.collectionReference = refDraft.trim();
+    await api(`/payments/${p.id}`, { method: 'PATCH', json });
     await reloadRow();
     onUpdated?.();
+  }
+
+  async function saveCollectionMeta(p: PaymentRow) {
+    setSavingCollection(true);
+    try {
+      await api(`/payments/${p.id}`, {
+        method: 'PATCH',
+        json: {
+          collectionMethod: methodDraft || null,
+          collectionReference: refDraft.trim() || null,
+        },
+      });
+      await reloadRow();
+      onUpdated?.();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Enregistrement impossible.');
+    } finally {
+      setSavingCollection(false);
+    }
+  }
+
+  async function logWhatsAppReminder(p: PaymentRow) {
+    setLoggingWa(true);
+    try {
+      await api(`/payments/${p.id}/reminders`, {
+        method: 'POST',
+        json: { channel: 'WHATSAPP' },
+      });
+      await reloadRow();
+      onUpdated?.();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Enregistrement impossible.');
+    } finally {
+      setLoggingWa(false);
+    }
   }
 
   function openPartialModal(p: PaymentRow) {
@@ -216,6 +264,66 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
           </div>
         </div>
 
+        <div className="border-t border-slate-200/90 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/95 sm:px-5">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Encaissement (sans compte bancaire relié)
+          </p>
+          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+            Espèces, Orange Money, Wave, virement… + référence libre (n° opération).
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="min-w-0 flex-1 sm:max-w-[13rem]">
+              <Label htmlFor="zoom-pay-method">Mode</Label>
+              <select
+                id="zoom-pay-method"
+                className="mt-1 w-full min-h-11 rounded-[var(--radius-input)] border border-slate-200/95 bg-white px-3 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04)] dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50"
+                value={methodDraft}
+                onChange={(e) => setMethodDraft(e.target.value)}
+              >
+                {COLLECTION_METHOD_OPTIONS.map((o) => (
+                  <option key={o.value === '' ? '_' : o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0 flex-[2] sm:max-w-md">
+              <Label htmlFor="zoom-pay-ref">Référence</Label>
+              <Input
+                id="zoom-pay-ref"
+                className="mt-1 min-h-11 text-sm"
+                value={refDraft}
+                onChange={(e) => setRefDraft(e.target.value)}
+                placeholder="Ex. ID opérateur, libellé virement…"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-11 w-full shrink-0 sm:w-auto"
+              disabled={savingCollection}
+              onClick={() => void saveCollectionMeta(p)}
+            >
+              {savingCollection ? '…' : 'Enregistrer'}
+            </Button>
+          </div>
+          {p.reminders && p.reminders.length > 0 ? (
+            <div className="mt-3 rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/50">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Relances notées
+              </p>
+              <ul className="mt-1 max-h-28 space-y-0.5 overflow-y-auto text-xs text-slate-700 dark:text-slate-300">
+                {p.reminders.map((r) => (
+                  <li key={r.id}>
+                    {new Date(r.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
+                    {reminderChannelLabel(r.channel)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+
         <div className="border-t border-slate-200/90 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900/95 sm:px-5">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Actions</p>
           <div className="flex flex-row flex-wrap items-center gap-2">
@@ -228,6 +336,19 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
               onMarkPaid={markPaid}
             />
           </div>
+          {isOverduePayment(p) && formatPhoneForWhatsApp(p.lease.tenant.phone) ? (
+            <div className="mt-3 border-t border-slate-200/80 pt-3 dark:border-slate-600">
+              <Button
+                type="button"
+                variant="primarySoft"
+                className="w-full min-h-10 py-2 text-xs sm:inline-flex sm:w-auto"
+                disabled={loggingWa}
+                onClick={() => void logWhatsAppReminder(p)}
+              >
+                {loggingWa ? '…' : 'J’ai envoyé une relance WhatsApp — noter ici'}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </article>
     );

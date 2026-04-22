@@ -104,7 +104,10 @@ function LocationSortTh({
 }) {
   const active = activeKey === columnKey;
   return (
-    <th scope="col" className={`whitespace-nowrap px-4 py-2.5 sm:px-5 ${align === 'end' ? 'text-right' : ''} ${thClassName}`}>
+    <th
+      scope="col"
+      className={`min-w-0 whitespace-normal px-2 py-2.5 leading-tight sm:whitespace-nowrap sm:px-4 sm:py-2.5 lg:px-5 ${align === 'end' ? 'text-right' : ''} ${thClassName}`}
+    >
       <button
         type="button"
         onClick={() => onSort(columnKey)}
@@ -434,8 +437,18 @@ export function LocationsPage() {
                 </div>
               </div>
             </div>
-            <div className="overflow-x-auto bg-white dark:bg-slate-950/30">
-              <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+            <div className="min-w-0 overflow-x-auto bg-white dark:bg-slate-950/30">
+              <table className="w-full min-w-0 table-fixed border-collapse text-left text-sm">
+                <colgroup>
+                  <col className="w-[11%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[17%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                     <LocationSortTh
@@ -489,7 +502,7 @@ export function LocationsPage() {
                       dir={tableSortDir}
                       onSort={toggleTableSort}
                     />
-                    <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    <th className="min-w-0 w-[9rem] whitespace-normal px-2 py-2.5 text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.06em] text-slate-500 sm:w-[1%] sm:whitespace-nowrap sm:px-4 lg:px-5 dark:text-slate-400">
                       Actions
                     </th>
                   </tr>
@@ -501,51 +514,53 @@ export function LocationsPage() {
                       id={`loc-row-${r.leaseId}`}
                       className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${rowFlashClass(flashLeaseId === r.leaseId)}`}
                     >
-                      <td className={`${listTableFirstCellClass} max-w-[14rem] text-slate-700 dark:text-slate-300`}>
-                        <span className="line-clamp-2 text-xs leading-snug">{r.localizationLine}</span>
+                      <td className={`${listTableFirstCellClass} min-w-0 max-w-0 text-slate-700 dark:text-slate-300`}>
+                        <span className="block break-words text-xs leading-snug">{r.localizationLine}</span>
                       </td>
-                      <td className={`${listTableCellClass} min-w-0`}>
+                      <td className={`${listTableCellClass} min-w-0 break-words px-2 py-3 sm:px-4 sm:py-4 lg:px-5`}>
                         <SmartLink
                           to={hrefBiensUnit(r.buildingId, r.unitId, r.unitLabel, `/locations/${r.leaseId}`)}
                           returnFocusId={r.leaseId}
-                          className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
+                          className="font-semibold leading-snug text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                         >
                           {r.buildingName} — {r.unitLabel}
                         </SmartLink>
-                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{unitKindLabel(r.unitKind)}</p>
+                        <p className="mt-0.5 break-words text-xs text-slate-500 dark:text-slate-400">{unitKindLabel(r.unitKind)}</p>
                       </td>
-                      <td className={`${listTableCellClass} font-medium text-slate-900 dark:text-slate-100`}>
+                      <td className={`${listTableCellClass} min-w-0 break-words px-2 py-3 font-medium text-slate-900 sm:px-4 sm:py-4 lg:px-5 dark:text-slate-100`}>
                         <SmartLink
                           to={`/locataires?edit=${encodeURIComponent(r.tenantId)}`}
-                          className="text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
+                          className="leading-snug text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
                         >
                           {r.tenantFullName}
                         </SmartLink>
                       </td>
-                      <td className={`${listTableCellClass} text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200`}>
+                      <td className={`${listTableCellClass} min-w-0 px-2 py-3 text-right text-xs tabular-nums font-semibold leading-snug text-slate-800 sm:px-4 sm:py-4 sm:text-sm lg:px-5 dark:text-slate-200`}>
                         {fcfa(r.monthlyRent)}
                       </td>
-                      <td className={`${listTableCellClass} tabular-nums text-slate-700 dark:text-slate-300`}>le {r.rentDueDay}</td>
-                      <td className={listTableCellClass}>
-                        <span className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusClass(r.currentMonthStatusFr)}`}>
+                      <td className={`${listTableCellClass} min-w-0 px-2 py-3 tabular-nums text-xs text-slate-700 sm:px-4 sm:py-4 sm:text-sm lg:px-5 dark:text-slate-300`}>
+                        le {r.rentDueDay}
+                      </td>
+                      <td className={`${listTableCellClass} min-w-0 px-2 py-3 sm:px-4 sm:py-4 lg:px-5`}>
+                        <span className={`inline-block max-w-full break-words rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide sm:px-2 sm:text-[10px] ${statusClass(r.currentMonthStatusFr)}`}>
                           {r.currentMonthStatusFr}
                         </span>
                       </td>
-                      <td className={`${listTableCellClass} text-xs font-medium text-slate-600 dark:text-slate-400`}>
+                      <td className={`${listTableCellClass} min-w-0 px-2 py-3 text-xs font-medium text-slate-600 sm:px-4 sm:py-4 lg:px-5 dark:text-slate-400`}>
                         {r.active ? 'Actif' : 'Inactif'}
                       </td>
-                      <td className={`${listTableCellClass} text-right`}>
-                        <div className="flex flex-wrap justify-end gap-1.5">
+                      <td className={`${listTableCellClass} min-w-0 px-2 py-3 text-right sm:px-4 sm:py-4 lg:px-5`}>
+                        <div className="flex flex-col items-end gap-1 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-1.5">
                           <SmartLink
                             to={`/locations/${r.leaseId}`}
                             returnFocusId={r.leaseId}
-                            className="rounded-md px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
+                            className="inline-block rounded-md px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
                           >
                             Fiche
                           </SmartLink>
                           <button
                             type="button"
-                            className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                            className="inline-block rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                             onClick={() => void requestDeleteLocation(r)}
                           >
                             Supprimer

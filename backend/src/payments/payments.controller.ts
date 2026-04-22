@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BulkReceiptDto } from './dto/bulk-receipt.dto';
+import { LogReminderDto } from './dto/log-reminder.dto';
 import { WaivePaymentDto } from './dto/waive-payment.dto';
 
 @Controller('payments')
@@ -89,6 +90,12 @@ export class PaymentsController {
   @Post(':id/send-reminder')
   sendReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.payments.sendOverdueReminder(id, user.organizationId);
+  }
+
+  /** Noter une relance WhatsApp (après envoi manuel — sans API opérateur). */
+  @Post(':id/reminders')
+  logReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: LogReminderDto) {
+    return this.payments.logReminder(id, user.organizationId, dto.channel);
   }
 
   /** Gratuité de loyer (geste commercial) : motif obligatoire, pas d’encaissement. */

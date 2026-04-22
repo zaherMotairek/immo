@@ -17,6 +17,9 @@ import { CautionsEncaisséesPage } from './pages/CautionsEncaisséesPage';
 import { ChargesPage } from './pages/ChargesPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { AdminClientsPage } from './pages/AdminClientsPage';
 
 function Protected({ children }: { children: ReactElement }) {
   const { user, ready } = useAuth();
@@ -24,6 +27,14 @@ function Protected({ children }: { children: ReactElement }) {
     return <AppLoadingScreen message="Ouverture de la session…" />;
   }
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function PlatformAdminOnly({ children }: { children: ReactElement }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <AppLoadingScreen message="Ouverture de la session…" />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'PLATFORM_ADMIN') return <Navigate to="/" replace />;
   return children;
 }
 
@@ -37,6 +48,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/mot-de-passe-oubli" element={<ForgotPasswordPage />} />
+      <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
       <Route
         path="/"
         element={
@@ -60,6 +73,14 @@ export default function App() {
         <Route path="charges" element={<ChargesPage />} />
         <Route path="exports" element={<ExportsPage />} />
         <Route path="profil" element={<ProfilePage />} />
+        <Route
+          path="admin"
+          element={
+            <PlatformAdminOnly>
+              <AdminClientsPage />
+            </PlatformAdminOnly>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

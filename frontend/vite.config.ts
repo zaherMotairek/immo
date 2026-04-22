@@ -48,6 +48,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/auth': { target: 'http://localhost:4000', changeOrigin: true },
+      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
       '/buildings': { target: 'http://localhost:4000', changeOrigin: true },
       '/units': { target: 'http://localhost:4000', changeOrigin: true },
       '/tenants': { target: 'http://localhost:4000', changeOrigin: true },

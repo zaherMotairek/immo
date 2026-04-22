@@ -26,6 +26,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (payload.organizationId != null && user.organizationId !== payload.organizationId) {
       throw new UnauthorizedException();
     }
-    return { id: user.id, email: user.email, name: user.name, organizationId: user.organizationId };
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      organizationId: user.organizationId,
+      role: user.role === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'USER',
+    };
   }
 }

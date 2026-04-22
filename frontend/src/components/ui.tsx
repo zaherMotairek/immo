@@ -16,7 +16,7 @@ export function Card({
   return (
     <div
       {...rest}
-      className={`rounded-2xl border border-slate-300/90 bg-white p-4 text-slate-900 shadow-[0_1px_3px_rgb(15_23_42/0.07),0_8px_28px_rgb(15_23_42/0.08)] ring-1 ring-slate-900/[0.04] sm:p-5 dark:border-slate-700/75 dark:bg-slate-900/92 dark:text-slate-100 dark:shadow-[0_2px_8px_rgb(0_0_0/0.25)] dark:ring-white/[0.05] ${className}`}
+      className={`rounded-[var(--radius-card)] border border-slate-200/95 bg-white p-4 text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_6px_24px_rgb(15_23_42/0.06)] ring-1 ring-slate-900/[0.035] sm:p-5 dark:border-slate-700/72 dark:bg-slate-900/94 dark:text-slate-100 dark:shadow-[0_2px_10px_rgb(0_0_0/0.22)] dark:ring-white/[0.045] ${className}`}
     >
       {children}
     </div>
@@ -69,7 +69,7 @@ export function Button({
   variant?: 'primary' | 'primarySoft' | 'secondary' | 'ghost' | 'danger';
 }) {
   const base =
-    'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 active:scale-[0.98]';
+    'inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-input)] px-4 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 active:scale-[0.98]';
   const styles = {
     primary: 'bg-brand-600 text-white shadow-md shadow-brand-600/25 hover:bg-brand-700 focus-visible:outline-brand-600',
     /** Même famille que le primaire, ton plus clair (ex. acompte à côté de « Marquer payé »). */
@@ -88,7 +88,7 @@ export function Button({
 }
 
 const inputBaseClass =
-  'w-full min-h-10 rounded-xl border border-slate-200/95 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm placeholder:font-normal placeholder:text-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/18 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:placeholder:text-slate-400 dark:focus:bg-slate-950 dark:focus:ring-brand-500/22';
+  'w-full min-h-10 rounded-[var(--radius-input)] border border-slate-200/95 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04)] placeholder:font-normal placeholder:text-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:placeholder:text-slate-400 dark:focus:bg-slate-950 dark:focus:ring-brand-500/24';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className = '', ...props },

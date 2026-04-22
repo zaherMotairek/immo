@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PaymentStatus } from '@prisma/client';
+import { PaymentStatus, ReminderChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { startOfTodayUtc } from '../common/date.util';
@@ -18,6 +18,7 @@ import {
   drawSectionHeading,
   drawTopBanner,
   drawWorksheetLegend,
+  formatFcfaPdf,
   type PaymentsWorksheetRow,
 } from '../common/immo-pdf';
 
@@ -118,9 +119,7 @@ export class PaymentsService {
         id,
         lease: { unit: { building: { organizationId } } },
       },
-      include: {
-        lease: { include: { tenant: true, unit: { include: { building: true } } } },
-      },
+      include: this.paymentDetailInclude(),
     });
     if (!p) throw new NotFoundException('Paiement introuvable');
     return p;
@@ -172,6 +171,9 @@ export class PaymentsService {
         buildingName: bu.name,
         unitLabel: un.label,
       });
+      await this.prisma.paymentReminder.create({
+        data: { paymentId: p.id, channel: ReminderChannel.EMAIL },
+      });
       return {
         ok: true,
         simulated,
@@ -183,6 +185,28 @@ export class PaymentsService {
       const msg = e instanceof Error ? e.message : 'Envoi impossible';
       throw new BadRequestException(`Échec d’envoi e-mail : ${msg}`);
     }
+  }
+
+  /** Enregistre une relance WhatsApp (après envoi manuel depuis le lien — pas d’API WhatsApp). */
+  async logReminder(id: string, organizationId: string, channel: ReminderChannel) {
+    await this.syncLateStatuses();
+    await this.ensure(id, organizationId);
+    const p = await this.prisma.payment.findFirst({
+      where: { id, lease: { unit: { building: { organizationId } } } },
+      select: { status: true },
+    });
+    if (!p) throw new NotFoundException('Paiement introuvable');
+    if (
+      p.status === PaymentStatus.PAID ||
+      p.status === PaymentStatus.CANCELLED ||
+      p.status === PaymentStatus.WAIVED
+    ) {
+      throw new BadRequestException('Cette échéance est déjà soldée ou close : inutile de noter une relance.');
+    }
+    await this.prisma.paymentReminder.create({
+      data: { paymentId: id, channel },
+    });
+    return { ok: true };
   }
 
   /**
@@ -219,9 +243,7 @@ export class PaymentsService {
         amountPaid: null,
         paidAt: null,
       },
-      include: {
-        lease: { include: { tenant: true, unit: { include: { building: true } } } },
-      },
+      include: this.paymentDetailInclude(),
     });
   }
 
@@ -277,12 +299,11 @@ export class PaymentsService {
         paidAt: paidFull ? (dto.paidAt ? new Date(dto.paidAt) : new Date()) : null,
       };
       if (dto.notes !== undefined) data.notes = dto.notes;
+      this.mergeCollectionFields(dto, data);
       return this.prisma.payment.update({
         where: { id },
         data,
-        include: {
-          lease: { include: { tenant: true, unit: { include: { building: true } } } },
-        },
+        include: this.paymentDetailInclude(),
       });
     }
 
@@ -308,13 +329,27 @@ export class PaymentsService {
         }
       }
     }
+    this.mergeCollectionFields(dto, data);
     return this.prisma.payment.update({
       where: { id },
       data,
-      include: {
-        lease: { include: { tenant: true, unit: { include: { building: true } } } },
-      },
+      include: this.paymentDetailInclude(),
     });
+  }
+
+  private paymentDetailInclude() {
+    return {
+      lease: { include: { tenant: true, unit: { include: { building: true } } } },
+      reminders: { orderBy: { createdAt: 'desc' as const }, take: 40 },
+    };
+  }
+
+  private mergeCollectionFields(dto: UpdatePaymentDto, data: Record<string, unknown>) {
+    if (dto.collectionMethod !== undefined) data.collectionMethod = dto.collectionMethod;
+    if (dto.collectionReference !== undefined) {
+      const t = dto.collectionReference?.trim();
+      data.collectionReference = t && t.length > 0 ? t : null;
+    }
   }
 
   private async ensure(id: string, organizationId: string) {
@@ -322,13 +357,6 @@ export class PaymentsService {
       where: { id, lease: { unit: { building: { organizationId } } } },
     });
     if (!n) throw new NotFoundException('Paiement introuvable');
-  }
-
-  /** Chiffres groupés par espaces (sans « / » ni séparateurs exotiques du locale). */
-  private fcfa(n: number) {
-    const r = Math.round(Math.abs(Number(n)));
-    const s = r.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    return `${s} FCFA`;
   }
 
   private formatPeriodRef(month: number, year: number) {
@@ -359,7 +387,7 @@ export class PaymentsService {
       OFFICE: 'Bureau',
       WAREHOUSE: 'Entrepôt',
       COMMERCIAL: 'Local commercial',
-      GARAGE: 'Garage / parking',
+      GARAGE: 'Garage (parking)',
       OTHER: 'Autre',
     };
     return m[kind] ?? kind;
@@ -542,7 +570,7 @@ export class PaymentsService {
     doc.font('Helvetica-Bold').fontSize(7).fillColor(blue).text('MONTANT TOTAL ENCAISSÉ', amountBoxLeft + 8, amountBoxTop + 6, {
       width: amountBoxW - 16,
     });
-    doc.font('Helvetica-Bold').fontSize(20).fillColor(ink).text(this.fcfa(totalEncaissé), amountBoxLeft + 8, amountBoxTop + 22, {
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(ink).text(formatFcfaPdf(totalEncaissé), amountBoxLeft + 8, amountBoxTop + 22, {
       width: amountBoxW - 16,
       align: 'right',
     });
@@ -649,9 +677,9 @@ export class PaymentsService {
       const paidAtStr = p.paidAt ? this.formatDateNoSlash(p.paidAt) : '—';
       doc.fontSize(7.5);
       doc.text(`${monthLong}`, col.p, rowY, { width: 68 });
-      doc.text(this.fcfa(dueN), col.d, rowY, { width: 72 });
-      doc.text(this.fcfa(encN), col.e, rowY, { width: 80 });
-      doc.text(rest > eps ? this.fcfa(rest) : '0', col.r, rowY, { width: 72 });
+      doc.text(formatFcfaPdf(dueN), col.d, rowY, { width: 72 });
+      doc.text(formatFcfaPdf(encN), col.e, rowY, { width: 80 });
+      doc.text(rest > eps ? formatFcfaPdf(rest) : '0', col.r, rowY, { width: 72 });
       doc.text(paidAtStr, col.date, rowY, { width: 82 });
       doc.text(p.id.slice(0, 8) + '…', col.ref, rowY, { width: right - 12 - col.ref });
       doc.fontSize(6.5).fillColor('#64748b').text(`(${periodShort})`, col.p, rowY + 9, { width: 68 });
@@ -661,13 +689,13 @@ export class PaymentsService {
 
     doc.y = rowY + 6;
     doc.font('Helvetica-Bold').fontSize(9);
-    doc.text(`Total encaissé (ce document) : ${this.fcfa(totalEncaissé)}`, tableInnerLeft, doc.y, { width: tableInnerW });
+    doc.text(`Total encaissé (ce document) : ${formatFcfaPdf(totalEncaissé)}`, tableInnerLeft, doc.y, { width: tableInnerW });
     doc.moveDown(0.2);
     doc.font('Helvetica').fontSize(7.5).fillColor('#475569');
     doc.text(`Arrêté à : ${amountXofToFrenchWords(totalEncaissé)}`, { width: tableInnerW });
     doc.moveDown(0.35);
     doc.font('Helvetica-Bold').fontSize(9).fillColor('#111');
-    doc.text(`Somme des loyers dus (périodes listées) : ${this.fcfa(totalDû)}`, { width: tableInnerW });
+    doc.text(`Somme des loyers dus (périodes listées) : ${formatFcfaPdf(totalDû)}`, { width: tableInnerW });
     doc.moveDown(0.2);
     doc.font('Helvetica').fontSize(7.5).fillColor('#475569');
     doc.text(`Arrêté à : ${amountXofToFrenchWords(totalDû)}`, { width: tableInnerW });
@@ -747,6 +775,12 @@ export class PaymentsService {
     }
   }
 
+  /** Libellé période lisible (évite MM/AAAA au milieu d’une phrase). */
+  private monthYearTitleFr(month: number, year: number): string {
+    const raw = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
   private paymentsWorksheetFilterCaption(filters?: {
     overdueOnly?: boolean;
     leaseId?: string;
@@ -757,14 +791,14 @@ export class PaymentsService {
     tenantId?: string;
   }): string {
     const parts: string[] = [];
-    if (filters?.overdueOnly) parts.push('Impayés & retards');
+    if (filters?.overdueOnly) parts.push('Impayés et retards');
     if (filters?.leaseId?.trim()) parts.push('Un bail spécifique');
     if (filters?.tenantId?.trim()) parts.push('Locataire filtré');
     if (filters?.buildingId?.trim()) parts.push('Bien filtré');
     if (filters?.unitId?.trim()) parts.push('Local filtré');
     if (filters?.periodYear !== undefined && Number.isInteger(filters.periodYear)) {
       if (filters?.periodMonth !== undefined && Number.isInteger(filters.periodMonth)) {
-        parts.push(`Période : ${String(filters.periodMonth).padStart(2, '0')}/${filters.periodYear}`);
+        parts.push(`Période : ${this.monthYearTitleFr(filters.periodMonth, filters.periodYear)}`);
       } else {
         parts.push(`Année : ${filters.periodYear}`);
       }
@@ -797,9 +831,6 @@ export class PaymentsService {
       select: { name: true },
     });
 
-    const fcfa = (n: number) =>
-      new Intl.NumberFormat('fr-CI', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
-
     let totalDue = 0;
     let totalPaid = 0;
     let totalRemain = 0;
@@ -816,7 +847,7 @@ export class PaymentsService {
       const building = p.lease.unit?.building?.name;
       const unit = p.lease.unit?.label;
       const place = [building, unit].filter(Boolean).join(' — ') || '—';
-      const period = `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`;
+      const period = this.monthYearTitleFr(p.periodMonth, p.periodYear);
       const dueDate =
         p.dueDate instanceof Date ? p.dueDate.toISOString().slice(0, 10) : String(p.dueDate).slice(0, 10);
 
@@ -826,7 +857,7 @@ export class PaymentsService {
         period,
         dueDate,
         status: this.paymentStatusShortFr(p.status),
-        remaining: fcfa(rem),
+        remaining: formatFcfaPdf(rem),
       });
     }
 
@@ -875,15 +906,15 @@ export class PaymentsService {
         totalPaid,
         totalRemain,
       },
-      fcfa,
+      formatFcfaPdf,
     );
     drawSectionHeading(doc, margin, contentW, 'Échéances (même liste que à l’écran)', '1');
 
     const startY = doc.y;
     drawPaymentsListWorksheetTable(doc, margin, contentW, pageTop, pageBottom, startY, rows);
 
-    const legendRoom = 28;
-    const footerRoom = 30;
+    const legendRoom = 32;
+    const footerRoom = 38;
     if (doc.y > pageH - margin - legendRoom - footerRoom) {
       doc.addPage();
     }

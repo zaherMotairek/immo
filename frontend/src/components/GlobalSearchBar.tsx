@@ -486,7 +486,7 @@ export function GlobalSearchBar() {
               }
             }
           }}
-          className="w-full rounded-xl border-slate-200/95 bg-white py-2.5 pl-10 pr-[4.5rem] shadow-sm dark:border-slate-600 dark:bg-slate-800/95"
+          className="w-full min-h-11 rounded-[var(--radius-input)] border-slate-200/95 bg-white py-2.5 pl-10 pr-[4.5rem] shadow-[0_1px_2px_rgb(15_23_42/0.04)] transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/95 dark:focus:ring-brand-500/24"
         />
         {!loading && (
           <kbd

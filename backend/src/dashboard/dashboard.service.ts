@@ -11,8 +11,19 @@ import {
   drawWorksheetImpayesTable,
   drawWorksheetInstructionBox,
   drawWorksheetLegend,
+  formatFcfaPdf,
   type WorksheetAlertRow,
 } from '../common/immo-pdf';
+
+/** Période « AAAA-MM » → libellé du type « Février 2026 » (PDF uniquement). */
+function periodLabelFrFromKey(period: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(period.trim());
+  if (!m) return period;
+  const y = parseInt(m[1]!, 10);
+  const mo = parseInt(m[2]!, 10);
+  const raw = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(new Date(y, mo - 1, 1));
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
 
 @Injectable()
 export class DashboardService {
@@ -84,7 +95,15 @@ export class DashboardService {
             status: PaymentStatus.PENDING,
             dueDate: { gte: todayUtc, lte: upcomingWindowEnd },
           },
-          select: { amountDue: true, amountPaid: true },
+          include: {
+            lease: {
+              include: {
+                tenant: true,
+                unit: { include: { building: true } },
+              },
+            },
+          },
+          orderBy: { dueDate: 'asc' },
         }),
       ]);
 
@@ -102,6 +121,27 @@ export class DashboardService {
       return s + Math.max(0, due - paid);
     }, 0);
 
+    const upcomingItems: Array<{
+      paymentId: string;
+      leaseId: string;
+      tenantId: string;
+      dueDate: Date;
+      amountDue: number;
+      amountPaid: number;
+      amountRemaining: number;
+      status: string;
+      period: string;
+      tenant: string;
+      tenantFirstName: string;
+      tenantEmail: string | null;
+      tenantPhone: string | null;
+      unit?: string;
+      unitKind?: string;
+      building?: string;
+      commune?: string;
+      city?: string;
+    }> = [];
+
     let upcomingCollectionsCount = 0;
     let upcomingCollectionsRemaining = 0;
     for (const p of upcomingPending) {
@@ -111,6 +151,26 @@ export class DashboardService {
       if (rem <= 0) continue;
       upcomingCollectionsCount += 1;
       upcomingCollectionsRemaining += rem;
+      upcomingItems.push({
+        paymentId: p.id,
+        leaseId: p.leaseId,
+        tenantId: p.lease.tenantId,
+        dueDate: p.dueDate,
+        amountDue: dueN,
+        amountPaid: paidN,
+        amountRemaining: rem,
+        status: p.status,
+        period: `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`,
+        tenant: p.lease.tenant ? `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}` : '',
+        tenantFirstName: p.lease.tenant?.firstName ?? '',
+        tenantEmail: p.lease.tenant?.email ?? null,
+        tenantPhone: p.lease.tenant?.phone ?? null,
+        unit: p.lease.unit?.label,
+        unitKind: p.lease.unit?.kind,
+        building: p.lease.unit?.building?.name,
+        commune: p.lease.unit?.building?.commune,
+        city: p.lease.unit?.building?.city,
+      });
     }
 
     return {
@@ -129,6 +189,10 @@ export class DashboardService {
         totalRemaining: upcomingCollectionsRemaining,
         windowStart: todayUtc.toISOString().slice(0, 10),
         windowEnd: upcomingWindowEnd.toISOString().slice(0, 10),
+        items: upcomingItems.map((row) => ({
+          ...row,
+          dueDate: row.dueDate instanceof Date ? row.dueDate.toISOString() : String(row.dueDate),
+        })),
       },
       alerts: overduePayments.map((p) => {
         const dueN = p.amountDue.toNumber();
@@ -178,15 +242,10 @@ export class DashboardService {
     const reservedBottom = 52;
     const pageBottom = pageH - margin - reservedBottom;
 
-    const fcfa = (n: number) =>
-      new Intl.NumberFormat('fr-CI', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(
-        n,
-      );
-
     drawTopBanner(doc, margin, contentW, {
       eyebrow: org?.name?.trim() || 'Organisation',
       title: 'Feuille de route — Suivi des encaissements',
-      subtitle: `Document terrain & bureau · ${new Date().toLocaleDateString('fr-FR', {
+      subtitle: `Document terrain et bureau · ${new Date().toLocaleDateString('fr-FR', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -195,7 +254,7 @@ export class DashboardService {
     });
 
     drawWorksheetInstructionBox(doc, margin, contentW);
-    drawDashboardKpiSummary(doc, margin, contentW, data.kpis, fcfa);
+    drawDashboardKpiSummary(doc, margin, contentW, data.kpis, formatFcfaPdf);
     drawSectionHeading(doc, margin, contentW, 'Impayés et échéances à traiter', '1');
 
     const rows: WorksheetAlertRow[] = data.alerts.map((a) => {
@@ -207,17 +266,17 @@ export class DashboardService {
       return {
         tenant: a.tenant || '—',
         place,
-        period: a.period,
+        period: periodLabelFrFromKey(a.period),
         dueDate: due,
-        remaining: fcfa(a.amountRemaining),
+        remaining: formatFcfaPdf(a.amountRemaining),
       };
     });
 
     const startY = doc.y;
     drawWorksheetImpayesTable(doc, margin, contentW, pageTop, pageBottom, startY, rows);
 
-    const legendRoom = 28;
-    const footerRoom = 30;
+    const legendRoom = 32;
+    const footerRoom = 38;
     if (doc.y > pageH - margin - legendRoom - footerRoom) {
       doc.addPage();
     }

@@ -1,4 +1,4 @@
-import { PaymentStatus } from '@prisma/client';
+import { CollectionMethod, PaymentStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
@@ -31,4 +31,15 @@ export class UpdatePaymentDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  /** Mode d’encaissement (saisie manuelle, hors banque connectée). */
+  @IsOptional()
+  @IsEnum(CollectionMethod)
+  collectionMethod?: CollectionMethod | null;
+
+  /** Référence opérateur / n° de transaction (optionnel). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  collectionReference?: string | null;
 }

@@ -2,12 +2,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useNavigate } from 'react-router-dom';
 import { api, getStoredUser, getToken, setStoredUser, setToken } from '@/lib/api';
 
+export type AuthUserRole = 'USER' | 'PLATFORM_ADMIN';
+
 export type AuthUser = {
   id: string;
   email: string;
   name: string | null;
   organizationId: string;
   organizationName: string | null;
+  role: AuthUserRole;
 };
 
 type AuthState = {
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: u.name,
         organizationId: u.organizationId ?? '',
         organizationName: u.organizationName ?? null,
+        role: u.role ?? 'USER',
       });
     }
     setReady(true);

@@ -326,6 +326,15 @@ export function BuildingsPage() {
     [filteredRows],
   );
 
+  const worksheetPdfPath = useMemo(() => {
+    const q = new URLSearchParams();
+    if (genreFilter) q.set('structureKind', genreFilter);
+    const s = listSearch.trim();
+    if (s) q.set('q', s);
+    const qs = q.toString();
+    return `/buildings/worksheet.pdf${qs ? `?${qs}` : ''}`;
+  }, [genreFilter, listSearch]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
@@ -338,8 +347,13 @@ export function BuildingsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
               <PdfPrintButton
+                path={worksheetPdfPath}
+                title="Feuille de route PDF : cases « fait », notes terrain/bureau — mêmes filtre genre et recherche que ci-dessous"
+              />
+              <PdfPrintButton
                 path="/reports/table-biens.pdf"
-                title="Liste de tous les biens en PDF (aperçu comme la liste ci-dessous)"
+                title="Tableau PDF compact de tout le patrimoine (sans cases à cocher, sans filtres)"
+                variant="icon"
               />
             </div>
           }

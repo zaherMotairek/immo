@@ -16,6 +16,7 @@ export type SessionUser = {
   name: string | null;
   organizationId?: string;
   organizationName?: string | null;
+  role?: 'USER' | 'PLATFORM_ADMIN';
 };
 
 export function getStoredUser(): SessionUser | null {

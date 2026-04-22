@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Card, Input, Label } from '@/components/ui';
+import { AUTH_CARD_CLASS, AUTH_PAGE_SHELL_CLASS, authSafePaddingStyle, authThemeTogglePositionStyle } from '@/lib/authLayout';
 
 export function LoginPage() {
   const { user, ready, login } = useAuth();
@@ -27,39 +28,61 @@ export function LoginPage() {
   }
 
   return (
-    <div
-      className="relative flex min-h-dvh flex-col justify-center bg-gradient-to-br from-slate-200/95 via-[#eceff4] to-slate-200/90 px-4 py-8 dark:from-slate-950 dark:via-[#0b0c0f] dark:to-slate-950 sm:py-10"
-      style={{
-        paddingTop: 'max(2rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))',
-        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
-      }}
-    >
-      <div
-        className="absolute sm:right-6 sm:top-6"
-        style={{ top: 'max(1rem, env(safe-area-inset-top, 0px))', right: 'max(1rem, env(safe-area-inset-right, 0px))' }}
-      >
-        <ThemeToggle />
+    <div className={AUTH_PAGE_SHELL_CLASS} style={authSafePaddingStyle}>
+      <div className="absolute sm:right-6 sm:top-6" style={authThemeTogglePositionStyle}>
+        <ThemeToggle tone="onLight" />
       </div>
-      <div className="mx-auto w-full max-w-md">
+      <div className="mx-auto w-full max-w-lg">
         <div className="mb-6 text-center sm:mb-8">
           <div className="mx-auto mb-4 flex justify-center">
             <span className="h-1 w-14 rounded-full bg-gradient-to-r from-sky-400 to-brand-600" aria-hidden />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">ImmoPilot</h1>
-          <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300">Espace connecté</p>
-          <p className="mx-auto mt-3 max-w-[22rem] text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-            Sur téléphone : même compte e-mail et mot de passe qu’en bureau. Connectez-vous au{' '}
-            <strong className="font-semibold text-slate-800 dark:text-slate-200">même Wi‑Fi</strong> que l’ordinateur qui
-            lance l’application, puis ouvrez{' '}
-            <strong className="font-semibold text-slate-800 dark:text-slate-200">
-              http://&lt;adresse IP du PC&gt;:5173
-            </strong>{' '}
-            (adresse affichée au démarrage du front dans le terminal).
+          <p className="mb-2 inline-block rounded-full border border-brand-500/30 bg-brand-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brand-800 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200">
+            Gestion locative — Côte d’Ivoire
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">ImmoPilot</h1>
+          <p className="mx-auto mt-2 max-w-[26rem] text-base font-semibold leading-snug text-slate-800 dark:text-slate-100">
+            Une seule plateforme pour piloter tout le patrimoine loué : du bien au dernier FCFA encaissé.
+          </p>
+          <p className="mx-auto mt-2 max-w-[24rem] text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+            Biens, lots, locataires, baux, loyers, charges, quittances PDF, recherche globale et tableau de bord — pensé pour
+            l’exploitation réelle, pas pour encombrer l’écran.
+          </p>
+          <ul className="mx-auto mt-4 max-w-[24rem] space-y-2.5 text-left text-sm text-slate-600 dark:text-slate-300">
+            <li className="flex gap-2">
+              <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                ✓
+              </span>
+              <span>
+                <strong className="font-semibold text-slate-800 dark:text-slate-100">Maîtrise</strong> : impayés, échéances,
+                relances, exports — rien ne se perd dans les tableurs.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                ✓
+              </span>
+              <span>
+                <strong className="font-semibold text-slate-800 dark:text-slate-100">Clarté</strong> : encaissements,
+                alertes et activité loyers lisibles en un coup d’œil.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>
+                ✓
+              </span>
+              <span>
+                <strong className="font-semibold text-slate-800 dark:text-slate-100">Fluidité</strong> : du tableau de bord
+                aux paiements en quelques clics, mobile inclus.
+              </span>
+            </li>
+          </ul>
+          <p className="mx-auto mt-4 max-w-[22rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+            Depuis le téléphone sur le même réseau que le PC : utilisez l’URL affichée au démarrage du front (ex.{' '}
+            <code className="rounded bg-slate-200/80 px-1 dark:bg-slate-700">http://IP:5173</code>).
           </p>
         </div>
-        <Card className="shadow-md ring-1 ring-slate-900/[0.05] dark:ring-slate-600/30">
+        <Card className={AUTH_CARD_CLASS}>
           <form onSubmit={onSubmit} className="space-y-4" autoComplete="on">
             <div>
               <Label htmlFor="email">E-mail</Label>
@@ -97,6 +120,14 @@ export function LoginPage() {
             <Button type="submit" className="min-h-11 w-full text-base font-semibold" disabled={loading}>
               {loading ? 'Connexion…' : 'Se connecter'}
             </Button>
+            <p className="text-center">
+              <Link
+                to="/mot-de-passe-oubli"
+                className="text-sm font-semibold text-brand-700 underline-offset-[3px] transition hover:text-brand-800 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </p>
           </form>
         </Card>
         <p className="mt-6 text-center text-xs text-slate-600 dark:text-slate-300">

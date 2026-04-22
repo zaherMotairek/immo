@@ -20,17 +20,39 @@ model Organization {
   @@map("organizations")
 }
 
+enum UserRole {
+  USER
+  /** Compte interne : création d’organisations / comptes clients (back-office). */
+  PLATFORM_ADMIN
+}
+
 model User {
-  id             String       @id @default(uuid())
-  email          String       @unique
-  passwordHash   String       @map("password_hash")
-  name           String?
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String               @map("password_hash")
+  name                String?
+  role                UserRole             @default(USER)
+  organizationId      String               @map("organization_id")
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  passwordResetTokens PasswordResetToken[]
 
   @@index([organizationId])
+}
+
+/** Jeton à usage unique pour le lien « mot de passe oublié » (expiration courte). */
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 enum BuildingStructureKind {
@@ -175,6 +197,22 @@ enum PaymentStatus {
   WAIVED
 }
 
+/** Mode d’encaissement saisi à la main (pas d’intégration bancaire). */
+enum CollectionMethod {
+  CASH
+  BANK_TRANSFER
+  ORANGE_MONEY
+  MTN_MONEY
+  MOOV
+  WAVE
+  OTHER
+}
+
+enum ReminderChannel {
+  EMAIL
+  WHATSAPP
+}
+
 model Payment {
   id          String        @id @default(uuid())
   leaseId     String        @map("lease_id")
@@ -189,15 +227,32 @@ model Payment {
   /** Motif obligatoire si status = WAIVED (traçabilité). */
   waiveReason String?       @map("waive_reason")
   waivedAt    DateTime?     @map("waived_at") @db.Date
+  /** Comment le loyer a été reçu (espèces, Mobile Money, etc.) — saisie manuelle. */
+  collectionMethod    CollectionMethod? @map("collection_method")
+  /** Référence opérateur, n° de versement, libellé virement… */
+  collectionReference String?           @map("collection_reference") @db.VarChar(120)
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
   lease       Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  reminders   PaymentReminder[]
 
   @@unique([leaseId, periodYear, periodMonth])
   @@index([leaseId])
   @@index([dueDate])
   @@index([status])
   @@map("payments")
+}
+
+/** Historique des relances (e-mail automatique ou WhatsApp noté à la main). */
+model PaymentReminder {
+  id        String          @id @default(uuid())
+  paymentId String          @map("payment_id")
+  payment   Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  channel   ReminderChannel
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@index([paymentId])
+  @@map("payment_reminders")
 }
 
 enum ChargeCategory {

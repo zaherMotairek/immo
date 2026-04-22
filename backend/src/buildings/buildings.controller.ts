@@ -8,8 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { BuildingStructureKind, UnitKind } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
@@ -53,6 +55,54 @@ export class BuildingsController {
       structureKind = sk as BuildingStructureKind;
     }
     return this.buildings.list(user.organizationId, unitKind, structureKind);
+  }
+
+  /** Feuille de route imprimable : cases « fait », colonne notes — mêmes filtres que la liste (+ q = recherche). */
+  @Get('worksheet.pdf')
+  async worksheetPdf(
+    @CurrentUser() user: JwtAuthUser,
+    @Res() res: Response,
+    @Query('unitKind') unitKindRaw?: string,
+    @Query('structureKind') structureKindRaw?: string,
+    @Query('q') q?: string,
+  ) {
+    let unitKind: UnitKind | undefined;
+    if (unitKindRaw != null && String(unitKindRaw).trim() !== '') {
+      const k = String(unitKindRaw).trim().toUpperCase();
+      if (!UNIT_KIND_SET.has(k)) {
+        throw new BadRequestException(
+          `Paramètre unitKind inconnu : ${unitKindRaw}. Valeurs : ${[...UNIT_KIND_SET].sort().join(', ')}.`,
+        );
+      }
+      unitKind = k as UnitKind;
+    }
+    let structureKind: BuildingStructureKind | undefined;
+    if (structureKindRaw != null && String(structureKindRaw).trim() !== '') {
+      const sk = String(structureKindRaw).trim().toUpperCase();
+      if (!STRUCTURE_KIND_SET.has(sk)) {
+        throw new BadRequestException(
+          `Paramètre structureKind inconnu : ${structureKindRaw}. Valeurs : ${[...STRUCTURE_KIND_SET].sort().join(', ')}.`,
+        );
+      }
+      structureKind = sk as BuildingStructureKind;
+    }
+    const buf = await this.buildings.buildWorksheetPdf(user.organizationId, { unitKind, structureKind, q });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="immopilot-feuille-route-biens.pdf"');
+    res.send(buf);
+  }
+
+  /** Fiche PDF complète du bien : lieu, structure, unités et baux actifs. */
+  @Get(':id/fiche.pdf')
+  async buildingFichePdf(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const buf = await this.buildings.buildBuildingFichePdf(id, user.organizationId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="immopilot-fiche-bien-${id.slice(0, 8)}.pdf"`);
+    res.send(buf);
   }
 
   @Get(':id')

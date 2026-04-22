@@ -1,3 +1,9 @@
+export type PaymentReminderRow = {
+  id: string;
+  channel: 'EMAIL' | 'WHATSAPP';
+  createdAt: string;
+};
+
 export type PaymentRow = {
   id: string;
   /** Présent sur les listes API (regroupement par bail). */
@@ -12,6 +18,11 @@ export type PaymentRow = {
   /** Si statut WAIVED : motif et date du geste commercial. */
   waiveReason?: string | null;
   waivedAt?: string | null;
+  /** Mode d’encaissement saisi à la main (hors banque). */
+  collectionMethod?: string | null;
+  collectionReference?: string | null;
+  /** Présent sur GET /payments/:id — historique relances. */
+  reminders?: PaymentReminderRow[];
   lease: {
     tenant: {
       id: string;

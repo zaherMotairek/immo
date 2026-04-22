@@ -15,6 +15,7 @@ import {
   drawSectionHeading,
   drawTopBanner,
   drawZebraTableEqualCols,
+  formatFcfaPdf,
   IMMO_PDF,
 } from '../common/immo-pdf';
 
@@ -42,7 +43,7 @@ function unitKindFr(k: UnitKind | string): string {
     OFFICE: 'Bureau',
     WAREHOUSE: 'Entrepôt',
     COMMERCIAL: 'Local commercial',
-    GARAGE: 'Garage / parking',
+    GARAGE: 'Garage (parking)',
     OTHER: 'Autre',
   };
   return m[String(k)] ?? String(k);
@@ -50,13 +51,13 @@ function unitKindFr(k: UnitKind | string): string {
 
 function chargeCategoryFr(c: ChargeCategory | string): string {
   const m: Record<string, string> = {
-    TAX: 'Impôts / taxes',
-    FEES: 'Copro / honoraires',
+    TAX: 'Impôts et taxes',
+    FEES: 'Copro et honoraires',
     INSURANCE: 'Assurance',
-    MAINTENANCE: 'Entretien / travaux',
-    UTILITIES: 'Eau / énergie',
-    SECURITY: 'Sécurité / gardiennage',
-    PAYROLL: 'Salaires & personnel',
+    MAINTENANCE: 'Entretien et travaux',
+    UTILITIES: 'Eau et énergie',
+    SECURITY: 'Sécurité et gardiennage',
+    PAYROLL: 'Salaires et personnel',
     OTHER: 'Autre',
   };
   return m[String(c)] ?? String(c);
@@ -114,26 +115,26 @@ export class ReportsService {
       subtitle: `Année civile ${year} · Charges, encaissement des loyers et points de vigilance`,
     });
 
-    drawSectionHeading(doc, margin, contentW, 'Charges & fiscalité (synthèse)', '1');
+    drawSectionHeading(doc, margin, contentW, 'Charges et fiscalité (synthèse)', '1');
     doc.font('Helvetica').fontSize(10).fillColor(IMMO_PDF.ink);
-    doc.text(`Total des charges enregistrées sur l’année : ${this.fcfa(chargeSummary.totalCharges)}`, { width: contentW });
-    doc.text(`Dont charges encore non réglées : ${this.fcfa(chargeSummary.unpaidCharges)}`, { width: contentW });
+    doc.text(`Total des charges enregistrées sur l’année : ${formatFcfaPdf(chargeSummary.totalCharges)}`, { width: contentW });
+    doc.text(`Dont charges encore non réglées : ${formatFcfaPdf(chargeSummary.unpaidCharges)}`, { width: contentW });
     doc.moveDown(0.35);
     doc.fontSize(9.5).text(`Détail par grande famille :`, { width: contentW });
-    doc.text(`· Impôts & taxes (TAX) : ${this.fcfa(chargeSummary.highlights.impotsEtTaxes)}`, { width: contentW });
-    doc.text(`· Copropriété & honoraires (FEES) : ${this.fcfa(chargeSummary.highlights.chargesCoproEtHonoraires)}`, { width: contentW });
-    doc.text(`· Sécurité & gardiennage (SECURITY) : ${this.fcfa(chargeSummary.highlights.securite)}`, { width: contentW });
-    doc.text(`· Salaires & personnel (PAYROLL) : ${this.fcfa(chargeSummary.highlights.personnel)}`, { width: contentW });
+    doc.text(`· Impôts et taxes (TAX) : ${formatFcfaPdf(chargeSummary.highlights.impotsEtTaxes)}`, { width: contentW });
+    doc.text(`· Copropriété et honoraires (FEES) : ${formatFcfaPdf(chargeSummary.highlights.chargesCoproEtHonoraires)}`, { width: contentW });
+    doc.text(`· Sécurité et gardiennage (SECURITY) : ${formatFcfaPdf(chargeSummary.highlights.securite)}`, { width: contentW });
+    doc.text(`· Salaires et personnel (PAYROLL) : ${formatFcfaPdf(chargeSummary.highlights.personnel)}`, { width: contentW });
     doc.moveDown(0.9);
 
     drawSectionHeading(doc, margin, contentW, 'Encaissement des loyers (année)', '2');
     const encaisse = allPaidYear.reduce((s, p) => s + (p.amountPaid?.toNumber() ?? p.amountDue.toNumber()), 0);
     doc.font('Helvetica').fontSize(10).fillColor(IMMO_PDF.ink);
     doc.text(`Nombre d’échéances enregistrées comme payées : ${allPaidYear.length}`, { width: contentW });
-    doc.text(`Montant total encaissé (selon saisies) : ${this.fcfa(encaisse)}`, { width: contentW });
+    doc.text(`Montant total encaissé (selon saisies) : ${formatFcfaPdf(encaisse)}`, { width: contentW });
     doc.moveDown(0.9);
 
-    drawSectionHeading(doc, margin, contentW, 'Points de vigilance — impayés & retards', '3');
+    drawSectionHeading(doc, margin, contentW, 'Points de vigilance — impayés et retards', '3');
     if (overdue.length === 0) {
       doc.font('Helvetica').fontSize(10).fillColor(IMMO_PDF.muted).text('Aucune échéance en retard pour cette année.', {
         width: contentW,
@@ -145,10 +146,14 @@ export class ReportsService {
         const name = t ? `${t.firstName} ${t.lastName}` : '—';
         const unitLabel = p.lease.unit?.label ?? '—';
         const im = p.lease.unit?.building?.name ?? '—';
+        const perRaw = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
+          new Date(p.periodYear, p.periodMonth - 1, 1),
+        );
+        const periodFr = perRaw.charAt(0).toUpperCase() + perRaw.slice(1);
         doc.text(
-          `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')} · ${name} · ${unitLabel} (${im}) · ${this.fcfa(
-            p.amountDue.toNumber(),
-          )} · échéance ${p.dueDate.toISOString().slice(0, 10)}`,
+          `${periodFr} — ${name} — ${unitLabel} (${im}) — ${formatFcfaPdf(p.amountDue.toNumber())} — échéance ${p.dueDate
+            .toISOString()
+            .slice(0, 10)}`,
           { width: contentW },
         );
         doc.moveDown(0.25);
@@ -260,7 +265,7 @@ export class ReportsService {
     type SumRow = { label: string; value: number | string; money?: boolean };
     const sumBlocks: { title: string; rows: SumRow[] }[] = [
       {
-        title: 'Patrimoine & baux',
+        title: 'Patrimoine et baux',
         rows: [
           { label: 'Nombre de biens', value: buildings.length },
           { label: "Nombre d'unités", value: totalUnits },
@@ -271,14 +276,14 @@ export class ReportsService {
         ],
       },
       {
-        title: `Charges & impôts (${year})`,
+        title: `Charges et impôts (${year})`,
         rows: [
           { label: 'Charges totales enregistrées', value: chargeSummary.totalCharges, money: true },
           { label: 'Dont non réglées', value: chargeSummary.unpaidCharges, money: true },
-          { label: 'Impôts / taxes', value: chargeSummary.highlights.impotsEtTaxes, money: true },
-          { label: 'Copro / honoraires', value: chargeSummary.highlights.chargesCoproEtHonoraires, money: true },
-          { label: 'Sécurité / gardiennage', value: chargeSummary.highlights.securite, money: true },
-          { label: 'Salaires & personnel', value: chargeSummary.highlights.personnel, money: true },
+          { label: 'Impôts et taxes', value: chargeSummary.highlights.impotsEtTaxes, money: true },
+          { label: 'Copro et honoraires', value: chargeSummary.highlights.chargesCoproEtHonoraires, money: true },
+          { label: 'Sécurité et gardiennage', value: chargeSummary.highlights.securite, money: true },
+          { label: 'Salaires et personnel', value: chargeSummary.highlights.personnel, money: true },
         ],
       },
       {
@@ -287,7 +292,7 @@ export class ReportsService {
           { label: 'Nombre d’échéances (lignes)', value: payments.length },
           { label: 'Échéances payées', value: paid.length },
           { label: 'Montant total encaissé', value: totalEncaisse, money: true },
-          { label: 'Échéances en retard / impayées (à date)', value: overdue.length },
+          { label: 'Échéances en retard ou impayées (à date)', value: overdue.length },
           { label: 'Montant dû (lignes en alerte)', value: totalImpayesDu, money: true },
         ],
       },
@@ -563,12 +568,12 @@ export class ReportsService {
   async buildLeasesTablePdf(organizationId: string): Promise<Buffer> {
     await this.payments.syncLateStatuses();
     const list = await this.leases.list(organizationId);
-    const headers = ['Locataire', 'Bien', 'Unité', 'Loyer / mois', 'Début', 'Fin', 'Statut'];
+    const headers = ['Locataire', 'Bien', 'Unité', 'Loyer mensuel', 'Début', 'Fin', 'Statut'];
     const rows = list.map((l) => [
       this.truncPdfCell(`${l.tenant.firstName} ${l.tenant.lastName}`, 28),
       this.truncPdfCell(l.unit.building.name, 32),
       this.truncPdfCell(`${l.unit.label} (${unitKindFr(l.unit.kind)})`, 24),
-      this.truncPdfCell(this.fcfa(l.monthlyRent.toNumber()), 16),
+      this.truncPdfCell(formatFcfaPdf(l.monthlyRent.toNumber()), 16),
       l.startDate.toISOString().slice(0, 10),
       l.endDate ? l.endDate.toISOString().slice(0, 10) : '—',
       l.active ? 'Actif' : 'Inactif',
@@ -580,7 +585,7 @@ export class ReportsService {
 
   async buildTenantsTablePdf(organizationId: string): Promise<Buffer> {
     const list = await this.tenants.list(organizationId);
-    const headers = ['Locataire', 'Téléphone', 'E-mail', 'Bien / unité'];
+    const headers = ['Locataire', 'Téléphone', 'E-mail', 'Bien et unité'];
     const rows = list.map((t) => {
       const lease = t.leases[0];
       const bu = lease ? `${lease.unit.building.name} — ${lease.unit.label}` : '—';
@@ -623,13 +628,13 @@ export class ReportsService {
       this.truncPdfCell(r.localizationLine, 28),
       this.truncPdfCell(`${r.buildingName} — ${r.unitLabel}`, 36),
       this.truncPdfCell(r.tenantFullName, 28),
-      this.truncPdfCell(this.fcfa(r.monthlyRent), 14),
+      this.truncPdfCell(formatFcfaPdf(r.monthlyRent), 14),
       `le ${r.rentDueDay}`,
       this.truncPdfCell(r.currentMonthStatusFr, 14),
       r.active ? 'Actif' : 'Inactif',
     ]);
     const sub = `${overview.length} occupation${overview.length === 1 ? '' : 's'}${activeOnly ? ' · baux actifs uniquement' : ' · tous statuts'}`;
-    return this.renderDataTablePdf('Locations & statut des loyers', sub, headers, rows);
+    return this.renderDataTablePdf('Locations et statut des loyers', sub, headers, rows);
   }
 
   private structureKindLabel(k: BuildingStructureKind): string {
@@ -661,7 +666,7 @@ export class ReportsService {
     const contentW = doc.page.width - margin * 2;
     const pageH = doc.page.height;
     const pageTop = margin;
-    const pageBottom = pageH - margin - 34;
+    const pageBottom = pageH - margin - 42;
 
     drawTopBanner(doc, margin, contentW, {
       eyebrow: 'Synthèse exportable',
@@ -678,7 +683,4 @@ export class ReportsService {
     return Buffer.concat(chunks);
   }
 
-  private fcfa(n: number) {
-    return new Intl.NumberFormat('fr-CI', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
-  }
 }

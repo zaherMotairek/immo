@@ -21,6 +21,7 @@ import {
   drawScheduleTable,
   drawSectionHeading,
   drawTopBanner,
+  formatFcfaPdf,
 } from '../common/immo-pdf';
 
 function leaseBelongsToOrg(organizationId: string) {
@@ -51,7 +52,7 @@ function unitKindFr(kind: string): string {
     OFFICE: 'Bureau',
     WAREHOUSE: 'Entrepôt',
     COMMERCIAL: 'Local commercial',
-    GARAGE: 'Garage / parking',
+    GARAGE: 'Garage (parking)',
     OTHER: 'Autre',
   };
   return m[kind] ?? kind;
@@ -62,10 +63,6 @@ function fmtDateFr(d: unknown): string {
   if (d instanceof Date) return d.toISOString().slice(0, 10);
   const s = String(d);
   return s.length >= 10 ? s.slice(0, 10) : s;
-}
-
-function fcfaPdf(n: number) {
-  return new Intl.NumberFormat('fr-CI', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
 }
 
 @Injectable()
@@ -640,7 +637,7 @@ export class LeasesService {
     const contentW = doc.page.width - margin * 2;
     const pageH = doc.page.height;
     const pageTop = margin;
-    const pageBottom = pageH - margin - 36;
+    const pageBottom = pageH - margin - 44;
 
     const orgEyebrow = org?.name?.trim() || 'Organisation';
     const subtitle = [
@@ -681,12 +678,18 @@ export class LeasesService {
     if (f.tenant.email?.trim()) drawField(doc, margin, contentW, 'Adresse e-mail', f.tenant.email);
 
     drawSectionHeading(doc, margin, contentW, 'Conditions financières & bail', '4');
-    drawField(doc, margin, contentW, 'Loyer mensuel hors charges', fcfaPdf(f.financial.monthlyRent));
+    drawField(doc, margin, contentW, 'Loyer mensuel hors charges', formatFcfaPdf(f.financial.monthlyRent));
     drawField(doc, margin, contentW, 'Jour d’échéance chaque mois', `Le ${f.financial.rentDueDay}`);
-    drawField(doc, margin, contentW, 'Date de prise d’effet / fin du bail', `${fmtDateFr(f.startDate)}  →  ${f.endDate ? fmtDateFr(f.endDate) : 'Sans date de fin (tacite reconduction possible selon contrat)'}`);
+    drawField(
+      doc,
+      margin,
+      contentW,
+      'Dates de prise d’effet et de fin du bail',
+      `${fmtDateFr(f.startDate)}  →  ${f.endDate ? fmtDateFr(f.endDate) : 'Sans date de fin (tacite reconduction possible selon contrat)'}`,
+    );
     drawField(doc, margin, contentW, 'État du bail', f.active ? 'Actif' : 'Inactif');
     if (f.financial.depositAmount != null && f.financial.depositAmount > 0) {
-      const dep = `${fcfaPdf(f.financial.depositAmount)} (${f.financial.depositPaidAt ? 'dépôt encaissé' : 'dépôt non encaissé'})`;
+      const dep = `${formatFcfaPdf(f.financial.depositAmount)} (${f.financial.depositPaidAt ? 'dépôt encaissé' : 'dépôt non encaissé'})`;
       drawField(doc, margin, contentW, 'Dépôt de garantie (caution)', dep);
     }
     drawField(
@@ -709,7 +712,7 @@ export class LeasesService {
     drawSectionHeading(doc, margin, contentW, 'Historique des échéances (extraits)', '5');
     const yTable = doc.y;
     if (schedule.length > 0) {
-      drawScheduleTable(doc, margin, contentW, pageTop, pageBottom, schedule, fcfaPdf, yTable);
+      drawScheduleTable(doc, margin, contentW, pageTop, pageBottom, schedule, formatFcfaPdf, yTable);
     } else {
       doc.fillColor('#64748b').font('Helvetica').fontSize(9).text('Aucune échéance enregistrée pour ce bail.', margin, yTable, {
         width: contentW,

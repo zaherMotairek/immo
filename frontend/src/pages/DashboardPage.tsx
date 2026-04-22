@@ -13,6 +13,7 @@ import {
   KpiIconTrendUp,
   KpiIconUnits,
 } from '@/components/dashboardKpiIcons';
+import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { LinkButton } from '@/components/LinkButton';
 import { SmartLink } from '@/components/SmartLink';
@@ -20,11 +21,33 @@ import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { Button, Card, HelpHint, StatTile } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import {
   formatPhoneForWhatsApp,
   overdueReminderWhatsAppText,
   whatsAppWebUrl,
 } from '@/lib/whatsappReminder';
+
+type DashboardPaymentAlert = {
+  paymentId: string;
+  leaseId: string;
+  tenantId: string;
+  tenantFirstName: string;
+  tenantEmail: string | null;
+  tenantPhone: string | null;
+  dueDate: string;
+  amountDue: number;
+  amountPaid?: number;
+  amountRemaining?: number;
+  status: string;
+  period: string;
+  tenant: string;
+  unit?: string;
+  unitKind?: string;
+  building?: string;
+  commune?: string;
+  city?: string;
+};
 
 type Overview = {
   kpis: {
@@ -37,31 +60,14 @@ type Overview = {
     overdueCount: number;
     overdueAmount: number;
   };
-  alerts: Array<{
-    paymentId: string;
-    leaseId: string;
-    tenantId: string;
-    tenantFirstName: string;
-    tenantEmail: string | null;
-    tenantPhone: string | null;
-    dueDate: string;
-    amountDue: number;
-    amountPaid?: number;
-    amountRemaining?: number;
-    status: string;
-    period: string;
-    tenant: string;
-    unit?: string;
-    unitKind?: string;
-    building?: string;
-    commune?: string;
-    city?: string;
-  }>;
+  alerts: DashboardPaymentAlert[];
   upcomingCollections?: {
     count: number;
     totalRemaining: number;
     windowStart: string;
     windowEnd: string;
+    /** Détail des échéances PENDING dans la fenêtre aujourd’hui…+2 jours (reste &gt; 0). */
+    items?: DashboardPaymentAlert[];
   };
 };
 
@@ -73,11 +79,38 @@ function formatEncaissementWindowFr(startIso: string, endIso: string) {
   return `${d1} → ${d2}`;
 }
 
-function alertRemaining(a: Overview['alerts'][number]) {
+/** Texte du type « Aujourd'hui », « Demain », « Dans 2 jours » selon l’échéance (fuseau local). */
+function relativeDueDayFr(dueIso: string): string {
+  const d = dueIso.slice(0, 10);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${y}-${m}-${day}`;
+  const t0 = new Date(`${todayStr}T12:00:00`).getTime();
+  const t1 = new Date(`${d}T12:00:00`).getTime();
+  const diffDays = Math.round((t1 - t0) / 86400000);
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return 'Demain';
+  if (diffDays === 2) return 'Dans 2 jours';
+  return new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/** Liste de locataires pour la phrase d’intro (« …loyers de X et Y »). */
+function formatUpcomingLoyersPhrase(items: DashboardPaymentAlert[]): string {
+  const names = items.map((i) => i.tenant?.trim() || 'Locataire');
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} et ${names[1]}`;
+  if (names.length === 3) return `${names[0]}, ${names[1]} et ${names[2]}`;
+  const n = names.length - 3;
+  return `${names[0]}, ${names[1]}, ${names[2]} et ${n} autre${n > 1 ? 's' : ''}`;
+}
+
+function alertRemaining(a: DashboardPaymentAlert) {
   return a.amountRemaining ?? a.amountDue;
 }
 
-function dashboardAlertOverdue(a: Overview['alerts'][number]) {
+function dashboardAlertOverdue(a: DashboardPaymentAlert) {
   if (a.status === 'LATE') return true;
   if (a.status !== 'PENDING') return false;
   const d = typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : '';
@@ -115,7 +148,7 @@ export function DashboardPage() {
 
   const alertMonthGroups = useMemo(() => {
     const alerts = data?.alerts ?? [];
-    const map = new Map<string, Overview['alerts']>();
+    const map = new Map<string, DashboardPaymentAlert[]>();
     for (const a of alerts) {
       const k = a.period;
       if (!map.has(k)) map.set(k, []);
@@ -160,9 +193,11 @@ export function DashboardPage() {
     totalRemaining: 0,
     windowStart: '',
     windowEnd: '',
+    items: [],
   };
+  const upcomingItems = upcomingCollections.items ?? [];
   const isEmptyPortfolio = kpis.buildings === 0;
-  const showUpcomingReminder = !isEmptyPortfolio && upcomingCollections.count > 0;
+  const showUpcomingReminder = !isEmptyPortfolio && upcomingItems.length > 0;
 
   return (
     <div className="space-y-6">
@@ -170,7 +205,7 @@ export function DashboardPage() {
         className="max-w-3xl"
         iconTo="/"
         title="Tableau de bord"
-        subtitle="Vue d’ensemble de votre parc : encaissements du mois, impayés et raccourcis vers l’essentiel."
+        subtitle="Pilotage de votre parc : encaissements du mois, impayés, alertes — puis accès direct à Biens, Paiements et activité loyers."
         hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
         titleExtra={
           <div className="flex flex-wrap items-center gap-2">
@@ -183,42 +218,181 @@ export function DashboardPage() {
         }
       />
 
+      {!isEmptyPortfolio ? (
+        <p className="max-w-3xl rounded-xl border border-slate-200/90 bg-white/90 px-4 py-3 text-sm leading-snug text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">
+          <span className="font-semibold text-slate-900 dark:text-slate-50">Mois en cours : </span>
+          loyers attendus <strong className="tabular-nums">{fcfa(kpis.expectedMonthlyRent)}</strong>
+          {' · '}
+          déjà encaissés <strong className="tabular-nums text-emerald-800 dark:text-emerald-300">{fcfa(kpis.collectedThisMonth)}</strong>
+          {kpis.depositsCollectedThisMonth > 0 ? (
+            <>
+              {' · '}
+              cautions encaissées ce mois <strong className="tabular-nums">{fcfa(kpis.depositsCollectedThisMonth)}</strong>
+            </>
+          ) : null}
+          {kpis.overdueAmount > 0 ? (
+            <>
+              {' · '}
+              <span className="text-amber-900 dark:text-amber-200">
+                retards / impayés <strong className="tabular-nums">{fcfa(kpis.overdueAmount)}</strong>
+              </span>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
       {showUpcomingReminder ? (
-        <div
-          className="rounded-2xl border border-sky-200/90 bg-gradient-to-br from-sky-50/95 to-white px-4 py-3.5 shadow-sm shadow-sky-900/5 dark:border-sky-800/60 dark:from-sky-950/40 dark:to-slate-900/90 dark:shadow-black/20 sm:px-5"
-          role="status"
+        <Card
+          className="!p-0 overflow-hidden border-sky-200/90 bg-gradient-to-br from-sky-50/95 to-white shadow-sm shadow-sky-900/5 dark:border-sky-800/60 dark:from-sky-950/35 dark:to-slate-900/95 dark:shadow-black/20"
+          role="region"
+          aria-label="Encaissements dans les deux prochains jours"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200/95">
-                Rappel encaissements
-              </p>
-              <p className="mt-1 text-sm font-medium leading-snug text-slate-800 dark:text-slate-100">
-                <span className="font-semibold text-sky-900 dark:text-sky-100">
-                  {upcomingCollections.count} échéance{upcomingCollections.count !== 1 ? 's' : ''}
-                </span>{' '}
-                à encaisser{' '}
-                <span className="whitespace-nowrap font-medium text-slate-700 dark:text-slate-200">
-                  (aujourd’hui et dans les 2 jours qui suivent)
-                </span>
-                {' — '}
-                <span className="text-slate-600 dark:text-slate-300">
-                  reste environ <strong className="font-semibold text-slate-900 dark:text-slate-50">{fcfa(upcomingCollections.totalRemaining)}</strong>
-                </span>
-                .
-              </p>
-              <p className="mt-1.5 text-xs capitalize text-slate-500 dark:text-slate-400">
-                {formatEncaissementWindowFr(upcomingCollections.windowStart, upcomingCollections.windowEnd)}
-              </p>
+          <div className="border-b border-sky-200/80 bg-sky-100/50 px-4 py-3.5 dark:border-sky-800/50 dark:bg-sky-950/40 sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200/95">
+                  Dans les 2 jours — loyers à encaisser
+                </p>
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-100">
+                  D’ici <strong className="font-semibold text-sky-950 dark:text-sky-100">deux jours</strong> (y compris{' '}
+                  <span className="whitespace-nowrap">aujourd’hui</span>), loyers à encaisser pour{' '}
+                  <strong className="font-semibold text-slate-900 dark:text-slate-50">
+                    {formatUpcomingLoyersPhrase(upcomingItems)}
+                  </strong>
+                  . Reste au total :{' '}
+                  <strong className="tabular-nums text-slate-900 dark:text-slate-50">
+                    {fcfa(upcomingCollections.totalRemaining)}
+                  </strong>
+                  .
+                </p>
+                <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400">
+                  Fenêtre : {formatEncaissementWindowFr(upcomingCollections.windowStart, upcomingCollections.windowEnd)} ·{' '}
+                  {upcomingItems.length} échéance{upcomingItems.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <SmartLink
+                to="/paiements?year=all&month=all"
+                className="shrink-0 self-start rounded-xl border border-sky-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-sky-900 underline-offset-2 transition hover:bg-sky-50 dark:border-sky-700 dark:bg-slate-800/90 dark:text-sky-100 dark:hover:bg-slate-800"
+              >
+                Voir les paiements →
+              </SmartLink>
             </div>
-            <SmartLink
-              to="/paiements?year=all&month=all"
-              className="shrink-0 self-start rounded-xl border border-sky-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-sky-900 underline-offset-2 transition hover:bg-sky-50 dark:border-sky-700 dark:bg-slate-800/90 dark:text-sky-100 dark:hover:bg-slate-800"
-            >
-              Voir les paiements →
-            </SmartLink>
           </div>
-        </div>
+          <div className="overflow-x-auto bg-white dark:bg-slate-950/25">
+            <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
+                  <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    Locataire
+                  </th>
+                  <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    Bien / unité
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    Reste à encaisser
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    Période & échéance
+                  </th>
+                  <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    Statut
+                  </th>
+                  <th
+                    className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400"
+                    title="Fiche du bail"
+                  >
+                    Fiche location
+                  </th>
+                  <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
+                    Détail
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingItems.map((row, rowIndex) => {
+                  const [pyStr, pmStr] = row.period.split('-');
+                  const py = Number(pyStr);
+                  const pm = Number(pmStr);
+                  const dueStr = typeof row.dueDate === 'string' ? row.dueDate.slice(0, 10) : '—';
+                  return (
+                    <tr key={row.paymentId} className={listTableDataRowClass(rowIndex)}>
+                      <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
+                        <SmartLink
+                          to={`/locataires?edit=${encodeURIComponent(row.tenantId)}`}
+                          className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                        >
+                          {row.tenant || 'Locataire'}
+                        </SmartLink>
+                      </td>
+                      <td className={`max-w-[24rem] ${listTableCellClass} text-slate-800 dark:text-slate-200`}>
+                        {row.building ? (
+                          <BuildingUnitStack
+                            buildingName={row.building}
+                            buildingSubline={
+                              [row.commune, row.city].filter(Boolean).length ? (
+                                <>{[row.commune, row.city].filter(Boolean).join(', ')}</>
+                              ) : undefined
+                            }
+                            unitKindLabel={unitKindLabel(row.unitKind)}
+                            unitLabel={row.unit ?? '—'}
+                          />
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className={`whitespace-nowrap text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100 ${listTableCellClass}`}>
+                        {fcfa(alertRemaining(row))}
+                        {(row.amountPaid ?? 0) > 0 ? (
+                          <span className="mt-1 block text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                            Déjà {fcfa(row.amountPaid ?? 0)} · Loyer {fcfa(row.amountDue)}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
+                        <p className="text-sm font-medium">
+                          {!Number.isNaN(py) && !Number.isNaN(pm) ? monthTitle(py, pm) : row.period}
+                        </p>
+                        <p className="mt-0.5 text-xs">
+                          <span className="font-semibold text-sky-800 dark:text-sky-300">{relativeDueDayFr(row.dueDate)}</span>
+                          {' · '}
+                          {dueStr}
+                        </p>
+                      </td>
+                      <td className={listTableCellClass}>
+                        <span
+                          className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(row.status)}`}
+                        >
+                          {statusLabel(row.status)}
+                        </span>
+                      </td>
+                      <td className={`whitespace-nowrap ${listTableCellClass}`}>
+                        {row.leaseId ? (
+                          <FicheLocationLink leaseId={row.leaseId} returnFocusRowId={row.paymentId} />
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className={`text-right align-middle ${listTableCellClass}`}>
+                        <button
+                          type="button"
+                          title="Détail et encaissement"
+                          aria-label={`Détail pour ${row.tenant}`}
+                          onClick={() => setZoomAlertPaymentId(row.paymentId)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-brand-500/40 bg-brand-50/90 text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
+                        >
+                          <svg className="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       ) : null}
 
       {isEmptyPortfolio ? (

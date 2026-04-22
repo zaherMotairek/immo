@@ -19,7 +19,7 @@ export function AppPageTitle({ iconTo, title, subtitle, hintTitle, titleExtra, c
   return (
     <div className={`flex items-start gap-3 sm:gap-4 ${className}`}>
       <div
-        className="flex size-[3.35rem] shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-gradient-to-br from-brand-50 via-white to-sky-50/90 text-brand-700 shadow-md shadow-slate-900/[0.07] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:from-brand-950/55 dark:via-slate-900 dark:to-slate-800/90 dark:text-brand-300 dark:shadow-black/30 dark:ring-white/[0.05] sm:size-[3.5rem]"
+        className="flex size-[3.35rem] shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-slate-200/90 bg-gradient-to-br from-brand-50 via-white to-sky-50/90 text-brand-700 shadow-[0_2px_8px_rgb(15_23_42/0.07)] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:from-brand-950/55 dark:via-slate-900 dark:to-slate-800/90 dark:text-brand-300 dark:shadow-black/25 dark:ring-white/[0.05] sm:size-[3.5rem]"
         aria-hidden
       >
         <SidebarNavIcon to={iconTo} className="size-6 sm:size-[1.65rem]" />
@@ -35,7 +35,7 @@ export function AppPageTitle({ iconTo, title, subtitle, hintTitle, titleExtra, c
           {titleExtra}
         </div>
         {subtitle ? (
-          <p className="mt-2 max-w-2xl text-[15px] leading-snug text-slate-600 dark:text-slate-400">{subtitle}</p>
+          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">{subtitle}</p>
         ) : null}
       </div>
     </div>

@@ -1,15 +1,26 @@
 import { useTheme } from '@/theme/ThemeContext';
 
+type ThemeToggleProps = {
+  className?: string;
+  /** Sur fond clair (auth) : bouton plus lisible ; défaut = barre latérale / sombre. */
+  tone?: 'default' | 'onLight';
+};
+
 /** Bascule clair / sombre (une icône : soleil en mode sombre pour repasser au clair, lune en mode clair). */
-export function ThemeToggle({ className = '' }: { className?: string }) {
+export function ThemeToggle({ className = '', tone = 'default' }: ThemeToggleProps) {
   const { theme, toggle } = useTheme();
   const isDark = theme === 'dark';
+
+  const toneClass =
+    tone === 'onLight'
+      ? 'border-slate-300/85 bg-white/85 text-slate-700 shadow-sm shadow-slate-900/5 backdrop-blur-sm hover:bg-white hover:text-slate-900 dark:border-slate-600 dark:bg-slate-800/92 dark:text-slate-100 dark:shadow-black/20 dark:hover:bg-slate-700'
+      : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white';
 
   return (
     <button
       type="button"
       onClick={toggle}
-      className={`inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-slate-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${className}`}
+      className={`inline-flex items-center gap-2 rounded-[var(--radius-input)] border px-3 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${toneClass} ${className}`}
       title={isDark ? 'Passer au thème clair' : 'Passer au thème sombre'}
       aria-label={isDark ? 'Passer au thème clair' : 'Passer au thème sombre'}
     >

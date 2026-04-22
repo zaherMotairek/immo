@@ -2,21 +2,21 @@
 export function AppLoadingScreen({ message = 'Chargement…' }: { message?: string }) {
   return (
     <div
-      className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-[var(--color-app-bg-deep)] px-6 dark:bg-[#0b0c0f]"
+      className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-gradient-to-br from-[var(--color-surface)] via-[var(--color-app-bg)] to-[var(--color-app-bg-deep)] px-6 dark:from-[#12141a] dark:via-[#0b0c0f] dark:to-[#07080b]"
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="flex flex-col items-center gap-5">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col items-center gap-6">
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
           <span
-            className="hidden h-10 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-sky-400 to-brand-600 sm:block"
+            className="h-10 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-sky-400 to-brand-600"
             aria-hidden
           />
           <div className="text-center sm:text-left">
             <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">ImmoPilot</p>
             <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-              Gestion locative
+              Parc · encaissements · pilotage
             </p>
           </div>
         </div>
@@ -33,7 +33,7 @@ export function AppLoadingScreen({ message = 'Chargement…' }: { message?: stri
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           />
         </svg>
-        <p className="text-center text-sm text-slate-600 dark:text-slate-400">{message}</p>
+        <p className="max-w-xs text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400">{message}</p>
       </div>
     </div>
   );

@@ -1,11 +1,10 @@
-import { Fragment, useCallback, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useMemo, useState, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { saveScrollForPath } from '@/lib/navigation';
 import { useAuth } from '@/auth/AuthContext';
 import { NavigationProvider } from '@/context/NavigationContext';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { GlobalSearchBar } from './GlobalSearchBar';
-import { MiniAssistantPanel } from './MiniAssistantPanel';
 import { SidebarNavIcon } from './SidebarNavIcons';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from './ui';
@@ -40,13 +39,13 @@ const navGroups: { title?: string; items: NavItem[] }[] = [
   },
 ];
 
-const flatNavItems = navGroups.flatMap((g) => g.items);
+const flatNavItemsFrom = (groups: typeof navGroups) => groups.flatMap((g) => g.items);
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-lg border-l-2 py-2.5 pl-2.5 pr-3 text-[13px] font-medium transition ${
+  `rounded-[var(--radius-input)] border-l-[3px] py-2.5 pl-2.5 pr-3 text-[13px] font-medium transition ${
     isActive
-      ? 'border-sky-400 bg-white/[0.09] text-white shadow-sm shadow-black/10'
-      : 'border-transparent text-slate-300 hover:border-slate-500 hover:bg-white/[0.06] hover:text-white'
+      ? 'border-sky-400 bg-white/[0.1] text-white shadow-sm shadow-black/15'
+      : 'border-transparent text-slate-300 hover:border-slate-500/80 hover:bg-white/[0.06] hover:text-white'
   }`;
 
 const navClassMobile = ({ isActive }: { isActive: boolean }) =>
@@ -59,6 +58,19 @@ const MOBILE_NAV_KEY = 'immopilot-mobile-nav-open';
 export function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+
+  const navGroupsEffective = useMemo(() => {
+    if (user?.role !== 'PLATFORM_ADMIN') return navGroups;
+    return [
+      ...navGroups,
+      {
+        title: 'Plateforme',
+        items: [{ to: '/admin', label: 'Créer un client' }],
+      },
+    ];
+  }, [user?.role]);
+
+  const flatNavItems = useMemo(() => flatNavItemsFrom(navGroupsEffective), [navGroupsEffective]);
   const [mobileNavOpen, setMobileNavOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
     return sessionStorage.getItem(MOBILE_NAV_KEY) !== '0';
@@ -102,7 +114,9 @@ export function Layout() {
                 <span className="hidden h-8 w-1 shrink-0 rounded-full bg-gradient-to-b from-sky-400 to-brand-600 lg:block" aria-hidden />
                 <div className="min-w-0">
                   <div className="truncate text-[15px] font-semibold tracking-tight text-white">ImmoPilot</div>
-                  <p className="hidden text-[11px] font-medium text-slate-400 lg:mt-0.5 lg:block">Gestion locative</p>
+                  <p className="hidden text-[11px] font-medium leading-tight text-slate-400 lg:mt-0.5 lg:block">
+                    Parc · encaissements · pilotage
+                  </p>
                 </div>
               </div>
             </div>
@@ -131,7 +145,7 @@ export function Layout() {
           className="hidden min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-3 pb-2 lg:flex lg:pr-1"
           aria-label="Navigation détaillée"
         >
-          {navGroups.map((group, gi) => (
+          {navGroupsEffective.map((group, gi) => (
             <Fragment key={`nav-g-${gi}`}>
               {group.title ? (
                 <p className="mb-1.5 mt-5 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 first:mt-0">
@@ -216,15 +230,12 @@ export function Layout() {
             <span className="min-w-0 truncate text-sm font-semibold text-white">ImmoPilot</span>
           </div>
         ) : null}
-        <div className="print:hidden">
-          <MiniAssistantPanel />
-        </div>
-        <div className="sticky top-0 z-30 max-lg:static max-lg:z-auto border-b border-slate-300/80 bg-slate-100/90 px-3 pb-3 pt-3 shadow-[0_4px_24px_rgb(15_23_42/0.07)] backdrop-blur-md print:hidden dark:border-slate-700/80 dark:bg-slate-900/92 dark:shadow-[0_4px_24px_rgb(0_0_0/0.2)] sm:px-6 sm:pb-3.5 sm:pt-3.5 lg:px-6 xl:px-8">
+        <div className="sticky top-0 z-30 max-lg:static max-lg:z-auto border-b border-slate-200/90 bg-white/80 px-3 pb-3 pt-3 shadow-[0_1px_0_rgb(15_23_42/0.06),0_8px_32px_rgb(15_23_42/0.05)] backdrop-blur-xl print:hidden dark:border-slate-700/75 dark:bg-slate-900/88 dark:shadow-[0_1px_0_rgb(0_0_0/0.25),0_8px_32px_rgb(0_0_0/0.2)] sm:px-6 sm:pb-3.5 sm:pt-3.5 lg:px-6 xl:px-8">
           <div className="mx-auto w-full max-w-[min(100%,96rem)]">
             <GlobalSearchBar />
           </div>
         </div>
-        <div className="flex-1 p-3 print:p-4 sm:p-6 lg:px-6 lg:pb-12 lg:pt-6 xl:px-8 xl:pt-8">
+        <div className="flex-1 p-3 print:p-4 sm:p-6 lg:px-6 lg:pb-14 lg:pt-7 xl:px-8 xl:pt-8">
           <div className="mx-auto w-full max-w-[min(100%,96rem)]">
             <NavigationProvider>
               <ScrollRestoration />

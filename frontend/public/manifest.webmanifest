@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/web-manifest-combined.json",
-  "name": "ImmoPilot — Gestion immobilière",
+  "name": "ImmoPilot — Gestion locative",
   "short_name": "ImmoPilot",
-  "description": "Biens, locataires, baux, loyers, charges et tableau de bord.",
+  "description": "Pilotage locatif : parc, baux, loyers, charges, impayés, PDF et recherche — interface pro pour la Côte d’Ivoire.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",

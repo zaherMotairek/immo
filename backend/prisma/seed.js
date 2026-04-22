@@ -25,10 +25,12 @@ async function seedAdmin() {
       passwordHash: hash,
       name: 'Administrateur',
       organizationId: DEFAULT_ORG_ID,
+      role: 'PLATFORM_ADMIN',
     },
     update: {
       passwordHash: hash,
       organizationId: DEFAULT_ORG_ID,
+      role: 'PLATFORM_ADMIN',
     },
   });
 

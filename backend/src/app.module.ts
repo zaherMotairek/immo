@@ -12,6 +12,7 @@ import { ChargesModule } from './charges/charges.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { SearchModule } from './search/search.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SearchModule } from './search/search.module';
     DashboardModule,
     ReportsModule,
     SearchModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

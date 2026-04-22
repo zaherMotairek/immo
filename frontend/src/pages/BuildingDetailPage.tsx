@@ -7,6 +7,7 @@ import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
+import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { SidebarNavIcon } from '@/components/SidebarNavIcons';
 import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import {
@@ -926,6 +927,11 @@ export function BuildingDetailPage() {
         breadcrumbCurrent={b.name}
         headerEnd={
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+            <PdfPrintButton
+              path={`/buildings/${encodeURIComponent(id ?? '')}/fiche.pdf`}
+              title="Ouvrir la fiche PDF complète de ce bien (lieu, structure, unités, locataires, loyers)"
+              className="sm:self-auto"
+            />
             <Button
               type="button"
               variant="secondary"

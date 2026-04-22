@@ -34,17 +34,24 @@ const UNIT_FR: Record<string, UnitKind> = {
   Entrepôt: UnitKind.WAREHOUSE,
   'Local commercial': UnitKind.COMMERCIAL,
   'Garage / parking': UnitKind.GARAGE,
+  'Garage (parking)': UnitKind.GARAGE,
   Autre: UnitKind.OTHER,
 };
 
 const CHARGE_CAT_FR: Record<string, ChargeCategory> = {
   'Impôts / taxes': ChargeCategory.TAX,
+  'Impôts et taxes': ChargeCategory.TAX,
   'Copro / honoraires': ChargeCategory.FEES,
+  'Copro et honoraires': ChargeCategory.FEES,
   Assurance: ChargeCategory.INSURANCE,
   'Entretien / travaux': ChargeCategory.MAINTENANCE,
+  'Entretien et travaux': ChargeCategory.MAINTENANCE,
   'Eau / énergie': ChargeCategory.UTILITIES,
+  'Eau et énergie': ChargeCategory.UTILITIES,
   'Sécurité / gardiennage': ChargeCategory.SECURITY,
+  'Sécurité et gardiennage': ChargeCategory.SECURITY,
   'Salaires & personnel': ChargeCategory.PAYROLL,
+  'Salaires et personnel': ChargeCategory.PAYROLL,
   Autre: ChargeCategory.OTHER,
 };
 
