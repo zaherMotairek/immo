@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui';
 import { downloadPaymentReceipt } from '@/lib/api';
+import { formatDateFr } from '@/lib/format';
 import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import {
   formatPhoneForWhatsApp,
@@ -65,7 +66,7 @@ export function PaymentLineActions({
               firstName: p.lease.tenant.firstName,
               periodLabel: `${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`,
               amountFcfa: paymentRemaining(p),
-              dueDateStr: p.dueDate.slice(0, 10),
+              dueDateStr: formatDateFr(p.dueDate),
               buildingName: p.lease.unit.building.name,
               unitLabel: p.lease.unit.label,
             }),

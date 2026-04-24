@@ -66,6 +66,20 @@ export class LeasesController {
     return this.leases.getContractStream(id, user.organizationId);
   }
 
+  @Get(':id/contracts')
+  listContracts(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.leases.listContracts(id, user.organizationId);
+  }
+
+  @Get(':id/contracts/:fileKey')
+  downloadContractByKey(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @Param('fileKey') fileKey: string,
+  ) {
+    return this.leases.getContractStreamByKey(id, user.organizationId, fileKey);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.leases.get(id, user.organizationId);
@@ -111,6 +125,15 @@ export class LeasesController {
   @Delete(':id/contract')
   deleteContractFile(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.leases.removeContract(id, user.organizationId);
+  }
+
+  @Delete(':id/contracts/:fileKey')
+  deleteContractFileByKey(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @Param('fileKey') fileKey: string,
+  ) {
+    return this.leases.removeContractByKey(id, user.organizationId, fileKey);
   }
 
   @Post(':id/generate-payments')

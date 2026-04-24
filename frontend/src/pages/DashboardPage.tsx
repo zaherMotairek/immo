@@ -3,7 +3,7 @@ import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { EmptyState } from '@/components/EmptyState';
 import { api } from '@/lib/api';
-import { fcfa } from '@/lib/format';
+import { fcfa, formatDateFr } from '@/lib/format';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import {
   KpiIconAlert,
@@ -27,6 +27,9 @@ import {
   overdueReminderWhatsAppText,
   whatsAppWebUrl,
 } from '@/lib/whatsappReminder';
+import { SortableTh } from '@/components/SortableTh';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 
 type DashboardPaymentAlert = {
   paymentId: string;
@@ -118,6 +121,42 @@ function dashboardAlertOverdue(a: DashboardPaymentAlert) {
   return d < today;
 }
 
+type UpcomingSortKey = 'tenant' | 'place' | 'remaining' | 'due' | 'status' | 'lease';
+
+function compareUpcomingRows(a: DashboardPaymentAlert, b: DashboardPaymentAlert, key: UpcomingSortKey, dir: TableSortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case 'tenant':
+      c = (a.tenant || '').localeCompare(b.tenant || '', 'fr', { sensitivity: 'base' });
+      break;
+    case 'place':
+      c = `${a.building ?? ''} ${a.unit ?? ''} ${a.commune ?? ''} ${a.city ?? ''}`
+        .trim()
+        .localeCompare(`${b.building ?? ''} ${b.unit ?? ''} ${b.commune ?? ''} ${b.city ?? ''}`.trim(), 'fr', {
+          sensitivity: 'base',
+        });
+      break;
+    case 'remaining':
+      c = alertRemaining(a) - alertRemaining(b);
+      break;
+    case 'due':
+      c = a.dueDate.localeCompare(b.dueDate);
+      if (c === 0) c = a.period.localeCompare(b.period);
+      break;
+    case 'status':
+      c = a.status.localeCompare(b.status);
+      break;
+    case 'lease':
+      c = (a.leaseId ?? '').localeCompare(b.leaseId ?? '');
+      break;
+    default:
+      c = 0;
+  }
+  if (c === 0) c = a.paymentId.localeCompare(b.paymentId);
+  return c * sign;
+}
+
 export function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -142,6 +181,20 @@ export function DashboardPage() {
   }, []);
 
   const [zoomAlertPaymentId, setZoomAlertPaymentId] = useState<string | null>(null);
+  const [upcomingSortKey, setUpcomingSortKey] = useState<UpcomingSortKey>('due');
+  const [upcomingSortDir, setUpcomingSortDir] = useState<TableSortDir>('asc');
+
+  const sortedUpcomingItems = useMemo(() => {
+    const items = [...(data?.upcomingCollections?.items ?? [])];
+    items.sort((a, b) => compareUpcomingRows(a, b, upcomingSortKey, upcomingSortDir));
+    return items;
+  }, [data?.upcomingCollections?.items, upcomingSortKey, upcomingSortDir]);
+
+  function toggleUpcomingSort(key: UpcomingSortKey) {
+    const n = toggleTableSortColumn(upcomingSortKey, upcomingSortDir, key);
+    setUpcomingSortKey(n.key);
+    setUpcomingSortDir(n.dir);
+  }
 
   const [collapsedAlertMonths, setCollapsedAlertMonths] = useState(() => new Set<string>());
   const alertsCollapseInitialized = useRef(false);
@@ -195,9 +248,8 @@ export function DashboardPage() {
     windowEnd: '',
     items: [],
   };
-  const upcomingItems = upcomingCollections.items ?? [];
   const isEmptyPortfolio = kpis.buildings === 0;
-  const showUpcomingReminder = !isEmptyPortfolio && upcomingItems.length > 0;
+  const showUpcomingReminder = !isEmptyPortfolio && sortedUpcomingItems.length > 0;
 
   return (
     <div className="space-y-6">
@@ -205,8 +257,7 @@ export function DashboardPage() {
         className="max-w-3xl"
         iconTo="/"
         title="Tableau de bord"
-        subtitle="Pilotage de votre parc : encaissements du mois, impayés, alertes — puis accès direct à Biens, Paiements et activité loyers."
-        hintTitle="Encaissements du mois : loyers (échéances) et cautions encaissées (dépôts) sont distingués ci-dessous."
+        hintTitle="Vue d’ensemble : encaissements du mois, retards, alertes, accès rapide aux paiements. « Encaissé ce mois » = loyers + cautions reçus ce mois-ci (détail en deux lignes plus bas sur la page)."
         titleExtra={
           <div className="flex flex-wrap items-center gap-2">
             <StatTile className="shrink-0" label="Total" value={String(kpis.tenants)} />
@@ -219,7 +270,7 @@ export function DashboardPage() {
       />
 
       {!isEmptyPortfolio ? (
-        <p className="max-w-3xl rounded-xl border border-slate-200/90 bg-white/90 px-4 py-3 text-sm leading-snug text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">
+        <p className="mobile-secondary max-w-3xl rounded-xl border border-slate-200/90 bg-white/90 px-4 py-3 text-sm leading-snug text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">
           <span className="font-semibold text-slate-900 dark:text-slate-50">Mois en cours : </span>
           loyers attendus <strong className="tabular-nums">{fcfa(kpis.expectedMonthlyRent)}</strong>
           {' · '}
@@ -257,7 +308,7 @@ export function DashboardPage() {
                   D’ici <strong className="font-semibold text-sky-950 dark:text-sky-100">deux jours</strong> (y compris{' '}
                   <span className="whitespace-nowrap">aujourd’hui</span>), loyers à encaisser pour{' '}
                   <strong className="font-semibold text-slate-900 dark:text-slate-50">
-                    {formatUpcomingLoyersPhrase(upcomingItems)}
+                    {formatUpcomingLoyersPhrase(sortedUpcomingItems)}
                   </strong>
                   . Reste au total :{' '}
                   <strong className="tabular-nums text-slate-900 dark:text-slate-50">
@@ -265,9 +316,9 @@ export function DashboardPage() {
                   </strong>
                   .
                 </p>
-                <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400">
+                <p className="mobile-secondary mt-1.5 text-xs text-slate-600 dark:text-slate-400">
                   Fenêtre : {formatEncaissementWindowFr(upcomingCollections.windowStart, upcomingCollections.windowEnd)} ·{' '}
-                  {upcomingItems.length} échéance{upcomingItems.length !== 1 ? 's' : ''}
+                  {sortedUpcomingItems.length} échéance{sortedUpcomingItems.length !== 1 ? 's' : ''}
                 </p>
               </div>
               <SmartLink
@@ -282,38 +333,66 @@ export function DashboardPage() {
             <table className="w-full min-w-[900px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
-                  <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                    Locataire
-                  </th>
-                  <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                    Bien / unité
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                    Reste à encaisser
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                    Période & échéance
-                  </th>
-                  <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                    Statut
-                  </th>
-                  <th
-                    className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400"
-                    title="Fiche du bail"
-                  >
-                    Fiche location
-                  </th>
+                  <SortableTh
+                    label="Locataire"
+                    columnKey="tenant"
+                    activeKey={upcomingSortKey}
+                    dir={upcomingSortDir}
+                    onSort={toggleUpcomingSort}
+                    thClassName="px-4 py-2.5 sm:px-5"
+                  />
+                  <SortableTh
+                    label="Bien / unité"
+                    columnKey="place"
+                    activeKey={upcomingSortKey}
+                    dir={upcomingSortDir}
+                    onSort={toggleUpcomingSort}
+                    thClassName="px-4 py-2.5 sm:px-5"
+                  />
+                  <SortableTh
+                    label="Reste à encaisser"
+                    columnKey="remaining"
+                    activeKey={upcomingSortKey}
+                    dir={upcomingSortDir}
+                    onSort={toggleUpcomingSort}
+                    align="end"
+                    thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                  />
+                  <SortableTh
+                    label="Période & échéance"
+                    columnKey="due"
+                    activeKey={upcomingSortKey}
+                    dir={upcomingSortDir}
+                    onSort={toggleUpcomingSort}
+                    thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                  />
+                  <SortableTh
+                    label="Statut"
+                    columnKey="status"
+                    activeKey={upcomingSortKey}
+                    dir={upcomingSortDir}
+                    onSort={toggleUpcomingSort}
+                    thClassName="px-4 py-2.5 sm:px-5"
+                  />
+                  <SortableTh
+                    label="Fiche location"
+                    columnKey="lease"
+                    activeKey={upcomingSortKey}
+                    dir={upcomingSortDir}
+                    onSort={toggleUpcomingSort}
+                    thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                  />
                   <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
                     Détail
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {upcomingItems.map((row, rowIndex) => {
+                {sortedUpcomingItems.map((row, rowIndex) => {
                   const [pyStr, pmStr] = row.period.split('-');
                   const py = Number(pyStr);
                   const pm = Number(pmStr);
-                  const dueStr = typeof row.dueDate === 'string' ? row.dueDate.slice(0, 10) : '—';
+                  const dueStr = formatDateFr(row.dueDate);
                   return (
                     <tr key={row.paymentId} className={listTableDataRowClass(rowIndex)}>
                       <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
@@ -397,8 +476,8 @@ export function DashboardPage() {
 
       {isEmptyPortfolio ? (
         <EmptyState
-          title="Première étape : enregistrer un bien"
-          description="Créez au moins un bien et ses lots (appartements, bureaux…) pour suivre les loyers, les baux et les paiements dans ImmoPilot."
+          title="Commencez par un bien"
+          description="Ajoutez un immeuble ou une villa et ses lots. Ensuite, vous pourrez lier locataires, baux et loyers."
           icon={<KpiIconBuilding className="h-6 w-6" />}
           action={
             <>
@@ -550,7 +629,7 @@ export function DashboardPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="mobile-secondary flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
@@ -657,7 +736,7 @@ export function DashboardPage() {
                               </span>
                             )}
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                              échéance {typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : '—'}
+                              échéance {formatDateFr(a.dueDate)}
                             </span>
                           </p>
                           {dashboardAlertOverdue(a) &&
@@ -703,7 +782,7 @@ export function DashboardPage() {
                                   firstName: a.tenantFirstName || a.tenant || '—',
                                   periodLabel,
                                   amountFcfa: alertRemaining(a),
-                                  dueDateStr: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : '',
+                                  dueDateStr: formatDateFr(a.dueDate),
                                   buildingName: a.building,
                                   unitLabel: a.unit,
                                 }),

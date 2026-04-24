@@ -23,6 +23,14 @@ export const IMMEUBLE_NEW_UNIT_KIND_OPTIONS = (['APARTMENT', 'WAREHOUSE', 'COMME
   (value) => ({ value, label: UNIT_KIND_LABELS[value] }),
 );
 
+/** Sans rez-de-chaussée dans la structure : pas d’entrepôt / commerce (réservés au RDC). */
+export function immeubleImmeubleUnitKindOptions(hasRezDeChaussee: boolean | null | undefined) {
+  if (hasRezDeChaussee === false) {
+    return [{ value: 'APARTMENT' as const, label: UNIT_KIND_LABELS.APARTMENT }];
+  }
+  return IMMEUBLE_NEW_UNIT_KIND_OPTIONS;
+}
+
 /** Rez-de-chaussée (étage 0) : par défaut entrepôts et commerces seuls. */
 export const IMMEUBLE_RDC_UNIT_KIND_OPTIONS = (['WAREHOUSE', 'COMMERCIAL'] as const).map((value) => ({
   value,

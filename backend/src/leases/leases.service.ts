@@ -1,5 +1,5 @@
-import { createReadStream } from 'fs';
-import { mkdir, unlink, writeFile } from 'fs/promises';
+import { createReadStream, existsSync } from 'fs';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { BadRequestException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
@@ -7,7 +7,7 @@ import { PaymentStatus, type Lease } from '@prisma/client';
 import type { Express } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
-import { addOneYearSameDay, rentDueDateForBilledPeriod } from '../common/date.util';
+import { addOneYearSameDay, rentDueDateForBilledPeriod, startOfTodayUtc } from '../common/date.util';
 import { CreateLeaseDto } from './dto/create-lease.dto';
 import { UpdateLeaseDto } from './dto/update-lease.dto';
 import {
@@ -386,8 +386,92 @@ export class LeasesService {
     }
   }
 
+  /** Recalcule les échéances modifiables d’un bail selon ses conditions actuelles. */
+  private async resyncMutablePaymentsFromLeaseTerms(
+    leaseId: string,
+    lease: Pick<Lease, 'startDate' | 'endDate' | 'monthlyRent' | 'rentDueDay' | 'createdAt' | 'active'>,
+  ) {
+    const all = await this.prisma.payment.findMany({
+      where: { leaseId },
+      orderBy: [{ periodYear: 'asc' }, { periodMonth: 'asc' }],
+    });
+    const mutable = all.filter((p) => p.status === PaymentStatus.PENDING || p.status === PaymentStatus.LATE);
+    const immutable = all.filter((p) => p.status !== PaymentStatus.PENDING && p.status !== PaymentStatus.LATE);
+    if (mutable.length === 0 && (!lease.active || !lease.endDate)) return;
+
+    const expected = new Map<string, { year: number; month: number; dueDate: Date }>();
+    if (lease.active && lease.endDate) {
+      const { y: firstY, m: firstM } = this.firstBillingPeriodMonth(lease.startDate, lease.createdAt);
+      const lastY = lease.endDate.getFullYear();
+      const lastM = lease.endDate.getMonth() + 1;
+      let y = firstY;
+      let m = firstM;
+      while (y * 12 + m <= lastY * 12 + lastM) {
+        const key = `${y}-${String(m).padStart(2, '0')}`;
+        expected.set(key, { year: y, month: m, dueDate: rentDueDateForBilledPeriod(y, m, lease.rentDueDay) });
+        m += 1;
+        if (m > 12) {
+          m = 1;
+          y += 1;
+        }
+      }
+    }
+
+    const today = startOfTodayUtc();
+    // Les échéances déjà soldées/gelées gardent leur période : ne jamais recréer ces clés.
+    for (const p of immutable) {
+      const key = `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`;
+      expected.delete(key);
+    }
+
+    for (const p of mutable) {
+      const key = `${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`;
+      const target = expected.get(key);
+      if (!target) {
+        await this.prisma.payment.delete({ where: { id: p.id } });
+        continue;
+      }
+      const nextStatus = target.dueDate < today ? PaymentStatus.LATE : PaymentStatus.PENDING;
+      await this.prisma.payment.update({
+        where: { id: p.id },
+        data: {
+          amountDue: lease.monthlyRent,
+          dueDate: target.dueDate,
+          status: nextStatus,
+        },
+      });
+      expected.delete(key);
+    }
+
+    for (const item of expected.values()) {
+      const status = item.dueDate < today ? PaymentStatus.LATE : PaymentStatus.PENDING;
+      await this.prisma.payment.create({
+        data: {
+          leaseId,
+          periodYear: item.year,
+          periodMonth: item.month,
+          amountDue: lease.monthlyRent,
+          dueDate: item.dueDate,
+          status,
+        },
+      });
+    }
+  }
+
   async update(id: string, organizationId: string, dto: UpdateLeaseDto) {
     await this.ensure(id, organizationId);
+    const before = await this.prisma.lease.findUnique({
+      where: { id },
+      select: {
+        startDate: true,
+        endDate: true,
+        rentDueDay: true,
+        monthlyRent: true,
+        active: true,
+        createdAt: true,
+      },
+    });
+    if (!before) throw new NotFoundException('Bail introuvable');
     const data: Record<string, unknown> = {};
     if (dto.unitId !== undefined) data.unitId = dto.unitId;
     if (dto.tenantId !== undefined) data.tenantId = dto.tenantId;
@@ -417,14 +501,20 @@ export class LeasesService {
       data,
       include: { tenant: true, unit: { include: { building: true } } },
     });
-    /** Aligner les échéances non soldées sur le nouveau loyer (contrat renégocié). */
-    if (dto.monthlyRent !== undefined) {
-      await this.prisma.payment.updateMany({
-        where: {
-          leaseId: id,
-          status: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
-        },
-        data: { amountDue: dto.monthlyRent },
+    const dateOrScheduleChanged =
+      dto.startDate !== undefined ||
+      dto.endDate !== undefined ||
+      dto.rentDueDay !== undefined ||
+      dto.active !== undefined ||
+      dto.monthlyRent !== undefined;
+    if (dateOrScheduleChanged) {
+      await this.resyncMutablePaymentsFromLeaseTerms(id, {
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        monthlyRent: updated.monthlyRent,
+        rentDueDay: updated.rentDueDay,
+        createdAt: before.createdAt,
+        active: updated.active,
       });
     }
     return updated;
@@ -443,6 +533,61 @@ export class LeasesService {
   private contractUploadDir(): string {
     const root = process.env.LEASE_CONTRACT_UPLOAD_SUBDIR || 'uploads';
     return join(process.cwd(), root, 'lease-contracts');
+  }
+
+  private contractIndexDir(): string {
+    return join(this.contractUploadDir(), '_index');
+  }
+
+  private contractIndexPath(leaseId: string): string {
+    return join(this.contractIndexDir(), `${leaseId}.json`);
+  }
+
+  private async readContractIndex(leaseId: string): Promise<Array<{
+    fileKey: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    uploadedAt: string;
+  }>> {
+    const p = this.contractIndexPath(leaseId);
+    if (!existsSync(p)) return [];
+    try {
+      const raw = await readFile(p, 'utf-8');
+      const j = JSON.parse(raw) as unknown;
+      if (!Array.isArray(j)) return [];
+      return j.filter(
+        (x): x is { fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string } =>
+          !!x &&
+          typeof (x as any).fileKey === 'string' &&
+          typeof (x as any).fileName === 'string' &&
+          typeof (x as any).mimeType === 'string' &&
+          typeof (x as any).size === 'number' &&
+          typeof (x as any).uploadedAt === 'string',
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeContractIndex(
+    leaseId: string,
+    files: Array<{ fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string }>,
+  ) {
+    await mkdir(this.contractIndexDir(), { recursive: true });
+    await writeFile(
+      this.contractIndexPath(leaseId),
+      JSON.stringify(files, null, 2),
+      'utf-8',
+    );
+  }
+
+  async listContracts(leaseId: string, organizationId: string) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
+    if (!lease) throw new NotFoundException('Bail introuvable');
+    return this.readContractIndex(leaseId);
   }
 
   private async removeContractFileFromDisk(key: string | null | undefined) {
@@ -478,9 +623,18 @@ export class LeasesService {
     const fullPath = join(dir, key);
     await writeFile(fullPath, file.buffer);
 
-    if (lease.contractFileKey) await this.removeContractFileFromDisk(lease.contractFileKey);
-
     const safeOriginal = file.originalname.replace(/[^\w.\-\s()[\]]/g, '_').slice(0, 240) || `contrat${ext}`;
+    const uploadedAtIso = new Date().toISOString();
+
+    const current = await this.readContractIndex(leaseId);
+    current.push({
+      fileKey: key,
+      fileName: safeOriginal,
+      mimeType: file.mimetype,
+      size: file.size,
+      uploadedAt: uploadedAtIso,
+    });
+    await this.writeContractIndex(leaseId, current);
 
     await this.prisma.lease.update({
       where: { id: leaseId },
@@ -489,7 +643,7 @@ export class LeasesService {
         contractFileOriginalName: safeOriginal,
         contractFileMime: file.mimetype,
         contractFileSize: file.size,
-        contractUploadedAt: new Date(),
+        contractUploadedAt: new Date(uploadedAtIso),
       },
     });
 
@@ -498,8 +652,25 @@ export class LeasesService {
       fileName: safeOriginal,
       mimeType: file.mimetype,
       size: file.size,
-      uploadedAt: new Date().toISOString(),
+      uploadedAt: uploadedAtIso,
     };
+  }
+
+  async getContractStreamByKey(leaseId: string, organizationId: string, fileKey: string) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
+    if (!lease) throw new NotFoundException('Bail introuvable');
+    const list = await this.readContractIndex(leaseId);
+    const f = list.find((x) => x.fileKey === fileKey);
+    if (!f) throw new NotFoundException('Fichier de contrat introuvable.');
+    const fullPath = join(this.contractUploadDir(), f.fileKey);
+    const stream = createReadStream(fullPath);
+    const downloadName = f.fileName?.replace(/[^\w.\-\s]/g, '_') || 'contrat-bail';
+    return new StreamableFile(stream, {
+      type: f.mimeType,
+      disposition: `inline; filename="${encodeURIComponent(downloadName)}"`,
+    });
   }
 
   async getContractStream(leaseId: string, organizationId: string) {
@@ -538,6 +709,19 @@ export class LeasesService {
         contractUploadedAt: null,
       },
     });
+    return { ok: true, removed: true };
+  }
+
+  async removeContractByKey(leaseId: string, organizationId: string, fileKey: string) {
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
+    });
+    if (!lease) throw new NotFoundException('Bail introuvable');
+    const list = await this.readContractIndex(leaseId);
+    const keep = list.filter((x) => x.fileKey !== fileKey);
+    if (keep.length === list.length) return { ok: true, removed: false };
+    await this.removeContractFileFromDisk(fileKey);
+    await this.writeContractIndex(leaseId, keep);
     return { ok: true, removed: true };
   }
 

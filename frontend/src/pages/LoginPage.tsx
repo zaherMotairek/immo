@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Card, Input, Label } from '@/components/ui';
@@ -7,10 +7,19 @@ import { AUTH_CARD_CLASS, AUTH_PAGE_SHELL_CLASS, authSafePaddingStyle, authTheme
 
 export function LoginPage() {
   const { user, ready, login } = useAuth();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const accessDeniedFlash = (location.state as { accessDenied?: string } | null)?.accessDenied;
+
+  useEffect(() => {
+    if (accessDeniedFlash) {
+      setErr(accessDeniedFlash);
+    }
+  }, [accessDeniedFlash]);
 
   if (ready && user) return <Navigate to="/" replace />;
 
@@ -38,45 +47,16 @@ export function LoginPage() {
             <span className="h-1 w-14 rounded-full bg-gradient-to-r from-sky-400 to-brand-600" aria-hidden />
           </div>
           <p className="mb-2 inline-block rounded-full border border-brand-500/30 bg-brand-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brand-800 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200">
-            Gestion locative — Côte d’Ivoire
+            Gestion locative
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">ImmoPilot</h1>
-          <p className="mx-auto mt-2 max-w-[26rem] text-base font-semibold leading-snug text-slate-800 dark:text-slate-100">
-            Une seule plateforme pour piloter tout le patrimoine loué : du bien au dernier FCFA encaissé.
+          <p className="mx-auto mt-2 max-w-[24rem] text-base font-medium leading-snug text-slate-800 dark:text-slate-100">
+            Vos biens, vos locataires et vos loyers — au même endroit, sans jargon inutile.
           </p>
-          <p className="mx-auto mt-2 max-w-[24rem] text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            Biens, lots, locataires, baux, loyers, charges, quittances PDF, recherche globale et tableau de bord — pensé pour
-            l’exploitation réelle, pas pour encombrer l’écran.
+          <p className="mx-auto mt-2 max-w-[22rem] text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+            Connectez-vous : le tableau de bord vous indique quoi encaisser en priorité ; le menu tient en quelques
+            raccourcis.
           </p>
-          <ul className="mx-auto mt-4 max-w-[24rem] space-y-2.5 text-left text-sm text-slate-600 dark:text-slate-300">
-            <li className="flex gap-2">
-              <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>
-                ✓
-              </span>
-              <span>
-                <strong className="font-semibold text-slate-800 dark:text-slate-100">Maîtrise</strong> : impayés, échéances,
-                relances, exports — rien ne se perd dans les tableurs.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>
-                ✓
-              </span>
-              <span>
-                <strong className="font-semibold text-slate-800 dark:text-slate-100">Clarté</strong> : encaissements,
-                alertes et activité loyers lisibles en un coup d’œil.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>
-                ✓
-              </span>
-              <span>
-                <strong className="font-semibold text-slate-800 dark:text-slate-100">Fluidité</strong> : du tableau de bord
-                aux paiements en quelques clics, mobile inclus.
-              </span>
-            </li>
-          </ul>
           <p className="mx-auto mt-4 max-w-[22rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
             Depuis le téléphone sur le même réseau que le PC : utilisez l’URL affichée au démarrage du front (ex.{' '}
             <code className="rounded bg-slate-200/80 px-1 dark:bg-slate-700">http://IP:5173</code>).
@@ -131,9 +111,7 @@ export function LoginPage() {
           </form>
         </Card>
         <p className="mt-6 text-center text-xs text-slate-600 dark:text-slate-300">
-          Compte de test : ex.{' '}
-          <code className="rounded bg-slate-200 px-1 font-medium text-slate-900 dark:bg-slate-700 dark:text-slate-100">npm run seed</code> côté API.
-          Sur base vide, un jeu de démo (Abidjan, Grand-Bassam…) est créé automatiquement.
+          Première installation ? Côté serveur, lancez <code className="rounded bg-slate-200 px-1 font-medium text-slate-900 dark:bg-slate-700 dark:text-slate-100">npm run seed</code> pour créer un compte de démonstration.
         </p>
       </div>
     </div>

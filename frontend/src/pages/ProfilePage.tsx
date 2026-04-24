@@ -85,8 +85,7 @@ export function ProfilePage() {
         className="max-w-3xl"
         iconTo="/profil"
         title="Profil"
-        subtitle="Identité du compte, nom sur les PDF et changement de mot de passe."
-        hintTitle="Identité du compte et nom affiché comme bailleur sur les quittances et reçus PDF."
+        hintTitle="Identité du compte, nom affiché comme bailleur sur quittances et reçus PDF, et changement de mot de passe (formulaire plus bas sur cette page)."
       />
 
       <Card className="max-w-lg border-slate-200/90 bg-slate-50/50 dark:border-slate-600/50 dark:bg-slate-900/40">

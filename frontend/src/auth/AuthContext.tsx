@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, getStoredUser, getToken, setStoredUser, setToken } from '@/lib/api';
+import { ApiError, api, getStoredUser, getToken, setStoredUser, setToken } from '@/lib/api';
 
 export type AuthUserRole = 'USER' | 'PLATFORM_ADMIN';
 
@@ -70,14 +70,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const u = await api<AuthUser>('/auth/profile');
         if (!cancelled) applyUser(u);
-      } catch {
+      } catch (e) {
+        if (!cancelled && e instanceof ApiError && e.status === 403) {
+          setToken(null);
+          setStoredUser(null);
+          setUser(null);
+          navigate('/login', { replace: true, state: { accessDenied: e.message } });
+        }
         /* 401 géré par api */
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, applyUser]);
+  }, [ready, applyUser, navigate]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api<{ accessToken: string; user: AuthUser }>('/auth/login', {

@@ -1,6 +1,16 @@
 const TOKEN_KEY = 'immopilot_token';
 const USER_KEY = 'immopilot_user';
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -73,7 +83,7 @@ export async function api<T>(
     } catch {
       /* ignore */
     }
-    throw new Error(msg);
+    throw new ApiError(msg, res.status);
   }
   if (res.status === 204) return undefined as T;
   const ct = res.headers.get('content-type');
@@ -82,6 +92,7 @@ export async function api<T>(
 }
 
 export type LeaseContractMeta = {
+  fileKey?: string;
   fileName: string | null;
   mimeType: string | null;
   size: number | null;
@@ -89,6 +100,7 @@ export type LeaseContractMeta = {
 };
 
 export type TenantIdDocumentMeta = {
+  fileKey?: string;
   fileName: string | null;
   mimeType: string | null;
   size: number | null;
@@ -137,6 +149,14 @@ export async function deleteLeaseContract(leaseId: string): Promise<void> {
   await api(`/leases/${leaseId}/contract`, { method: 'DELETE' });
 }
 
+export async function listLeaseContracts(leaseId: string): Promise<LeaseContractMeta[]> {
+  return api<LeaseContractMeta[]>(`/leases/${leaseId}/contracts`);
+}
+
+export async function deleteLeaseContractByKey(leaseId: string, fileKey: string): Promise<void> {
+  await api(`/leases/${leaseId}/contracts/${encodeURIComponent(fileKey)}`, { method: 'DELETE' });
+}
+
 export async function uploadTenantIdDocument(
   tenantId: string,
   file: File,
@@ -179,9 +199,19 @@ export async function deleteTenantIdDocument(tenantId: string): Promise<void> {
   await api(`/tenants/${tenantId}/id-document`, { method: 'DELETE' });
 }
 
-export function openTenantIdDocumentPreview(tenantId: string): void {
+export async function listTenantIdDocuments(tenantId: string): Promise<TenantIdDocumentMeta[]> {
+  return api<TenantIdDocumentMeta[]>(`/tenants/${tenantId}/id-documents`);
+}
+
+export async function deleteTenantIdDocumentByKey(tenantId: string, fileKey: string): Promise<void> {
+  await api(`/tenants/${tenantId}/id-documents/${encodeURIComponent(fileKey)}`, { method: 'DELETE' });
+}
+
+export function openTenantIdDocumentPreview(tenantId: string, fileKey?: string): void {
   const token = getToken();
-  const url = `${baseUrl()}/tenants/${tenantId}/id-document`;
+  const url = fileKey
+    ? `${baseUrl()}/tenants/${tenantId}/id-documents/${encodeURIComponent(fileKey)}`
+    : `${baseUrl()}/tenants/${tenantId}/id-document`;
   fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     .then((r) => {
       if (!r.ok) throw new Error('Impossible d’afficher le document');
@@ -195,9 +225,11 @@ export function openTenantIdDocumentPreview(tenantId: string): void {
     .catch(() => alert('Impossible d’afficher la pièce d’identité.'));
 }
 
-export function downloadTenantIdDocumentFile(tenantId: string, suggestedName: string): void {
+export function downloadTenantIdDocumentFile(tenantId: string, suggestedName: string, fileKey?: string): void {
   const token = getToken();
-  const url = `${baseUrl()}/tenants/${tenantId}/id-document`;
+  const url = fileKey
+    ? `${baseUrl()}/tenants/${tenantId}/id-documents/${encodeURIComponent(fileKey)}`
+    : `${baseUrl()}/tenants/${tenantId}/id-document`;
   fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     .then((r) => {
       if (!r.ok) throw new Error('Téléchargement impossible');
@@ -217,9 +249,11 @@ export function downloadTenantIdDocumentFile(tenantId: string, suggestedName: st
 }
 
 /** Ouvre le contrat dans un nouvel onglet (session requise). */
-export function openLeaseContractPreview(leaseId: string): void {
+export function openLeaseContractPreview(leaseId: string, fileKey?: string): void {
   const token = getToken();
-  const url = `${baseUrl()}/leases/${leaseId}/contract`;
+  const url = fileKey
+    ? `${baseUrl()}/leases/${leaseId}/contracts/${encodeURIComponent(fileKey)}`
+    : `${baseUrl()}/leases/${leaseId}/contract`;
   fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     .then((r) => {
       if (!r.ok) throw new Error('Impossible d’afficher le contrat');
@@ -233,9 +267,11 @@ export function openLeaseContractPreview(leaseId: string): void {
     .catch(() => alert('Impossible d’afficher le contrat.'));
 }
 
-export function downloadLeaseContractFile(leaseId: string, suggestedName: string): void {
+export function downloadLeaseContractFile(leaseId: string, suggestedName: string, fileKey?: string): void {
   const token = getToken();
-  const url = `${baseUrl()}/leases/${leaseId}/contract`;
+  const url = fileKey
+    ? `${baseUrl()}/leases/${leaseId}/contracts/${encodeURIComponent(fileKey)}`
+    : `${baseUrl()}/leases/${leaseId}/contract`;
   fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     .then((r) => {
       if (!r.ok) throw new Error('Téléchargement impossible');

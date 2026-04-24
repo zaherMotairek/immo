@@ -8,6 +8,9 @@ import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Card, StatTile } from '@/components/ui';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { SortableTh } from '@/components/SortableTh';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 
 type DepositRow = {
   leaseId: string;
@@ -37,10 +40,56 @@ function cautionRowFlash(active: boolean) {
     : '';
 }
 
+type CautionSortKey = 'date' | 'tenant' | 'local' | 'moisEquiv' | 'amount' | 'lease';
+
+function cautionMoisRatio(monthlyRent: number, depositAmount: number): number {
+  if (monthlyRent <= 0 || depositAmount <= 0) return -1;
+  return depositAmount / monthlyRent;
+}
+
+function compareCautionRows(a: DepositRow, b: DepositRow, key: CautionSortKey, dir: TableSortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case 'date':
+      c = a.depositPaidAt.localeCompare(b.depositPaidAt);
+      break;
+    case 'tenant':
+      c = a.tenantFullName.localeCompare(b.tenantFullName, 'fr', { sensitivity: 'base' });
+      break;
+    case 'local':
+      c = `${a.localizationLine} ${a.buildingName} ${a.unitLabel}`
+        .trim()
+        .localeCompare(`${b.localizationLine} ${b.buildingName} ${b.unitLabel}`.trim(), 'fr', { sensitivity: 'base' });
+      break;
+    case 'moisEquiv':
+      c = cautionMoisRatio(a.monthlyRent, a.depositAmount) - cautionMoisRatio(b.monthlyRent, b.depositAmount);
+      break;
+    case 'amount':
+      c = a.depositAmount - b.depositAmount;
+      break;
+    case 'lease':
+      c = a.leaseId.localeCompare(b.leaseId);
+      break;
+    default:
+      c = 0;
+  }
+  if (c === 0) c = a.leaseId.localeCompare(b.leaseId);
+  return c * sign;
+}
+
 export function CautionsEncaisséesPage() {
   useRegisterRootSectionFallback();
   const [rows, setRows] = useState<DepositRow[]>([]);
   const [listFetched, setListFetched] = useState(false);
+  const [cautionSortKey, setCautionSortKey] = useState<CautionSortKey>('date');
+  const [cautionSortDir, setCautionSortDir] = useState<TableSortDir>('desc');
+
+  function toggleCautionSort(key: CautionSortKey) {
+    const n = toggleTableSortColumn(cautionSortKey, cautionSortDir, key);
+    setCautionSortKey(n.key);
+    setCautionSortDir(n.dir);
+  }
 
   useEffect(() => {
     setListFetched(false);
@@ -56,6 +105,12 @@ export function CautionsEncaisséesPage() {
     const sum = rows.reduce((s, r) => s + r.depositAmount, 0);
     return { count: rows.length, sum };
   }, [rows]);
+
+  const sortedRows = useMemo(() => {
+    const copy = [...rows];
+    copy.sort((a, b) => compareCautionRows(a, b, cautionSortKey, cautionSortDir));
+    return copy;
+  }, [rows, cautionSortKey, cautionSortDir]);
 
   return (
     <div className="space-y-6">
@@ -85,16 +140,56 @@ export function CautionsEncaisséesPage() {
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/95 dark:border-slate-700 dark:bg-slate-800/60">
-                <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Date encaissement</th>
-                <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Locataire</th>
-                <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">Local</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-200">
-                  Mois (équiv.)
-                </th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-200">Montant</th>
-                <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200" title="Fiche du bail (location)">
-                  Fiche location
-                </th>
+                <SortableTh
+                  label="Date encaissement"
+                  columnKey="date"
+                  activeKey={cautionSortKey}
+                  dir={cautionSortDir}
+                  onSort={toggleCautionSort}
+                  thClassName="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"
+                />
+                <SortableTh
+                  label="Locataire"
+                  columnKey="tenant"
+                  activeKey={cautionSortKey}
+                  dir={cautionSortDir}
+                  onSort={toggleCautionSort}
+                  thClassName="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"
+                />
+                <SortableTh
+                  label="Local"
+                  columnKey="local"
+                  activeKey={cautionSortKey}
+                  dir={cautionSortDir}
+                  onSort={toggleCautionSort}
+                  thClassName="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"
+                />
+                <SortableTh
+                  label="Mois (équiv.)"
+                  columnKey="moisEquiv"
+                  activeKey={cautionSortKey}
+                  dir={cautionSortDir}
+                  onSort={toggleCautionSort}
+                  align="end"
+                  thClassName="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"
+                />
+                <SortableTh
+                  label="Montant"
+                  columnKey="amount"
+                  activeKey={cautionSortKey}
+                  dir={cautionSortDir}
+                  onSort={toggleCautionSort}
+                  align="end"
+                  thClassName="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"
+                />
+                <SortableTh
+                  label="Fiche location"
+                  columnKey="lease"
+                  activeKey={cautionSortKey}
+                  dir={cautionSortDir}
+                  onSort={toggleCautionSort}
+                  thClassName="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200"
+                />
               </tr>
             </thead>
             <tbody>
@@ -112,7 +207,7 @@ export function CautionsEncaisséesPage() {
                   </td>
                 </tr>
               ) : (
-                rows.map((r, rowIndex) => (
+                sortedRows.map((r, rowIndex) => (
                   <tr
                     key={r.leaseId}
                     id={`caution-row-${r.leaseId}`}

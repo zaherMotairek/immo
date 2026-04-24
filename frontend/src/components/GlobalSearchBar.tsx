@@ -43,7 +43,7 @@ type SearchResponse = {
     amountDue: unknown;
     lease: {
       id: string;
-      tenant: { firstName: string; lastName: string };
+      tenant: { id: string; firstName: string; lastName: string };
       unit: { label: string; building: { name: string; city: string } };
     };
   }>;
@@ -59,6 +59,16 @@ type SearchItem = {
   /** Pastille statut loyer (résultats Paiements). */
   paymentBadge?: { label: string; className: string };
 };
+
+function monthCycleRank(month: number, currentMonth: number): number {
+  return (month - currentMonth + 12) % 12;
+}
+
+function paymentMonthLabel(year: number, month: number): string {
+  const d = new Date(year, Math.max(0, month - 1), 1);
+  const m = new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(d);
+  return `${m.charAt(0).toUpperCase()}${m.slice(1)} ${year}`;
+}
 
 const RECENT_KEY = 'immopilot-search-recent';
 const RECENT_MAX = 6;
@@ -282,6 +292,8 @@ export function GlobalSearchBar() {
   const items = useMemo((): SearchItem[] => {
     if (!data) return [];
     const out: SearchItem[] = [];
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
     for (const b of data.buildings) {
       out.push({
         key: `b-${b.id}`,
@@ -332,7 +344,26 @@ export function GlobalSearchBar() {
         secondary: `${c.building.name} · ${fcfa(Number(c.amount))} · ${c.periodYear}${c.periodMonth != null ? ` / ${c.periodMonth}` : ''}`,
       });
     }
-    for (const p of data.payments) {
+    const sortedPayments = [...data.payments].sort((a, b) => {
+      const aMonthRank = monthCycleRank(a.periodMonth, currentMonth);
+      const bMonthRank = monthCycleRank(b.periodMonth, currentMonth);
+      if (aMonthRank !== bMonthRank) return aMonthRank - bMonthRank;
+      if (a.periodYear !== b.periodYear) return b.periodYear - a.periodYear;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+    if (sortedPayments.length > 0) {
+      const p0 = sortedPayments[0];
+      const tenantLabel = `${p0.lease.tenant.firstName} ${p0.lease.tenant.lastName}`.trim();
+      out.push({
+        key: `p-all-${p0.lease.tenant.id}`,
+        href: `/paiements?tenantId=${p0.lease.tenant.id}&year=all&month=all`,
+        section: 'Paiements',
+        sectionVariant: 'payment',
+        primary: `Tous les mois · ${tenantLabel}`,
+        secondary: 'Afficher tous les paiements sur tous les mois',
+      });
+    }
+    for (const p of sortedPayments) {
       const { tenant, unit } = p.lease;
       const badge = paymentSearchBadge(p);
       out.push({
@@ -340,7 +371,7 @@ export function GlobalSearchBar() {
         href: `/paiements?year=${p.periodYear}&month=${p.periodMonth}&focus=${p.id}`,
         section: 'Paiements',
         sectionVariant: 'payment',
-        primary: `${tenant.firstName} ${tenant.lastName} · ${p.periodYear}-${String(p.periodMonth).padStart(2, '0')}`,
+        primary: `${tenant.firstName} ${tenant.lastName} · ${paymentMonthLabel(p.periodYear, p.periodMonth)}`,
         secondary: `${unit.building.name} — ${unit.label} · ${fcfa(Number(p.amountDue))}`,
         paymentBadge: badge,
       });
@@ -453,7 +484,7 @@ export function GlobalSearchBar() {
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="off"
-          placeholder={`Rechercher : bien, locataire, loyer… (${SHORTCUT_HINT})`}
+          placeholder={`Qui ou quoi cherchez-vous ? (${SHORTCUT_HINT})`}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -486,7 +517,7 @@ export function GlobalSearchBar() {
               }
             }
           }}
-          className="w-full min-h-11 rounded-[var(--radius-input)] border-slate-200/95 bg-white py-2.5 pl-10 pr-[4.5rem] shadow-[0_1px_2px_rgb(15_23_42/0.04)] transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/95 dark:focus:ring-brand-500/24"
+          className="w-full min-h-11 rounded-[var(--radius-input)] border-slate-200/95 bg-white py-2.5 !pl-11 pr-[4.5rem] shadow-[0_1px_2px_rgb(15_23_42/0.04)] transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/95 dark:focus:ring-brand-500/24"
         />
         {!loading && (
           <kbd

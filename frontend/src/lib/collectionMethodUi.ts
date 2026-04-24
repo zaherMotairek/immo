@@ -1,6 +1,6 @@
 /** Libellés FR — alignés sur l’enum Prisma `CollectionMethod`. */
 export function collectionMethodLabel(code: string | null | undefined): string {
-  if (!code) return 'Non précisé';
+  if (!code) return 'Espèces';
   const map: Record<string, string> = {
     CASH: 'Espèces',
     BANK_TRANSFER: 'Virement / dépôt banque',
@@ -14,7 +14,7 @@ export function collectionMethodLabel(code: string | null | undefined): string {
 }
 
 export const COLLECTION_METHOD_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: '— Non précisé —' },
+  { value: '', label: '— Espèces (par défaut) —' },
   { value: 'CASH', label: 'Espèces' },
   { value: 'BANK_TRANSFER', label: 'Virement / dépôt banque' },
   { value: 'ORANGE_MONEY', label: 'Orange Money' },

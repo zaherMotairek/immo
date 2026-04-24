@@ -84,6 +84,19 @@ main a:focus-visible {
   border-radius: 0.125rem;
 }
 
+/* Mobile compact mode: densifier l'information sans toucher la logique métier. */
+@media (max-width: 640px) {
+  main {
+    font-size: 0.95rem;
+  }
+  main table {
+    font-size: 0.82rem;
+  }
+  main h1 {
+    line-height: 1.15;
+  }
+}
+
 @media print {
   html {
     color-scheme: only light;

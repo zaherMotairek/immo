@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BuildingStructureKind, Prisma, UnitKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { selectApartmentsPerFloorColumn } from '../buildings/apartments-per-floor-column';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 
@@ -24,11 +25,14 @@ export class UnitsService {
   }
 
   async create(buildingId: string, dto: CreateUnitDto, organizationId: string) {
-    const building = await this.prisma.building.findFirst({
+    const buildingRow = await this.prisma.building.findFirst({
       where: { id: buildingId, organizationId },
       include: { _count: { select: { units: true } } },
     });
-    if (!building) throw new NotFoundException('Bien introuvable');
+    if (!buildingRow) throw new NotFoundException('Bien introuvable');
+    const apf = await selectApartmentsPerFloorColumn(this.prisma, buildingId);
+    const building =
+      apf !== undefined ? { ...buildingRow, apartmentsPerFloor: apf } : buildingRow;
     if (
       building.structureKind === BuildingStructureKind.MONO_LOT &&
       building._count.units >= 1
@@ -74,36 +78,69 @@ export class UnitsService {
     }
 
     if (dto.apartmentSlot != null) {
-      const dup = await this.prisma.unit.findFirst({
-        where: { buildingId, apartmentSlot: dto.apartmentSlot },
-        select: { id: true },
-      });
-      if (dup) {
-        const slotLabel =
-          building.structureKind === BuildingStructureKind.TERRAIN_LOTS ? 'de lot' : 'd’appartement';
-        throw new BadRequestException(
-          `Le numéro ${slotLabel} ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
-        );
-      }
-      if (
+      const slot = dto.apartmentSlot;
+      const immeubleGrid =
         building.structureKind === BuildingStructureKind.IMMEUBLE &&
-        building.apartmentCount != null &&
-        building.apartmentCount > 0 &&
-        (dto.apartmentSlot < 1 || dto.apartmentSlot > building.apartmentCount)
-      ) {
-        throw new BadRequestException(
-          `Le numéro de logement doit être entre 1 et ${building.apartmentCount} (déclaré sur ce bien).`,
-        );
-      }
-      if (
-        building.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
-        building.terrainLotCount != null &&
-        building.terrainLotCount > 0 &&
-        (dto.apartmentSlot < 1 || dto.apartmentSlot > building.terrainLotCount)
-      ) {
-        throw new BadRequestException(
-          `Le numéro de lot doit être entre 1 et ${building.terrainLotCount} (déclaré sur le terrain).`,
-        );
+        kind === UnitKind.APARTMENT &&
+        building.apartmentsPerFloor != null &&
+        building.apartmentsPerFloor > 0;
+
+      if (immeubleGrid) {
+        if (dto.floor == null) {
+          throw new BadRequestException(
+            'Indiquez l’étage pour attribuer ce numéro de logement (numérotation par étage sur ce bien).',
+          );
+        }
+        const f = dto.floor;
+        const maxOnFloor = f === 0 ? building.rezApartmentCount ?? 0 : building.apartmentsPerFloor!;
+        if (maxOnFloor <= 0 || slot < 1 || slot > maxOnFloor) {
+          throw new BadRequestException(
+            f === 0
+              ? `Au rez-de-chaussée, le numéro de logement doit être entre 1 et ${maxOnFloor} (unités d’habitation déclarées au RDC).`
+              : `À l’étage ${f}, le numéro de logement doit être entre 1 et ${maxOnFloor} sur ce bien.`,
+          );
+        }
+        const dup = await this.prisma.unit.findFirst({
+          where: { buildingId, floor: f, apartmentSlot: slot },
+          select: { id: true },
+        });
+        if (dup) {
+          throw new BadRequestException(
+            `Le numéro de logement ${slot} est déjà utilisé à l’étage ${f === 0 ? 'rez-de-chaussée' : f} sur ce bien.`,
+          );
+        }
+      } else {
+        const dup = await this.prisma.unit.findFirst({
+          where: { buildingId, apartmentSlot: slot },
+          select: { id: true },
+        });
+        if (dup) {
+          const slotLabel =
+            building.structureKind === BuildingStructureKind.TERRAIN_LOTS ? 'de lot' : 'd’appartement';
+          throw new BadRequestException(
+            `Le numéro ${slotLabel} ${slot} est déjà utilisé sur ce bien.`,
+          );
+        }
+        if (
+          building.structureKind === BuildingStructureKind.IMMEUBLE &&
+          building.apartmentCount != null &&
+          building.apartmentCount > 0 &&
+          (slot < 1 || slot > building.apartmentCount)
+        ) {
+          throw new BadRequestException(
+            `Le numéro de logement doit être entre 1 et ${building.apartmentCount} (déclaré sur ce bien).`,
+          );
+        }
+        if (
+          building.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+          building.terrainLotCount != null &&
+          building.terrainLotCount > 0 &&
+          (slot < 1 || slot > building.terrainLotCount)
+        ) {
+          throw new BadRequestException(
+            `Le numéro de lot doit être entre 1 et ${building.terrainLotCount} (déclaré sur le terrain).`,
+          );
+        }
       }
     }
 
@@ -171,11 +208,16 @@ export class UnitsService {
   }
 
   async update(unitId: string, organizationId: string, dto: UpdateUnitDto) {
-    const unit = await this.prisma.unit.findFirst({
+    const unitRow = await this.prisma.unit.findFirst({
       where: { id: unitId, building: { organizationId } },
       include: { building: true },
     });
-    if (!unit) throw new NotFoundException('Unité introuvable');
+    if (!unitRow) throw new NotFoundException('Unité introuvable');
+    const apfB = await selectApartmentsPerFloorColumn(this.prisma, unitRow.buildingId);
+    const unit =
+      apfB !== undefined
+        ? { ...unitRow, building: { ...unitRow.building, apartmentsPerFloor: apfB } }
+        : unitRow;
 
     const nextKind = dto.kind !== undefined ? dto.kind : unit.kind;
 
@@ -197,41 +239,82 @@ export class UnitsService {
     }
 
     if (dto.apartmentSlot !== undefined && dto.apartmentSlot != null) {
-      const dup = await this.prisma.unit.findFirst({
-        where: {
-          buildingId: unit.buildingId,
-          apartmentSlot: dto.apartmentSlot,
-          NOT: { id: unitId },
-        },
-        select: { id: true },
-      });
-      if (dup) {
-        const slotLabel =
-          unit.building.structureKind === BuildingStructureKind.TERRAIN_LOTS ? 'de lot' : 'd’appartement';
-        throw new BadRequestException(
-          `Le numéro ${slotLabel} ${dto.apartmentSlot} est déjà utilisé sur ce bien.`,
-        );
-      }
+      const slot = dto.apartmentSlot;
       const b = unit.building;
-      if (
+      const nextKindForSlot = dto.kind !== undefined ? dto.kind : unit.kind;
+      const floorForSlot =
+        dto.floor !== undefined ? dto.floor : unit.floor;
+      const immeubleGrid =
         b.structureKind === BuildingStructureKind.IMMEUBLE &&
-        b.apartmentCount != null &&
-        b.apartmentCount > 0 &&
-        (dto.apartmentSlot < 1 || dto.apartmentSlot > b.apartmentCount)
-      ) {
-        throw new BadRequestException(
-          `Le numéro de logement doit être entre 1 et ${b.apartmentCount} (déclaré sur ce bien).`,
-        );
-      }
-      if (
-        b.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
-        b.terrainLotCount != null &&
-        b.terrainLotCount > 0 &&
-        (dto.apartmentSlot < 1 || dto.apartmentSlot > b.terrainLotCount)
-      ) {
-        throw new BadRequestException(
-          `Le numéro de lot doit être entre 1 et ${b.terrainLotCount} (déclaré sur le terrain).`,
-        );
+        nextKindForSlot === UnitKind.APARTMENT &&
+        b.apartmentsPerFloor != null &&
+        b.apartmentsPerFloor > 0;
+
+      if (immeubleGrid) {
+        if (floorForSlot == null) {
+          throw new BadRequestException(
+            'Indiquez l’étage pour ce numéro de logement (numérotation par étage sur ce bien).',
+          );
+        }
+        const f = floorForSlot;
+        const maxOnFloor = f === 0 ? b.rezApartmentCount ?? 0 : b.apartmentsPerFloor!;
+        if (maxOnFloor <= 0 || slot < 1 || slot > maxOnFloor) {
+          throw new BadRequestException(
+            f === 0
+              ? `Au rez-de-chaussée, le numéro de logement doit être entre 1 et ${maxOnFloor} (unités d’habitation déclarées au RDC).`
+              : `À l’étage ${f}, le numéro de logement doit être entre 1 et ${maxOnFloor} sur ce bien.`,
+          );
+        }
+        const dup = await this.prisma.unit.findFirst({
+          where: {
+            buildingId: unit.buildingId,
+            floor: f,
+            apartmentSlot: slot,
+            NOT: { id: unitId },
+          },
+          select: { id: true },
+        });
+        if (dup) {
+          throw new BadRequestException(
+            `Le numéro de logement ${slot} est déjà utilisé à l’étage ${f === 0 ? 'rez-de-chaussée' : f} sur ce bien.`,
+          );
+        }
+      } else {
+        const dup = await this.prisma.unit.findFirst({
+          where: {
+            buildingId: unit.buildingId,
+            apartmentSlot: slot,
+            NOT: { id: unitId },
+          },
+          select: { id: true },
+        });
+        if (dup) {
+          const slotLabel =
+            b.structureKind === BuildingStructureKind.TERRAIN_LOTS ? 'de lot' : 'd’appartement';
+          throw new BadRequestException(
+            `Le numéro ${slotLabel} ${slot} est déjà utilisé sur ce bien.`,
+          );
+        }
+        if (
+          b.structureKind === BuildingStructureKind.IMMEUBLE &&
+          b.apartmentCount != null &&
+          b.apartmentCount > 0 &&
+          (slot < 1 || slot > b.apartmentCount)
+        ) {
+          throw new BadRequestException(
+            `Le numéro de logement doit être entre 1 et ${b.apartmentCount} (déclaré sur ce bien).`,
+          );
+        }
+        if (
+          b.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+          b.terrainLotCount != null &&
+          b.terrainLotCount > 0 &&
+          (slot < 1 || slot > b.terrainLotCount)
+        ) {
+          throw new BadRequestException(
+            `Le numéro de lot doit être entre 1 et ${b.terrainLotCount} (déclaré sur le terrain).`,
+          );
+        }
       }
     }
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { api, openTenantIdDocumentPreview, type TenantIdDocumentMeta } from '@/lib/api';
-import { TenantIdDocumentSection, TenantIdDocumentThumb } from '@/components/TenantIdDocumentSection';
+import { TenantIdDocumentSection } from '@/components/TenantIdDocumentSection';
 import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
@@ -20,6 +20,9 @@ import {
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 import { unitKindLabel } from '@/lib/unitKind';
+import { SortableTh } from '@/components/SortableTh';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 
 type Tenant = {
   id: string;
@@ -47,6 +50,7 @@ type Tenant = {
 function idDocumentMeta(t: Tenant): TenantIdDocumentMeta | null {
   if (!t.idDocFileKey) return null;
   return {
+    fileKey: t.idDocFileKey,
     fileName: t.idDocOriginalName,
     mimeType: t.idDocMime,
     size: t.idDocSize,
@@ -65,6 +69,40 @@ function tenantRowFlash(active: boolean) {
   return active
     ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
     : '';
+}
+
+type TenantSortKey = 'tenant' | 'contact' | 'place' | 'lease';
+
+function tenantContactLine(t: Tenant) {
+  return `${t.email ?? ''} ${t.phone ?? ''}`.trim();
+}
+
+function compareTenantRows(a: Tenant, b: Tenant, key: TenantSortKey, dir: TableSortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case 'tenant':
+      c = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'fr', { sensitivity: 'base' });
+      break;
+    case 'contact':
+      c = tenantContactLine(a).localeCompare(tenantContactLine(b), 'fr', { sensitivity: 'base' });
+      break;
+    case 'place': {
+      const la = a.leases[0];
+      const lb = b.leases[0];
+      const pa = la ? `${la.unit.building.name} ${la.unit.label}`.trim() : '';
+      const pb = lb ? `${lb.unit.building.name} ${lb.unit.label}`.trim() : '';
+      c = pa.localeCompare(pb, 'fr', { sensitivity: 'base' });
+      break;
+    }
+    case 'lease':
+      c = (a.leases[0]?.id ?? '').localeCompare(b.leases[0]?.id ?? '');
+      break;
+    default:
+      c = 0;
+  }
+  if (c === 0) c = a.id.localeCompare(b.id);
+  return c * sign;
 }
 
 export function TenantsPage() {
@@ -110,6 +148,21 @@ export function TenantsPage() {
       );
     });
   }, [rows, listSearch]);
+
+  const [tenantSortKey, setTenantSortKey] = useState<TenantSortKey>('tenant');
+  const [tenantSortDir, setTenantSortDir] = useState<TableSortDir>('asc');
+
+  function toggleTenantSort(key: TenantSortKey) {
+    const n = toggleTableSortColumn(tenantSortKey, tenantSortDir, key);
+    setTenantSortKey(n.key);
+    setTenantSortDir(n.dir);
+  }
+
+  const sortedFilteredRows = useMemo(() => {
+    const copy = [...filteredRows];
+    copy.sort((a, b) => compareTenantRows(a, b, tenantSortKey, tenantSortDir));
+    return copy;
+  }, [filteredRows, tenantSortKey, tenantSortDir]);
 
   function openAddTenantForm() {
     setAddTenantOpen(true);
@@ -415,7 +468,7 @@ export function TenantsPage() {
                 value={listSearch}
                 onChange={(e) => setListSearch(e.target.value)}
                 placeholder="Rechercher (nom, bien, ville…)"
-                className="w-full rounded-lg border-slate-200 py-2 pl-9 pr-8 text-sm dark:border-slate-600"
+                className="w-full rounded-lg border-slate-200 py-2 !pl-11 pr-8 text-sm dark:border-slate-600"
                 aria-label="Filtrer la liste des locataires"
                 autoComplete="off"
               />
@@ -440,17 +493,41 @@ export function TenantsPage() {
           <table className="w-full min-w-[880px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-                <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Locataire</th>
-                <th className="whitespace-nowrap px-4 py-2.5 sm:px-5">Contact</th>
-                <th className="min-w-[12rem] px-4 py-2.5 sm:px-5">Bien & unité</th>
-                <th className="whitespace-nowrap px-4 py-2.5 sm:px-5" title="Fiche du bail (location)">
-                  Fiche location
-                </th>
+                <SortableTh
+                  label="Locataire"
+                  columnKey="tenant"
+                  activeKey={tenantSortKey}
+                  dir={tenantSortDir}
+                  onSort={toggleTenantSort}
+                />
+                <SortableTh
+                  label="Contact"
+                  columnKey="contact"
+                  activeKey={tenantSortKey}
+                  dir={tenantSortDir}
+                  onSort={toggleTenantSort}
+                />
+                <SortableTh
+                  label="Bien & unité"
+                  columnKey="place"
+                  activeKey={tenantSortKey}
+                  dir={tenantSortDir}
+                  onSort={toggleTenantSort}
+                  thClassName="min-w-[12rem] whitespace-nowrap px-4 py-2.5 sm:px-5"
+                />
+                <SortableTh
+                  label="Fiche location"
+                  columnKey="lease"
+                  activeKey={tenantSortKey}
+                  dir={tenantSortDir}
+                  onSort={toggleTenantSort}
+                  thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                />
                 <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right sm:px-5"> </th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((t, rowIndex) => {
+              {sortedFilteredRows.map((t, rowIndex) => {
                 const l = t.leases[0];
                 const isEditing = editingId === t.id;
                 if (isEditing) {
@@ -528,7 +605,6 @@ export function TenantsPage() {
                   >
                     <td className={listTableFirstCellClass}>
                       <div className="flex items-start gap-3">
-                        {t.idDocFileKey ? <TenantIdDocumentThumb tenantId={t.id} mimeType={t.idDocMime} /> : null}
                         <div className="min-w-0">
                           <SmartLink
                             to={`/locataires?edit=${encodeURIComponent(t.id)}`}

@@ -5,7 +5,7 @@ import { LinkButton } from '@/components/LinkButton';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
 import { SidebarNavIcon } from '@/components/SidebarNavIcons';
 import { api } from '@/lib/api';
-import { fcfa, formatAmountDigitsGrouped, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
+import { fcfa, formatAmountDigitsGrouped, formatDateFr, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
@@ -13,6 +13,9 @@ import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@
 import { resolveReturnTarget } from '@/lib/navigation';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
+import { SortableTh } from '@/components/SortableTh';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 
 type Fiche = {
   leaseId: string;
@@ -79,6 +82,50 @@ type Fiche = {
   } | null;
 };
 
+type PaymentScheduleRow = NonNullable<Fiche['paymentSchedule']>[number];
+
+type ScheduleSortKey = 'period' | 'amount' | 'status';
+
+function isoDateFromUnknown(input: string): string | null {
+  const s = input.trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return iso[0];
+  const fr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!fr) return null;
+  const dd = Number(fr[1]);
+  const mm = Number(fr[2]);
+  const yyyy = Number(fr[3]);
+  if (!Number.isInteger(dd) || !Number.isInteger(mm) || !Number.isInteger(yyyy)) return null;
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yyyy < 1900 || yyyy > 2100) return null;
+  const candidate = `${String(yyyy).padStart(4, '0')}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  const d = new Date(`${candidate}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const normalized = d.toISOString().slice(0, 10);
+  return normalized === candidate ? candidate : null;
+}
+
+function compareScheduleRows(a: PaymentScheduleRow, b: PaymentScheduleRow, key: ScheduleSortKey, dir: TableSortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case 'period':
+      c = a.periodYear !== b.periodYear ? a.periodYear - b.periodYear : a.periodMonth - b.periodMonth;
+      break;
+    case 'amount':
+      c = a.amountDue - b.amountDue;
+      break;
+    case 'status':
+      c = a.status.localeCompare(b.status);
+      break;
+    default:
+      c = 0;
+  }
+  if (c === 0) c = a.dueDate.localeCompare(b.dueDate);
+  if (c === 0) c = a.id.localeCompare(b.id);
+  return c * sign;
+}
+
 function SectionHeader({ title, hintTitle }: { title: string; hintTitle?: string }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-300/90 pb-3 dark:border-slate-600/80">
@@ -124,6 +171,21 @@ export function LocationDetailPage() {
   const [waiveReason, setWaiveReason] = useState('');
   const [waiveBusy, setWaiveBusy] = useState(false);
   const [waiveErr, setWaiveErr] = useState<string | null>(null);
+  const [scheduleSortKey, setScheduleSortKey] = useState<ScheduleSortKey>('period');
+  const [scheduleSortDir, setScheduleSortDir] = useState<TableSortDir>('asc');
+
+  const sortedPaymentSchedule = useMemo(() => {
+    const raw = data?.paymentSchedule ?? [];
+    const copy = [...raw];
+    copy.sort((a, b) => compareScheduleRows(a, b, scheduleSortKey, scheduleSortDir));
+    return copy;
+  }, [data?.paymentSchedule, scheduleSortKey, scheduleSortDir]);
+
+  function toggleScheduleSort(key: ScheduleSortKey) {
+    const n = toggleTableSortColumn(scheduleSortKey, scheduleSortDir, key);
+    setScheduleSortKey(n.key);
+    setScheduleSortDir(n.dir);
+  }
 
   const reload = useCallback(() => {
     if (!id) return;
@@ -143,8 +205,8 @@ export function LocationDetailPage() {
     setDepositAmount(
       data.financial.depositAmount != null ? String(Math.round(Number(data.financial.depositAmount))) : '',
     );
-    setStartDate(data.startDate.slice(0, 10));
-    setEndDate(data.endDate ? data.endDate.slice(0, 10) : '');
+    setStartDate(formatDateFr(data.startDate));
+    setEndDate(data.endDate ? formatDateFr(data.endDate) : '');
     setLeaseErr(null);
   }, [data]);
 
@@ -156,12 +218,16 @@ export function LocationDetailPage() {
       data.financial.depositAmount != null
         ? Math.round(Number(data.financial.depositAmount))
         : null;
+    const startIso = isoDateFromUnknown(startDate);
+    const endIso = isoDateFromUnknown(endDate.trim());
+    const serverStartIso = data.startDate.slice(0, 10);
+    const serverEndIso = data.endDate ? data.endDate.slice(0, 10) : '';
     return (
       monthlyRent !== String(Math.round(Number(data.financial.monthlyRent))) ||
       rentDueDay !== String(data.financial.rentDueDay) ||
       dep !== serverDep ||
-      startDate !== data.startDate.slice(0, 10) ||
-      (endDate.trim() || '') !== (data.endDate ? data.endDate.slice(0, 10) : '')
+      (startIso ?? '') !== serverStartIso ||
+      (endIso ?? '') !== serverEndIso
     );
   }, [data, monthlyRent, rentDueDay, depositAmount, startDate, endDate]);
 
@@ -172,8 +238,8 @@ export function LocationDetailPage() {
     setDepositAmount(
       data.financial.depositAmount != null ? String(Math.round(Number(data.financial.depositAmount))) : '',
     );
-    setStartDate(data.startDate.slice(0, 10));
-    setEndDate(data.endDate ? data.endDate.slice(0, 10) : '');
+    setStartDate(formatDateFr(data.startDate));
+    setEndDate(data.endDate ? formatDateFr(data.endDate) : '');
     setLeaseErr(null);
   }
 
@@ -204,6 +270,17 @@ export function LocationDetailPage() {
       }
       depositPayload = Math.round(d);
     }
+    const startIso = isoDateFromUnknown(startDate);
+    if (!startIso) {
+      setLeaseErr('Date de début invalide. Format attendu : jj/mm/aaaa.');
+      return;
+    }
+    const endRaw = endDate.trim();
+    const endIso = endRaw ? isoDateFromUnknown(endRaw) : null;
+    if (endRaw && !endIso) {
+      setLeaseErr('Date de fin invalide. Format attendu : jj/mm/aaaa.');
+      return;
+    }
     setSavingLease(true);
     try {
       await api(`/leases/${data.leaseId}`, {
@@ -211,8 +288,8 @@ export function LocationDetailPage() {
         json: {
           monthlyRent: Math.round(rent),
           rentDueDay: due,
-          startDate,
-          endDate: endDate.trim() ? endDate.trim() : null,
+          startDate: startIso,
+          endDate: endIso,
           depositAmount: depositPayload,
         },
       });
@@ -483,7 +560,7 @@ export function LocationDetailPage() {
               Détail mois par mois : bouton <span className="font-bold text-slate-950 dark:text-white">Paiements</span> en haut de page.
             </p>
 
-            {(data.paymentSchedule ?? []).length ? (
+            {sortedPaymentSchedule.length ? (
               <div className="mb-5 rounded-lg border-2 border-slate-200/95 bg-white p-4 dark:border-slate-500/60 dark:bg-slate-950/60">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">
@@ -495,14 +572,38 @@ export function LocationDetailPage() {
                   <table className="w-full min-w-[28rem] text-left text-sm">
                     <thead className="sticky top-0 bg-slate-100/95 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/95 dark:text-slate-300">
                       <tr>
-                        <th className="px-3 py-2">Période</th>
-                        <th className="px-3 py-2">Montant dû</th>
-                        <th className="px-3 py-2">Statut</th>
-                        <th className="px-3 py-2 text-right">Action</th>
+                        <SortableTh
+                          label="Période"
+                          columnKey="period"
+                          activeKey={scheduleSortKey}
+                          dir={scheduleSortDir}
+                          onSort={toggleScheduleSort}
+                          thClassName="bg-slate-100/95 px-3 py-2 dark:bg-slate-800/95"
+                        />
+                        <SortableTh
+                          label="Montant dû"
+                          columnKey="amount"
+                          activeKey={scheduleSortKey}
+                          dir={scheduleSortDir}
+                          onSort={toggleScheduleSort}
+                          align="end"
+                          thClassName="bg-slate-100/95 px-3 py-2 dark:bg-slate-800/95"
+                        />
+                        <SortableTh
+                          label="Statut"
+                          columnKey="status"
+                          activeKey={scheduleSortKey}
+                          dir={scheduleSortDir}
+                          onSort={toggleScheduleSort}
+                          thClassName="bg-slate-100/95 px-3 py-2 dark:bg-slate-800/95"
+                        />
+                        <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                          Action
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/90 dark:divide-slate-600/80">
-                      {(data.paymentSchedule ?? []).map((row) => {
+                      {sortedPaymentSchedule.map((row) => {
                         const canWaive =
                           data.active && (row.status === 'PENDING' || row.status === 'LATE');
                         return (
@@ -559,7 +660,7 @@ export function LocationDetailPage() {
                 <>
                   <p className="text-xl font-bold tabular-nums text-slate-950 dark:text-slate-50">{fcfa(financial.depositAmount)}</p>
                   {financial.depositPaidAt ? (
-                    <p className="mt-1.5 text-sm font-semibold text-emerald-800 dark:text-emerald-300">Encaissée le {financial.depositPaidAt}</p>
+                    <p className="mt-1.5 text-sm font-semibold text-emerald-800 dark:text-emerald-300">Encaissée le {formatDateFr(financial.depositPaidAt)}</p>
                   ) : (
                     <p className="mt-1.5 text-sm font-semibold text-amber-900 dark:text-amber-200">Encaissement non enregistré</p>
                   )}
@@ -673,11 +774,27 @@ export function LocationDetailPage() {
           </div>
           <div>
             <Label htmlFor="lease-edit-start">Début du bail</Label>
-            <Input id="lease-edit-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            <Input
+              id="lease-edit-start"
+              type="text"
+              inputMode="numeric"
+              placeholder="jj/mm/aaaa"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              required
+            />
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="lease-edit-end">Fin du bail (optionnel)</Label>
-            <Input id="lease-edit-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Input
+              id="lease-edit-end"
+              type="text"
+              inputMode="numeric"
+              placeholder="jj/mm/aaaa"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Format date : jour/mois/année.</p>
           </div>
           {leaseErr ? <p className="text-sm text-red-600 sm:col-span-2 dark:text-red-400">{leaseErr}</p> : null}
           <div className="sm:col-span-2 flex flex-wrap gap-2">

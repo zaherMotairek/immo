@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TenantIdDocumentMeta } from '@/lib/api';
 import {
-  apiBaseUrl,
   deleteTenantIdDocument,
+  deleteTenantIdDocumentByKey,
+  listTenantIdDocuments,
   downloadTenantIdDocumentFile,
-  getToken,
   openTenantIdDocumentPreview,
   uploadTenantIdDocument,
 } from '@/lib/api';
+import { formatDateFr } from '@/lib/format';
 import { Button } from './ui';
 
 function formatBytes(n: number | null | undefined) {
@@ -15,63 +16,6 @@ function formatBytes(n: number | null | undefined) {
   if (n < 1024) return `${n} o`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} Ko`;
   return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
-}
-
-/** Miniature pour la liste (lecture seule) : image ou pastille PDF. */
-export function TenantIdDocumentThumb({
-  tenantId,
-  mimeType,
-}: {
-  tenantId: string;
-  mimeType: string | null | undefined;
-}) {
-  const [url, setUrl] = useState<string | null>(null);
-  const isImage = Boolean(mimeType?.startsWith('image/'));
-
-  useEffect(() => {
-    if (!isImage) return;
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    const token = getToken();
-    fetch(`${apiBaseUrl()}/tenants/${tenantId}/id-document`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error('fetch');
-        return r.blob();
-      })
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [tenantId, isImage]);
-
-  if (!isImage) {
-    return (
-      <div
-        className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-600"
-        title="Document PDF"
-      >
-        PDF
-      </div>
-    );
-  }
-  if (!url) {
-    return <div className="h-16 w-16 shrink-0 animate-pulse rounded-lg bg-slate-100" aria-hidden />;
-  }
-  return (
-    <img
-      src={url}
-      alt=""
-      className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover shadow-sm"
-    />
-  );
 }
 
 type Props = {
@@ -84,12 +28,27 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
   const inputRef = useRef<HTMLInputElement>(null);
   const camRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [documents, setDocuments] = useState<TenantIdDocumentMeta[]>([]);
+
+  async function loadDocuments() {
+    try {
+      const list = await listTenantIdDocuments(tenantId);
+      setDocuments(list.slice().reverse());
+    } catch {
+      setDocuments(idDocument ? [idDocument] : []);
+    }
+  }
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [tenantId]);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
     setBusy(true);
     try {
       await uploadTenantIdDocument(tenantId, file);
+      await loadDocuments();
       onChanged();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Envoi impossible.');
@@ -98,12 +57,16 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
     }
   }
 
-  async function onRemove() {
-    if (!idDocument) return;
+  async function onRemove(fileKey?: string) {
     if (!confirm('Supprimer la pièce d’identité enregistrée ?')) return;
     setBusy(true);
     try {
-      await deleteTenantIdDocument(tenantId);
+      if (fileKey) {
+        await deleteTenantIdDocumentByKey(tenantId, fileKey);
+      } else {
+        await deleteTenantIdDocument(tenantId);
+      }
+      await loadDocuments();
       onChanged();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Suppression impossible.');
@@ -112,7 +75,7 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
     }
   }
 
-  const name = idDocument?.fileName ?? 'document';
+  const entries = documents.length > 0 ? documents : idDocument ? [idDocument] : [];
 
   return (
     <div className="space-y-3">
@@ -159,20 +122,17 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
           Prendre une photo
         </Button>
       </div>
-      {idDocument && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
-          <div className="flex flex-wrap gap-3">
-            <TenantIdDocumentThumb tenantId={tenantId} mimeType={idDocument.mimeType} />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-900 dark:text-slate-100">{idDocument.fileName ?? 'Fichier'}</p>
+      {entries.map((entry) => (
+        <div key={entry.fileKey ?? `${entry.fileName}-${entry.uploadedAt}`} className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-slate-900 dark:text-slate-100">{entry.fileName ?? 'Fichier'}</p>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {idDocument.mimeType ?? '—'} · {formatBytes(idDocument.size)}
-                {idDocument.uploadedAt && ` · envoyé le ${idDocument.uploadedAt.slice(0, 10)}`}
+                {entry.mimeType ?? '—'} · {formatBytes(entry.size)}
+                {entry.uploadedAt && ` · envoyé le ${formatDateFr(entry.uploadedAt)}`}
               </p>
-            </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button type="button" className="py-1.5 text-xs" disabled={busy} onClick={() => openTenantIdDocumentPreview(tenantId)}>
+            <Button type="button" className="py-1.5 text-xs" disabled={busy} onClick={() => openTenantIdDocumentPreview(tenantId, entry.fileKey)}>
               Ouvrir / afficher
             </Button>
             <Button
@@ -180,16 +140,16 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
               variant="secondary"
               className="py-1.5 text-xs"
               disabled={busy}
-              onClick={() => downloadTenantIdDocumentFile(tenantId, name)}
+              onClick={() => downloadTenantIdDocumentFile(tenantId, entry.fileName ?? 'document', entry.fileKey)}
             >
               Télécharger
             </Button>
-            <Button type="button" variant="danger" className="py-1.5 text-xs" disabled={busy} onClick={() => void onRemove()}>
+            <Button type="button" variant="danger" className="py-1.5 text-xs" disabled={busy} onClick={() => void onRemove(entry.fileKey)}>
               Supprimer le fichier
             </Button>
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }

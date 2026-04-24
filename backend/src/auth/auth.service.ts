@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertOrganizationPlatformAccess } from './organization-platform-access';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -50,10 +51,21 @@ export class AuthService {
     const email = dto.email.trim();
     const user = await this.prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
+      include: {
+        organization: {
+          select: {
+            platformAccessSuspended: true,
+            platformAccessPaidUntil: true,
+          },
+        },
+      },
     });
     if (!user) throw new UnauthorizedException('Identifiants invalides');
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Identifiants invalides');
+
+    const role: JwtAuthUserRole = user.role === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'USER';
+    assertOrganizationPlatformAccess(role, user.organization);
 
     const payload: { sub: string; email: string; organizationId: string } = {
       sub: user.id,

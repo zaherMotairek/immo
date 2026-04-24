@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
-import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
+import { fcfa, formatDateFr, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { BuildingScopeBadge, UnitScopeBadge } from '@/components/BuildingUnitBadges';
@@ -16,6 +16,9 @@ import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } fr
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { buildReturnToBuildingUrl, navigateAfterCreate } from '@/lib/navigation';
 import { UNIT_KIND_OPTIONS, unitKindLabel, type UnitKindCode } from '@/lib/unitKind';
+import { SortableTh } from '@/components/SortableTh';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 
 type BuildingOpt = {
   id: string;
@@ -62,7 +65,7 @@ type WellViewFilter = 'all' | UnitKindCode;
 
 type LeaseSortKey = 'building' | 'unit' | 'tenant' | 'rent' | 'start' | 'status';
 
-function compareLeaseRows(a: LeaseRow, b: LeaseRow, key: LeaseSortKey, dir: 'asc' | 'desc'): number {
+function compareLeaseRows(a: LeaseRow, b: LeaseRow, key: LeaseSortKey, dir: TableSortDir): number {
   const sign = dir === 'asc' ? 1 : -1;
   let c = 0;
   switch (key) {
@@ -105,39 +108,6 @@ function compareLeaseRows(a: LeaseRow, b: LeaseRow, key: LeaseSortKey, dir: 'asc
       c = 0;
   }
   return c * sign;
-}
-
-function LeaseSortTh({
-  label,
-  columnKey,
-  activeKey,
-  dir,
-  onSort,
-}: {
-  label: string;
-  columnKey: LeaseSortKey;
-  activeKey: LeaseSortKey;
-  dir: 'asc' | 'desc';
-  onSort: (k: LeaseSortKey) => void;
-}) {
-  const active = activeKey === columnKey;
-  return (
-    <th scope="col" className="whitespace-nowrap px-4 py-2.5 sm:px-5">
-      <button
-        type="button"
-        onClick={() => onSort(columnKey)}
-        className={`inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-[11px] font-semibold uppercase tracking-[0.06em] transition hover:text-brand-700 dark:hover:text-brand-300 ${
-          active ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'
-        }`}
-        aria-label={`Trier par ${label}${active ? ` (${dir === 'asc' ? 'croissant' : 'décroissant'})` : ''}`}
-      >
-        <span>{label}</span>
-        <span className="select-none font-normal tabular-nums opacity-75" aria-hidden>
-          {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
 }
 
 /** Libellé dans la liste « Bien » : nom + type + nombre d’unités (aperçu avant choix du lot). */
@@ -194,7 +164,7 @@ export function LeasesPage() {
   const [addLeaseOpen, setAddLeaseOpen] = useState(false);
   const [leasesFiltersOpen, setLeasesFiltersOpen] = useState(false);
   const [leaseSortKey, setLeaseSortKey] = useState<LeaseSortKey>('tenant');
-  const [leaseSortDir, setLeaseSortDir] = useState<'asc' | 'desc'>('asc');
+  const [leaseSortDir, setLeaseSortDir] = useState<TableSortDir>('asc');
   const [leaseListSearch, setLeaseListSearch] = useState('');
   const addLeaseFormRef = useRef<HTMLDivElement | null>(null);
   /** Évite de réappliquer le préremplissage tant que l’URL n’a pas changé. */
@@ -203,12 +173,9 @@ export function LeasesPage() {
   const returnToBuildingAfterLeaseRef = useRef<{ buildingId: string } | null>(null);
 
   function toggleLeaseSort(key: LeaseSortKey) {
-    if (leaseSortKey === key) {
-      setLeaseSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setLeaseSortKey(key);
-      setLeaseSortDir('asc');
-    }
+    const n = toggleTableSortColumn(leaseSortKey, leaseSortDir, key);
+    setLeaseSortKey(n.key);
+    setLeaseSortDir(n.dir);
   }
 
   function openAddLeaseForm() {
@@ -1123,7 +1090,7 @@ export function LeasesPage() {
                         value={leaseListSearch}
                         onChange={(e) => setLeaseListSearch(e.target.value)}
                         placeholder="Rechercher (locataire, bien, unité…)"
-                        className="w-full rounded-lg border-slate-200 py-2 pl-9 pr-8 text-sm dark:border-slate-600"
+                        className="w-full rounded-lg border-slate-200 py-2 !pl-11 pr-8 text-sm dark:border-slate-600"
                         aria-label="Filtrer la liste des baux"
                         autoComplete="off"
                       />
@@ -1154,42 +1121,42 @@ export function LeasesPage() {
               <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
-                    <LeaseSortTh
+                    <SortableTh
                       label="Locataire"
                       columnKey="tenant"
                       activeKey={leaseSortKey}
                       dir={leaseSortDir}
                       onSort={toggleLeaseSort}
                     />
-                    <LeaseSortTh
+                    <SortableTh
                       label="Bien"
                       columnKey="building"
                       activeKey={leaseSortKey}
                       dir={leaseSortDir}
                       onSort={toggleLeaseSort}
                     />
-                    <LeaseSortTh
+                    <SortableTh
                       label="Unité"
                       columnKey="unit"
                       activeKey={leaseSortKey}
                       dir={leaseSortDir}
                       onSort={toggleLeaseSort}
                     />
-                    <LeaseSortTh
+                    <SortableTh
                       label="Loyer"
                       columnKey="rent"
                       activeKey={leaseSortKey}
                       dir={leaseSortDir}
                       onSort={toggleLeaseSort}
                     />
-                    <LeaseSortTh
+                    <SortableTh
                       label="Début"
                       columnKey="start"
                       activeKey={leaseSortKey}
                       dir={leaseSortDir}
                       onSort={toggleLeaseSort}
                     />
-                    <LeaseSortTh
+                    <SortableTh
                       label="Statut"
                       columnKey="status"
                       activeKey={leaseSortKey}
@@ -1271,9 +1238,9 @@ export function LeasesPage() {
                         ) : null}
                       </td>
                       <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
-                        <p className="text-xs tabular-nums">{l.startDate.slice(0, 10)}</p>
+                        <p className="text-xs tabular-nums">{formatDateFr(l.startDate)}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {l.endDate ? `fin ${l.endDate.slice(0, 10)}` : 'sans fin'}
+                          {l.endDate ? `fin ${formatDateFr(l.endDate)}` : 'sans fin'}
                         </p>
                       </td>
                       <td className={listTableCellClass}>

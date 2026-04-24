@@ -1,11 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LeaseContractMeta } from '@/lib/api';
 import {
   deleteLeaseContract,
+  deleteLeaseContractByKey,
+  listLeaseContracts,
   downloadLeaseContractFile,
   openLeaseContractPreview,
   uploadLeaseContract,
 } from '@/lib/api';
+import { formatDateFr } from '@/lib/format';
 import { Button } from './ui';
 
 function formatBytes(n: number | null | undefined) {
@@ -26,12 +29,27 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
   const inputRef = useRef<HTMLInputElement>(null);
   const camRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [contracts, setContracts] = useState<LeaseContractMeta[]>([]);
+
+  async function loadContracts() {
+    try {
+      const list = await listLeaseContracts(leaseId);
+      setContracts(list.slice().reverse());
+    } catch {
+      setContracts(contract ? [contract] : []);
+    }
+  }
+
+  useEffect(() => {
+    void loadContracts();
+  }, [leaseId]);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
     setBusy(true);
     try {
       await uploadLeaseContract(leaseId, file);
+      await loadContracts();
       onChanged();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Envoi impossible.');
@@ -40,12 +58,16 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
     }
   }
 
-  async function onRemove() {
-    if (!contract) return;
+  async function onRemove(fileKey?: string) {
     if (!confirm('Supprimer le fichier de contrat enregistré ?')) return;
     setBusy(true);
     try {
-      await deleteLeaseContract(leaseId);
+      if (fileKey) {
+        await deleteLeaseContractByKey(leaseId, fileKey);
+      } else {
+        await deleteLeaseContract(leaseId);
+      }
+      await loadContracts();
       onChanged();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Suppression impossible.');
@@ -54,7 +76,7 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
     }
   }
 
-  const name = contract?.fileName ?? 'contrat';
+  const entries = contracts.length > 0 ? contracts : contract ? [contract] : [];
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
@@ -83,7 +105,7 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
           disabled={busy}
           onClick={() => inputRef.current?.click()}
         >
-          {contract ? 'Remplacer le contrat' : 'Ajouter un contrat'}
+          {entries.length > 0 ? 'Ajouter un autre contrat' : 'Ajouter un contrat'}
         </Button>
         <Button
           type="button"
@@ -95,32 +117,26 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
           Prendre une photo
         </Button>
       </div>
-      {contract && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
-          <p className="font-medium text-slate-900 dark:text-slate-100">{contract.fileName ?? 'Fichier'}</p>
+      {entries.map((entry) => (
+        <div key={entry.fileKey ?? `${entry.fileName}-${entry.uploadedAt}`} className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
+          <p className="font-medium text-slate-900 dark:text-slate-100">{entry.fileName ?? 'Fichier'}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            {contract.mimeType ?? '—'} · {formatBytes(contract.size)}
-            {contract.uploadedAt && ` · envoyé le ${contract.uploadedAt.slice(0, 10)}`}
+            {entry.mimeType ?? '—'} · {formatBytes(entry.size)}
+            {entry.uploadedAt && ` · envoyé le ${formatDateFr(entry.uploadedAt)}`}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button type="button" className="py-1.5 text-xs" disabled={busy} onClick={() => openLeaseContractPreview(leaseId)}>
+            <Button type="button" className="py-1.5 text-xs" disabled={busy} onClick={() => openLeaseContractPreview(leaseId, entry.fileKey)}>
               Ouvrir / afficher
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="py-1.5 text-xs"
-              disabled={busy}
-              onClick={() => downloadLeaseContractFile(leaseId, name)}
-            >
+            <Button type="button" variant="secondary" className="py-1.5 text-xs" disabled={busy} onClick={() => downloadLeaseContractFile(leaseId, entry.fileName ?? 'contrat', entry.fileKey)}>
               Télécharger
             </Button>
-            <Button type="button" variant="danger" className="py-1.5 text-xs" disabled={busy} onClick={() => void onRemove()}>
+            <Button type="button" variant="danger" className="py-1.5 text-xs" disabled={busy} onClick={() => void onRemove(entry.fileKey)}>
               Supprimer le fichier
             </Button>
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }

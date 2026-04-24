@@ -16,6 +16,11 @@ import {
 } from '../common/immo-pdf';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
+import {
+  selectApartmentsPerFloorByOrg,
+  selectApartmentsPerFloorColumn,
+  updateApartmentsPerFloorColumn,
+} from './apartments-per-floor-column';
 
 @Injectable()
 export class BuildingsService {
@@ -25,11 +30,11 @@ export class BuildingsService {
    * @param unitKind Si défini : biens qui ont au moins une unité de ce type.
    * @param structureKind Si défini : biens dont le genre (structure) correspond.
    */
-  list(organizationId: string, unitKind?: UnitKind, structureKind?: BuildingStructureKind) {
+  async list(organizationId: string, unitKind?: UnitKind, structureKind?: BuildingStructureKind) {
     const where: Prisma.BuildingWhereInput = { organizationId };
     if (structureKind) where.structureKind = structureKind;
     if (unitKind) where.units = { some: { kind: unitKind } };
-    return this.prisma.building.findMany({
+    const rows = await this.prisma.building.findMany({
       where,
       orderBy: { name: 'asc' },
       include: {
@@ -44,6 +49,11 @@ export class BuildingsService {
         },
       },
     });
+    const apfMap = await selectApartmentsPerFloorByOrg(this.prisma, organizationId);
+    return rows.map((row) => ({
+      ...row,
+      apartmentsPerFloor: apfMap.get(row.id) ?? null,
+    }));
   }
 
   async get(id: string, organizationId: string) {
@@ -68,21 +78,37 @@ export class BuildingsService {
       },
     });
     if (!b) throw new NotFoundException('Bien introuvable');
-    return b;
+    const apf = await selectApartmentsPerFloorColumn(this.prisma, b.id);
+    if (apf === undefined) return b;
+    return { ...b, apartmentsPerFloor: apf };
   }
 
-  create(dto: CreateBuildingDto, organizationId: string) {
+  async create(dto: CreateBuildingDto, organizationId: string) {
     const kind = dto.structureKind ?? BuildingStructureKind.MONO_LOT;
+    let immeubleApartmentCount = dto.apartmentCount ?? null;
+    let immeubleApartmentsPerFloor = dto.apartmentsPerFloor ?? null;
     if (kind === BuildingStructureKind.IMMEUBLE) {
       const hasRz = dto.hasRezDeChaussee !== false;
+      const pf = dto.apartmentsPerFloor;
+      const fc = dto.floorCount;
+      if (pf != null && pf > 0) {
+        if (fc == null || fc < 1) {
+          throw new BadRequestException(
+            'Avec un nombre de logements par étage, indiquez au moins un étage au-dessus du rez-de-chaussée.',
+          );
+        }
+        const rez = hasRz ? dto.rezApartmentCount ?? 0 : 0;
+        immeubleApartmentCount = fc * pf + rez;
+        immeubleApartmentsPerFloor = pf;
+      }
       this.assertRezApartmentCoherent({
         hasRezDeChaussee: hasRz,
-        apartmentCount: dto.apartmentCount ?? null,
+        apartmentCount: immeubleApartmentCount,
         rezApartmentCount: hasRz ? dto.rezApartmentCount ?? null : null,
       });
     }
     try {
-      return this.prisma.building.create({
+      const created = await this.prisma.building.create({
         data: {
           organizationId,
           name: dto.name,
@@ -96,7 +122,7 @@ export class BuildingsService {
           floorCount: kind === BuildingStructureKind.IMMEUBLE ? dto.floorCount ?? null : null,
           hasRezDeChaussee:
             kind === BuildingStructureKind.IMMEUBLE ? dto.hasRezDeChaussee !== false : null,
-          apartmentCount: kind === BuildingStructureKind.IMMEUBLE ? dto.apartmentCount ?? null : null,
+          apartmentCount: kind === BuildingStructureKind.IMMEUBLE ? immeubleApartmentCount : null,
           rezApartmentCount:
             kind === BuildingStructureKind.IMMEUBLE && dto.hasRezDeChaussee !== false
               ? dto.rezApartmentCount ?? null
@@ -105,13 +131,18 @@ export class BuildingsService {
           terrainLotCount: kind === BuildingStructureKind.TERRAIN_LOTS ? dto.terrainLotCount ?? null : null,
         },
       });
+      if (kind === BuildingStructureKind.IMMEUBLE) {
+        await updateApartmentsPerFloorColumn(this.prisma, created.id, immeubleApartmentsPerFloor);
+        return { ...created, apartmentsPerFloor: immeubleApartmentsPerFloor };
+      }
+      return created;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientValidationError &&
-        /terrainLotCount|Unknown argument/i.test(e.message)
+        /terrainLotCount|apartmentsPerFloor|Unknown argument/i.test(e.message)
       ) {
         throw new BadRequestException(
-          'Le moteur Prisma est obsolète (schéma sans terrain_lot_count). Arrêtez l’API, puis dans le dossier backend exécutez : npx prisma generate — puis relancez npm run start:dev. Sous Windows, l’erreur EPERM disparaît une fois Node arrêté.',
+          'Le moteur Prisma est obsolète par rapport au schéma. Arrêtez l’API (tous les processus Node), puis dans le dossier backend : npx prisma generate — puis relancez. Sous Windows, l’erreur EPERM disparaît une fois le serveur arrêté.',
         );
       }
       throw e;
@@ -143,18 +174,44 @@ export class BuildingsService {
       dto.hasRezDeChaussee !== undefined ? dto.hasRezDeChaussee !== false : existing.hasRezDeChaussee !== false;
     const mergedApt = dto.apartmentCount !== undefined ? dto.apartmentCount : existing.apartmentCount;
     const mergedRez = dto.rezApartmentCount !== undefined ? dto.rezApartmentCount : existing.rezApartmentCount;
+    const existingApf = await selectApartmentsPerFloorColumn(this.prisma, id);
+    const mergedPf =
+      dto.apartmentsPerFloor !== undefined ? dto.apartmentsPerFloor : existingApf ?? null;
+    const mergedFc = dto.floorCount !== undefined ? dto.floorCount : existing.floorCount;
+    let coherentApt = mergedApt;
+    if (nextKind === BuildingStructureKind.IMMEUBLE && mergedPf != null && mergedPf > 0) {
+      if (mergedFc == null || mergedFc < 1) {
+        throw new BadRequestException(
+          'Avec un nombre de logements par étage, indiquez au moins un étage au-dessus du rez-de-chaussée.',
+        );
+      }
+      const rz = mergedHasRz ? mergedRez ?? 0 : 0;
+      coherentApt = mergedFc * mergedPf + rz;
+    }
     if (nextKind === BuildingStructureKind.IMMEUBLE) {
       this.assertRezApartmentCoherent({
         hasRezDeChaussee: mergedHasRz,
-        apartmentCount: mergedApt,
+        apartmentCount: coherentApt,
         rezApartmentCount: mergedHasRz ? mergedRez : null,
       });
     }
-    const data: Prisma.BuildingUpdateInput = { ...dto };
+    const data = { ...dto } as Prisma.BuildingUpdateInput;
+    delete (data as Record<string, unknown>).apartmentsPerFloor;
     if (dto.hasRezDeChaussee === false) {
       data.rezApartmentCount = null;
     }
-    return this.prisma.building.update({ where: { id }, data });
+    if (nextKind === BuildingStructureKind.IMMEUBLE && mergedPf != null && mergedPf > 0) {
+      data.apartmentCount = coherentApt;
+    }
+    const updated = await this.prisma.building.update({ where: { id }, data });
+    if (nextKind === BuildingStructureKind.IMMEUBLE) {
+      await updateApartmentsPerFloorColumn(this.prisma, id, mergedPf);
+    } else {
+      await updateApartmentsPerFloorColumn(this.prisma, id, null);
+    }
+    const apartmentsPerFloorOut =
+      nextKind === BuildingStructureKind.IMMEUBLE ? mergedPf : null;
+    return { ...updated, apartmentsPerFloor: apartmentsPerFloorOut };
   }
 
   private assertRezApartmentCoherent(opts: {
@@ -401,7 +458,9 @@ export class BuildingsService {
       },
     });
     if (!b) throw new NotFoundException('Bien introuvable');
-    return b;
+    const apf = await selectApartmentsPerFloorColumn(this.prisma, b.id);
+    if (apf === undefined) return b;
+    return { ...b, apartmentsPerFloor: apf };
   }
 
   /**

@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
-import { fcfa } from '@/lib/format';
+import { fcfa, formatDateFr } from '@/lib/format';
 import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
@@ -19,6 +19,55 @@ import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import { shouldDeferEscapeCancel } from '@/lib/useEscapeCancel';
 import { unitKindLabel } from '@/lib/unitKind';
+import { SortableTh } from '@/components/SortableTh';
+import type { TableSortDir } from '@/lib/tableSort';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import { collectionMethodLabel, COLLECTION_METHOD_OPTIONS } from '@/lib/collectionMethodUi';
+
+type PaymentSortKey = 'tenant' | 'place' | 'amount' | 'schedule' | 'status' | 'lease';
+
+function paymentPlaceSortKey(p: PaymentRow) {
+  const u = p.lease.unit;
+  const b = u.building;
+  return `${b.name} ${u.label} ${b.commune ?? ''} ${b.city ?? ''}`.trim();
+}
+
+function comparePaymentRows(a: PaymentRow, b: PaymentRow, key: PaymentSortKey, dir: TableSortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case 'tenant':
+      c = `${a.lease.tenant.lastName} ${a.lease.tenant.firstName}`.localeCompare(
+        `${b.lease.tenant.lastName} ${b.lease.tenant.firstName}`,
+        'fr',
+        { sensitivity: 'base' },
+      );
+      break;
+    case 'place':
+      c = paymentPlaceSortKey(a).localeCompare(paymentPlaceSortKey(b), 'fr', { sensitivity: 'base' });
+      break;
+    case 'amount':
+      c = Number(a.amountDue) - Number(b.amountDue);
+      break;
+    case 'schedule':
+      c = a.periodYear !== b.periodYear ? a.periodYear - b.periodYear : a.periodMonth - b.periodMonth;
+      if (c === 0) c = a.dueDate.localeCompare(b.dueDate);
+      break;
+    case 'status':
+      c = a.status.localeCompare(b.status);
+      break;
+    case 'lease':
+      c = (a.leaseId ?? '').localeCompare(b.leaseId ?? '');
+      break;
+    default:
+      c = 0;
+  }
+  if (c === 0) {
+    c = a.dueDate.localeCompare(b.dueDate);
+    if (c === 0) c = a.id.localeCompare(b.id);
+  }
+  return c * sign;
+}
 
 type BuildingOpt = {
   id: string;
@@ -65,6 +114,18 @@ export function PaymentsPage() {
   const tenantIdFilter = params.get('tenantId')?.trim() || '';
   const yearParam = params.get('year');
   const monthParam = params.get('month');
+  const methodParam = params.get('method')?.trim() || 'all';
+  const methodFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Tous les modes' },
+      ...COLLECTION_METHOD_OPTIONS.filter((o) => o.value !== ''),
+    ],
+    [],
+  );
+  const methodFilter = useMemo(() => {
+    const allowed = new Set(methodFilterOptions.map((o) => o.value));
+    return allowed.has(methodParam) ? methodParam : 'all';
+  }, [methodFilterOptions, methodParam]);
 
   const yearFilter: number | 'all' = useMemo(() => {
     if (yearParam === 'all') return 'all';
@@ -96,13 +157,16 @@ export function PaymentsPage() {
     }
     if (yearFilter !== 'all') q.set('year', String(yearFilter));
     if (monthFilter !== 'all') q.set('month', String(monthFilter));
+    if (methodFilter !== 'all') q.set('method', methodFilter);
     const s = q.toString();
     return `/payments/worksheet.pdf${s ? `?${s}` : ''}`;
-  }, [overdueOnly, leaseIdFilter, buildingIdFilter, unitIdFilter, tenantIdFilter, yearFilter, monthFilter]);
+  }, [overdueOnly, leaseIdFilter, buildingIdFilter, unitIdFilter, tenantIdFilter, yearFilter, monthFilter, methodFilter]);
 
   const [rows, setRows] = useState<PaymentRow[]>([]);
   const [paymentsReady, setPaymentsReady] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [partialFor, setPartialFor] = useState<PaymentRow | null>(null);
   const [partialAmount, setPartialAmount] = useState('');
   const [partialErr, setPartialErr] = useState('');
@@ -111,6 +175,15 @@ export function PaymentsPage() {
   const [zoomPaymentId, setZoomPaymentId] = useState<string | null>(null);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
   const [tenants, setTenants] = useState<TenantOpt[]>([]);
+  const [paySortKey, setPaySortKey] = useState<PaymentSortKey>('tenant');
+  const [paySortDir, setPaySortDir] = useState<TableSortDir>('asc');
+  const [mobileCriteriaOpen, setMobileCriteriaOpen] = useState(false);
+
+  function togglePaySort(key: PaymentSortKey) {
+    const n = toggleTableSortColumn(paySortKey, paySortDir, key);
+    setPaySortKey(n.key);
+    setPaySortDir(n.dir);
+  }
 
   const load = useCallback(() => {
     /* Ne pas passer paymentsReady à false : ça déclenche des effets et peut faire « sauter » le scroll. */
@@ -182,6 +255,19 @@ export function PaymentsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const visibleIds = new Set(
+      rows
+        .filter((r) =>
+          methodFilter === 'all'
+            ? true
+            : (r.collectionMethod ?? 'CASH') === methodFilter,
+        )
+        .map((r) => r.id),
+    );
+    setSelectedPaymentIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [rows, methodFilter]);
 
   /** Après versement partiel / marquer payé / relance / modale : éviter le retour en haut de page. */
   const scrollRestoreAfterPaymentsRef = useRef<{ paymentId: string; fallbackY: number } | null>(null);
@@ -261,13 +347,18 @@ export function PaymentsPage() {
     return () => clearTimeout(t);
   }, [focusPaymentId, rows]);
 
+  const visibleRows = useMemo(() => {
+    if (methodFilter === 'all') return rows;
+    return rows.filter((p) => (p.collectionMethod ?? 'CASH') === methodFilter);
+  }, [rows, methodFilter]);
+
   const stats = useMemo(() => {
     let aEncaisser = 0;
     let encaisse = 0;
     let retards = 0;
     let payees = 0;
     let partialLines = 0;
-    for (const p of rows) {
+    for (const p of visibleRows) {
       if (p.status === 'PAID') {
         payees += 1;
         encaisse += Number(p.amountPaid ?? p.amountDue);
@@ -278,29 +369,52 @@ export function PaymentsPage() {
         if (isOverduePayment(p)) retards += 1;
       }
     }
-    return { total: rows.length, aEncaisser, encaisse, retards, payees, partialLines };
-  }, [rows]);
+    return { total: visibleRows.length, aEncaisser, encaisse, retards, payees, partialLines };
+  }, [visibleRows]);
+
+  const collectionTotals = useMemo(() => {
+    const sums = new Map<string, number>();
+    for (const p of visibleRows) {
+      const key = p.collectionMethod ?? 'CASH';
+      const current = sums.get(key) ?? 0;
+      const enc = p.status === 'PAID' ? Number(p.amountPaid ?? p.amountDue) : Number(p.amountPaid ?? 0);
+      sums.set(key, current + enc);
+    }
+    return [...sums.entries()].map(([key, total]) => ({
+      key,
+      label: collectionMethodLabel(key),
+      total,
+    }));
+  }, [visibleRows]);
 
   const monthGroups = useMemo(() => {
     const map = new Map<string, PaymentRow[]>();
-    for (const p of rows) {
+    for (const p of visibleRows) {
       const k = monthGroupKey(p);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(p);
     }
     for (const list of map.values()) {
-      list.sort((a, b) => {
-        const byName = `${a.lease.tenant.lastName} ${a.lease.tenant.firstName}`.localeCompare(
-          `${b.lease.tenant.lastName} ${b.lease.tenant.firstName}`,
-          'fr',
-          { sensitivity: 'base' },
-        );
-        if (byName !== 0) return byName;
-        return a.dueDate.localeCompare(b.dueDate);
-      });
+      list.sort((a, b) => comparePaymentRows(a, b, paySortKey, paySortDir));
     }
     return [...map.entries()].sort(([ka], [kb]) => ka.localeCompare(kb));
-  }, [rows]);
+  }, [visibleRows, paySortKey, paySortDir]);
+
+  const selectedRows = useMemo(() => {
+    if (selectedPaymentIds.length === 0) return [];
+    const selected = new Set(selectedPaymentIds);
+    return visibleRows.filter((r) => selected.has(r.id));
+  }, [visibleRows, selectedPaymentIds]);
+
+  const selectableRows = useMemo(
+    () =>
+      selectedRows.filter(
+        (p) =>
+          (p.status === 'PENDING' || p.status === 'LATE') &&
+          paymentRemaining(p) > 0,
+      ),
+    [selectedRows],
+  );
 
   const monthKeysSig = useMemo(() => monthGroups.map(([k]) => k).join('\0'), [monthGroups]);
 
@@ -391,8 +505,12 @@ export function PaymentsPage() {
         : MOIS_SELECT_OPTIONS.find((o) => o.value === String(monthFilter))?.label ?? '';
     const scope =
       scopeSummaryParts.length > 0 ? ` · ${scopeSummaryParts.join(' · ')}` : '';
-    return `${y} · ${m}${scope}`;
-  }, [yearFilter, monthFilter, scopeSummaryParts]);
+    const methodPart =
+      methodFilter === 'all'
+        ? ''
+        : ` · ${collectionMethodLabel(methodFilter)}`;
+    return `${y} · ${m}${scope}${methodPart}`;
+  }, [yearFilter, monthFilter, scopeSummaryParts, methodFilter]);
 
   const unitsForBuildingFilter = useMemo(() => {
     if (!buildingIdFilter) return [];
@@ -548,6 +666,59 @@ export function PaymentsPage() {
     }
   }
 
+  function togglePaymentSelection(paymentId: string) {
+    setSelectedPaymentIds((prev) =>
+      prev.includes(paymentId)
+        ? prev.filter((id) => id !== paymentId)
+        : [...prev, paymentId],
+    );
+  }
+
+  function toggleAllInMonth(items: PaymentRow[], checked: boolean) {
+    const ids = items.map((p) => p.id);
+    setSelectedPaymentIds((prev) => {
+      if (checked) {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return [...next];
+      }
+      return prev.filter((id) => !ids.includes(id));
+    });
+  }
+
+  async function markSelectedPaid() {
+    if (selectableRows.length === 0) {
+      alert('Aucune ligne sélectionnée payable (en attente / en retard).');
+      return;
+    }
+    const count = selectableRows.length;
+    const ok = confirm(
+      `Marquer ${count} paiement${count > 1 ? 's' : ''} comme payé${count > 1 ? 's' : ''} ?`,
+    );
+    if (!ok) return;
+    setBulkSubmitting(true);
+    try {
+      await Promise.all(
+        selectableRows.map((p) =>
+          api(`/payments/${p.id}`, {
+            method: 'PATCH',
+            json: {
+              status: 'PAID',
+              amountPaid: Number(p.amountDue),
+              paidAt: new Date().toISOString().slice(0, 10),
+            },
+          }),
+        ),
+      );
+      setSelectedPaymentIds([]);
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Action groupée impossible.');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-6 pb-10">
       {focusPaymentId ? (
@@ -579,7 +750,7 @@ export function PaymentsPage() {
               hintTitle="Échéances de loyer uniquement (hors dépôt de garantie). Caution : fiche location. Relances e-mail et WhatsApp."
               titleExtra={
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
+                  <StatTile className="shrink-0" label="Total" value={String(visibleRows.length)} />
                   <PdfPrintButton
                     path={worksheetPdfPath}
                     title="Feuille de route PDF (mêmes filtres que la liste) : cases perçu, notes, puis saisie dans l’app"
@@ -654,15 +825,25 @@ export function PaymentsPage() {
               Critères d’affichage
             </p>
           </div>
-          <p className="min-w-0 truncate text-[10px] font-medium tabular-nums text-slate-500 dark:text-slate-400 sm:max-w-[55%] sm:text-right">
-            <span className="text-slate-400 dark:text-slate-500">Vue · </span>
-            {periodSummaryLabel}
-            {overdueOnly ? (
-              <span className="text-amber-700 dark:text-amber-400"> · impayés / retard</span>
-            ) : null}
-          </p>
+          <div className="flex items-center gap-2 sm:block">
+            <button
+              type="button"
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm sm:hidden dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              onClick={() => setMobileCriteriaOpen((v) => !v)}
+              aria-expanded={mobileCriteriaOpen}
+            >
+              {mobileCriteriaOpen ? 'Masquer' : 'Afficher'}
+            </button>
+            <p className="min-w-0 truncate text-[10px] font-medium tabular-nums text-slate-500 dark:text-slate-400 sm:max-w-[55%] sm:text-right">
+              <span className="text-slate-400 dark:text-slate-500">Vue · </span>
+              {periodSummaryLabel}
+              {overdueOnly ? (
+                <span className="text-amber-700 dark:text-amber-400"> · impayés / retard</span>
+              ) : null}
+            </p>
+          </div>
         </div>
-
+        <div className={mobileCriteriaOpen ? 'block' : 'hidden sm:block'}>
         <div className="grid gap-2 p-2 sm:p-2.5 lg:grid-cols-12 lg:items-end lg:gap-3">
           <div className="lg:col-span-7">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
@@ -768,6 +949,31 @@ export function PaymentsPage() {
               </button>
             </div>
             <span className="sr-only">En mode impayés, la liste exclut les échéances soldées.</span>
+            <div className="mt-2">
+              <Label htmlFor="payments-method" className="!mb-0.5 !text-[10px] !font-semibold !normal-case !tracking-normal !text-slate-600 dark:!text-slate-300">
+                Mode d'encaissement
+              </Label>
+              <Select
+                id="payments-method"
+                className="min-h-[2rem] border-slate-200 bg-white py-1.5 pl-2.5 pr-9 text-xs font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950/80"
+                value={methodFilter}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setParams((prev) => {
+                    const q = new URLSearchParams(prev);
+                    if (v === 'all') q.delete('method');
+                    else q.set('method', v);
+                    return q;
+                  });
+                }}
+              >
+                {methodFilterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -906,9 +1112,10 @@ export function PaymentsPage() {
             </button>
           </div>
         ) : null}
+        </div>
       </Card>
 
-      {rows.length > 0 && (
+      {visibleRows.length > 0 && (
         <div>
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
             Synthèse (filtre actif)
@@ -961,10 +1168,54 @@ export function PaymentsPage() {
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Par mois de facturation</p>
             </Card>
           </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {collectionTotals.length === 0 ? (
+              <Card className="sm:col-span-2 lg:col-span-4">
+                <p className="text-sm text-slate-600 dark:text-slate-400">Aucun encaissement saisi par mode sur ce filtre.</p>
+              </Card>
+            ) : (
+              collectionTotals.map((row) => (
+                <Card key={row.key} className="!p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{row.label}</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-50">{fcfa(row.total)}</p>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
       )}
 
       <div className="space-y-5">
+        {selectedPaymentIds.length > 0 ? (
+          <Card className="flex flex-wrap items-center justify-between gap-3 border-brand-200 bg-brand-50/70 py-3 dark:border-brand-500/40 dark:bg-brand-950/30">
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+              {selectedPaymentIds.length} ligne{selectedPaymentIds.length > 1 ? 's' : ''} sélectionnée
+              {selectedPaymentIds.length > 1 ? 's' : ''}
+              {selectableRows.length !== selectedPaymentIds.length
+                ? ` · ${selectableRows.length} payable${selectableRows.length > 1 ? 's' : ''}`
+                : ''}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                className="py-2 text-xs"
+                disabled={bulkSubmitting || selectableRows.length === 0}
+                onClick={() => void markSelectedPaid()}
+              >
+                {bulkSubmitting ? 'Traitement…' : 'Marquer la sélection comme payée'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="py-2 text-xs"
+                disabled={bulkSubmitting}
+                onClick={() => setSelectedPaymentIds([])}
+              >
+                Vider la sélection
+              </Button>
+            </div>
+          </Card>
+        ) : null}
         {monthGroups.length > 0 ? (
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
             Détail des échéances (par mois de facturation)
@@ -1076,27 +1327,66 @@ export function PaymentsPage() {
                 <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
-                      <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Locataire
+                      <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-center sm:px-5">
+                        <input
+                          type="checkbox"
+                          checked={items.every((p) => selectedPaymentIds.includes(p.id))}
+                          onChange={(e) => toggleAllInMonth(items, e.target.checked)}
+                          aria-label={`Sélectionner toutes les lignes de ${monthTitle(py, pm)}`}
+                        />
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Bien / unité
-                      </th>
-                      <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Montant
-                      </th>
+                      <SortableTh
+                        label="Locataire"
+                        columnKey="tenant"
+                        activeKey={paySortKey}
+                        dir={paySortDir}
+                        onSort={togglePaySort}
+                        thClassName="px-4 py-2.5 sm:px-5"
+                      />
+                      <SortableTh
+                        label="Bien / unité"
+                        columnKey="place"
+                        activeKey={paySortKey}
+                        dir={paySortDir}
+                        onSort={togglePaySort}
+                        thClassName="px-4 py-2.5 sm:px-5"
+                      />
+                      <SortableTh
+                        label="Montant"
+                        columnKey="amount"
+                        activeKey={paySortKey}
+                        dir={paySortDir}
+                        onSort={togglePaySort}
+                        align="end"
+                        thClassName="px-4 py-2.5 sm:px-5"
+                      />
+                      <SortableTh
+                        label="Période & échéance"
+                        columnKey="schedule"
+                        activeKey={paySortKey}
+                        dir={paySortDir}
+                        onSort={togglePaySort}
+                        thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                      />
+                      <SortableTh
+                        label="Statut"
+                        columnKey="status"
+                        activeKey={paySortKey}
+                        dir={paySortDir}
+                        onSort={togglePaySort}
+                        thClassName="px-4 py-2.5 sm:px-5"
+                      />
                       <th className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Période & échéance
+                        Mode / Réf.
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Statut
-                      </th>
-                      <th
-                        className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400"
-                        title="Fiche du bail (location)"
-                      >
-                        Fiche location
-                      </th>
+                      <SortableTh
+                        label="Fiche location"
+                        columnKey="lease"
+                        activeKey={paySortKey}
+                        dir={paySortDir}
+                        onSort={togglePaySort}
+                        thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                      />
                       <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
                         Actions
                       </th>
@@ -1109,6 +1399,14 @@ export function PaymentsPage() {
                         id={`payment-${p.id}`}
                         className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${paymentRowFlash(flashPaymentRowId === p.id)}`}
                       >
+                        <td className={`text-center ${listTableCellClass}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedPaymentIds.includes(p.id)}
+                            onChange={() => togglePaymentSelection(p.id)}
+                            aria-label={`Sélectionner le paiement de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
+                          />
+                        </td>
                         <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
                           {p.lease.tenant.id ? (
                             <SmartLink
@@ -1145,9 +1443,9 @@ export function PaymentsPage() {
                           ) : null}
                         </td>
                         <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
-                          <p className="text-sm">Échéance {p.dueDate.slice(0, 10)}</p>
+                          <p className="text-sm">Échéance {formatDateFr(p.dueDate)}</p>
                           {p.status === 'PAID' && p.paidAt ? (
-                            <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">Payé le {p.paidAt.slice(0, 10)}</p>
+                            <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">Payé le {formatDateFr(p.paidAt)}</p>
                           ) : null}
                         </td>
                         <td className={listTableCellClass}>
@@ -1156,6 +1454,16 @@ export function PaymentsPage() {
                           >
                             {statusLabel(p.status)}
                           </span>
+                        </td>
+                        <td className={`whitespace-nowrap ${listTableCellClass}`}>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{collectionMethodLabel(p.collectionMethod)}</p>
+                          {p.collectionReference ? (
+                            <p className="mt-0.5 max-w-[13rem] truncate text-xs text-slate-500 dark:text-slate-400" title={p.collectionReference}>
+                              {p.collectionReference}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-slate-400">—</p>
+                          )}
                         </td>
                         <td className={`whitespace-nowrap ${listTableCellClass}`}>
                           {p.leaseId ? <FicheLocationLink leaseId={p.leaseId} returnFocusRowId={p.id} /> : <span className="text-xs text-slate-400">—</span>}
@@ -1221,7 +1529,7 @@ export function PaymentsPage() {
         }}
       />
 
-      {rows.length === 0 && (
+      {visibleRows.length === 0 && (
         <Card className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
           Aucune échéance pour ce filtre. Essayez une autre année, un autre mois, ou « Toutes les années » / « Tous les
           mois ».

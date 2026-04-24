@@ -79,6 +79,17 @@ export class CreateBuildingDto {
   apartmentCount?: number;
 
   /**
+   * Immeuble : nombre de logements d’habitation par étage (étages 1…floorCount), même décompte sur chaque étage.
+   * Le total des logements est alors dérivé : floorCount × apartmentsPerFloor + (RDC inclus ? rezApartmentCount : 0).
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  apartmentsPerFloor?: number;
+
+  /**
    * Immeuble avec RDC dans les étages : plafond d’unités d’habitation au rez-de-chaussée.
    * Ne peut pas dépasser apartmentCount si celui-ci est renseigné.
    */

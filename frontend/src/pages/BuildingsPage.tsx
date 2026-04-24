@@ -13,7 +13,7 @@ import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 import {
   BUILDING_STRUCTURE_OPTIONS,
-  IMMEUBLE_LOGEMENT_TOTAL_HINT,
+  IMMEUBLE_LOGEMENTS_PAR_ETAGE_HINT,
   IMMEUBLE_FLOORS_HINT,
   IMMEUBLE_REZ_APARTMENTS_HINT,
   IMMEUBLE_RDC_CHECKBOX_HINT,
@@ -29,6 +29,7 @@ type BuildingRow = {
   structureKind?: BuildingStructureValue;
   floorCount?: number | null;
   apartmentCount?: number | null;
+  apartmentsPerFloor?: number | null;
   terrainLotCount?: number | null;
   _count: { units: number };
 };
@@ -121,7 +122,7 @@ export function BuildingsPage() {
   const [structureKind, setStructureKind] = useState<BuildingStructureValue>('MONO_LOT');
   const [floorCountImmeuble, setFloorCountImmeuble] = useState('');
   const [includeRezDeChaussee, setIncludeRezDeChaussee] = useState(true);
-  const [apartmentCountImmeuble, setApartmentCountImmeuble] = useState('');
+  const [apartmentsPerFloorImmeuble, setApartmentsPerFloorImmeuble] = useState('');
   const [rezApartmentImmeuble, setRezApartmentImmeuble] = useState('');
   const [terrainLotCountNew, setTerrainLotCountNew] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -148,7 +149,8 @@ export function BuildingsPage() {
     setStructureKind('MONO_LOT');
     setFloorCountImmeuble('');
     setIncludeRezDeChaussee(true);
-    setApartmentCountImmeuble('');
+    setApartmentsPerFloorImmeuble('');
+    setRezApartmentImmeuble('');
     setTerrainLotCountNew('');
     setErr(null);
   }
@@ -252,6 +254,23 @@ export function BuildingsPage() {
       setErr('Indiquez une ville et une commune / zone.');
       return;
     }
+    if (structureKind === 'IMMEUBLE') {
+      const fc = floorCountImmeuble.trim() === '' ? NaN : Number(floorCountImmeuble);
+      const pf = apartmentsPerFloorImmeuble.trim() === '' ? NaN : Number(apartmentsPerFloorImmeuble);
+      if (!Number.isInteger(fc) || fc < 1 || !Number.isInteger(pf) || pf < 1) {
+        setErr(
+          'Pour un immeuble, indiquez au moins un étage au-dessus du RDC et au moins un logement par étage (nombres entiers).',
+        );
+        return;
+      }
+      if (includeRezDeChaussee && rezApartmentImmeuble.trim() !== '') {
+        const rz = Number(rezApartmentImmeuble);
+        if (!Number.isInteger(rz) || rz < 0) {
+          setErr('Le nombre d’unités au rez-de-chaussée doit être un entier positif ou zéro.');
+          return;
+        }
+      }
+    }
     try {
       await api('/buildings', {
         method: 'POST',
@@ -264,11 +283,9 @@ export function BuildingsPage() {
           structureKind,
           ...(structureKind === 'IMMEUBLE'
             ? {
-                floorCount:
-                  floorCountImmeuble.trim() === '' ? undefined : Number(floorCountImmeuble),
+                floorCount: Number(floorCountImmeuble),
                 hasRezDeChaussee: includeRezDeChaussee,
-                apartmentCount:
-                  apartmentCountImmeuble.trim() === '' ? undefined : Number(apartmentCountImmeuble),
+                apartmentsPerFloor: Number(apartmentsPerFloorImmeuble),
                 rezApartmentCount: includeRezDeChaussee
                   ? rezApartmentImmeuble.trim() === ''
                     ? undefined
@@ -292,7 +309,7 @@ export function BuildingsPage() {
       setCommuneOther('');
       setFloorCountImmeuble('');
       setIncludeRezDeChaussee(true);
-      setApartmentCountImmeuble('');
+      setApartmentsPerFloorImmeuble('');
       setRezApartmentImmeuble('');
       setTerrainLotCountNew('');
       setAddFormOpen(false);
@@ -309,6 +326,17 @@ export function BuildingsPage() {
   const filterHint = genreFilter
     ? 'Filtre par genre de bien (structure) : immeuble multi locataires, terrain avec plusieurs locataires ou un seul lot — comme dans « Nouveau bien ».'
     : '« Tous les biens » : aucun filtre. Choisissez un genre pour restreindre la liste.';
+
+  const immeubleCreateTotalPreview = useMemo(() => {
+    const fc = floorCountImmeuble.trim() === '' ? NaN : Number(floorCountImmeuble);
+    const pf = apartmentsPerFloorImmeuble.trim() === '' ? NaN : Number(apartmentsPerFloorImmeuble);
+    if (!Number.isInteger(fc) || fc < 1 || !Number.isInteger(pf) || pf < 1) return null;
+    const rz =
+      includeRezDeChaussee && rezApartmentImmeuble.trim() !== ''
+        ? Math.max(0, Math.floor(Number(rezApartmentImmeuble)))
+        : 0;
+    return fc * pf + (includeRezDeChaussee ? rz : 0);
+  }, [floorCountImmeuble, apartmentsPerFloorImmeuble, includeRezDeChaussee, rezApartmentImmeuble]);
 
   const filteredRows = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
@@ -449,7 +477,7 @@ export function BuildingsPage() {
                 value={listSearch}
                 onChange={(e) => setListSearch(e.target.value)}
                 placeholder="Rechercher (nom, ville, commune, CP, type…)"
-                className="w-full rounded-xl border-slate-200 py-2.5 pl-9 pr-8 text-sm shadow-sm dark:border-slate-600"
+                className="w-full rounded-xl border-slate-200 py-2.5 !pl-11 pr-8 text-sm shadow-sm dark:border-slate-600"
                 aria-label="Filtrer les biens"
                 autoComplete="off"
               />
@@ -527,6 +555,10 @@ export function BuildingsPage() {
                           {isImmeuble && (b.floorCount != null || b.apartmentCount != null) ? (
                             <span className="rounded-md bg-slate-200/50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800/80 dark:text-slate-400">
                               {b.floorCount != null ? `${b.floorCount} ét.` : '— ét.'} ·{' '}
+                              {b.apartmentsPerFloor != null && b.apartmentsPerFloor > 0
+                                ? `${b.apartmentsPerFloor}/ét.`
+                                : null}
+                              {b.apartmentsPerFloor != null && b.apartmentsPerFloor > 0 ? ' · ' : ''}
                               {b.apartmentCount != null ? `${b.apartmentCount} app.` : '— app.'}
                             </span>
                           ) : null}
@@ -694,10 +726,12 @@ export function BuildingsPage() {
                 Taille de l’immeuble (indicatif)
               </p>
               <p className="mb-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                Le <strong className="font-semibold text-slate-800 dark:text-slate-200">nombre d’étages</strong> reste
-                exactement ce que vous saisissez (ex. 10). Ensuite vous indiquez combien il y a{' '}
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">de logements au total</strong> sur
-                l’immeuble — librement (ex. 20 pour 2 par étage). Rien n’est rempli automatiquement à partir des étages.
+                Indiquez le <strong className="font-semibold text-slate-800 dark:text-slate-200">nombre d’étages</strong>{' '}
+                au-dessus du rez-de-chaussée, puis combien de{' '}
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">logements par étage</strong> (même
+                nombre sur chaque étage 1…N). Le{' '}
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">total des logements</strong> est
+                calculé automatiquement (étages × par étage + unités au RDC si vous incluez le rez-de-chaussée).
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -710,27 +744,33 @@ export function BuildingsPage() {
                   <Input
                     id="new-building-floors"
                     type="number"
-                    min={0}
+                    min={1}
                     value={floorCountImmeuble}
                     onChange={(e) => setFloorCountImmeuble(e.target.value)}
-                    placeholder="Ex. 10"
+                    placeholder="Ex. 5"
                   />
                 </div>
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                    <Label htmlFor="new-building-apartments" className="mb-0">
-                      Nombre total de logements sur ce bien (numérotation)
+                    <Label htmlFor="new-building-apartments-per-floor" className="mb-0">
+                      Logements par étage (étages 1 à N)
                     </Label>
-                    <HelpHint className="align-middle" title={IMMEUBLE_LOGEMENT_TOTAL_HINT} />
+                    <HelpHint className="align-middle" title={IMMEUBLE_LOGEMENTS_PAR_ETAGE_HINT} />
                   </div>
                   <Input
-                    id="new-building-apartments"
+                    id="new-building-apartments-per-floor"
                     type="number"
-                    min={0}
-                    value={apartmentCountImmeuble}
-                    onChange={(e) => setApartmentCountImmeuble(e.target.value)}
-                    placeholder="Ex. 20"
+                    min={1}
+                    value={apartmentsPerFloorImmeuble}
+                    onChange={(e) => setApartmentsPerFloorImmeuble(e.target.value)}
+                    placeholder="Ex. 2"
                   />
+                  {immeubleCreateTotalPreview != null ? (
+                    <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-200">
+                      Total logements d’habitation :{' '}
+                      <span className="tabular-nums">{immeubleCreateTotalPreview}</span>
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="sm:col-span-2 flex flex-wrap items-start gap-2 rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/40">

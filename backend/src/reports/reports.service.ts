@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BuildingStructureKind, ChargeCategory, PaymentStatus, UnitKind } from '@prisma/client';
+import { BuildingStructureKind, ChargeCategory, CollectionMethod, PaymentStatus, UnitKind } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit') as typeof import('pdfkit');
@@ -9,6 +9,7 @@ import { ChargesService } from '../charges/charges.service';
 import { LeasesService } from '../leases/leases.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { BuildingsService } from '../buildings/buildings.service';
+import { selectApartmentsPerFloorByOrg } from '../buildings/apartments-per-floor-column';
 import { startOfTodayUtc } from '../common/date.util';
 import {
   drawFooter,
@@ -61,6 +62,20 @@ function chargeCategoryFr(c: ChargeCategory | string): string {
     OTHER: 'Autre',
   };
   return m[String(c)] ?? String(c);
+}
+
+function collectionMethodFr(m: CollectionMethod | string | null | undefined): string {
+  if (!m) return 'Espèces';
+  const labels: Record<string, string> = {
+    CASH: 'Espèces',
+    BANK_TRANSFER: 'Virement / dépôt banque',
+    ORANGE_MONEY: 'Orange Money',
+    MTN_MONEY: 'MTN Mobile Money',
+    MOOV: 'Moov Money',
+    WAVE: 'Wave',
+    OTHER: 'Autre',
+  };
+  return labels[String(m)] ?? String(m);
 }
 
 @Injectable()
@@ -177,7 +192,7 @@ export class ReportsService {
     const today = startOfTodayUtc();
     const leaseInOrg = { unit: { building: { organizationId } } };
 
-    const [chargeSummary, payments, chargeRows, tenants, leaseList, buildings] = await Promise.all([
+    const [chargeSummary, payments, chargeRows, tenants, leaseList, buildingsRaw] = await Promise.all([
       this.charges.summary(organizationId, year),
       this.prisma.payment.findMany({
         where: { periodYear: year, lease: leaseInOrg },
@@ -221,6 +236,12 @@ export class ReportsService {
         },
       }),
     ]);
+
+    const apfMap = await selectApartmentsPerFloorByOrg(this.prisma, organizationId);
+    const buildings = buildingsRaw.map((b) => ({
+      ...b,
+      apartmentsPerFloor: apfMap.get(b.id) ?? null,
+    }));
 
     const paid = payments.filter((p) => p.status === PaymentStatus.PAID);
     const totalEncaisse = paid.reduce((s, p) => s + Number(p.amountPaid ?? p.amountDue), 0);
@@ -448,6 +469,8 @@ export class ReportsService {
       'Unité',
       'Bien',
       'Ville',
+      "Mode d'encaissement",
+      'Référence encaissement',
     ];
     const payData = payments.map((p) => {
       const t = p.lease.tenant;
@@ -466,6 +489,8 @@ export class ReportsService {
         un?.label ?? '',
         bu?.name ?? '',
         bu?.city ?? '',
+        collectionMethodFr(p.collectionMethod),
+        p.collectionReference ?? '',
       ] as (string | number | Date | null)[];
     });
     this.addDataSheet(wb, 'Paiements', payHeaders, payData, {

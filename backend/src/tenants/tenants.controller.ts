@@ -40,6 +40,20 @@ export class TenantsController {
     return this.tenants.getIdDocumentStream(id, user.organizationId);
   }
 
+  @Get(':id/id-documents')
+  listIdDocuments(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.tenants.listIdDocuments(id, user.organizationId);
+  }
+
+  @Get(':id/id-documents/:fileKey')
+  downloadIdDocumentByKey(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @Param('fileKey') fileKey: string,
+  ) {
+    return this.tenants.getIdDocumentStreamByKey(id, user.organizationId, fileKey);
+  }
+
   @Post(':id/id-document')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -65,6 +79,15 @@ export class TenantsController {
   @Delete(':id/id-document')
   deleteIdDocument(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.tenants.removeIdDocument(id, user.organizationId);
+  }
+
+  @Delete(':id/id-documents/:fileKey')
+  deleteIdDocumentByKey(
+    @CurrentUser() user: JwtAuthUser,
+    @Param('id') id: string,
+    @Param('fileKey') fileKey: string,
+  ) {
+    return this.tenants.removeIdDocumentByKey(id, user.organizationId, fileKey);
   }
 
   @Get(':id')

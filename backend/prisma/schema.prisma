@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  /** Moteur en binaire : souvent moins de verrouillage fichier (EPERM) sous Windows que la DLL. */
+  engineType = "binary"
 }
 
 datasource db {
@@ -11,6 +13,10 @@ datasource db {
 model Organization {
   id        String   @id @default(uuid())
   name      String?
+  /** Dernier jour d’accès inclus pour les comptes « client » (hors admin plateforme). Vide = pas de blocage par date. */
+  platformAccessPaidUntil DateTime? @map("platform_access_paid_until") @db.Date
+  /** Blocage manuel par l’admin plateforme (prioritaire). */
+  platformAccessSuspended Boolean @default(false) @map("platform_access_suspended")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   users     User[]
@@ -82,6 +88,11 @@ model Building {
   hasRezDeChaussee Boolean?            @map("has_rez_de_chaussee")
   /** Nombre total de logements d’habitation à numéroter sur l’immeuble (1…N). */
   apartmentCount Int?                   @map("apartment_count")
+  /**
+   * Immeuble : même nombre de logements d’habitation sur chaque étage ≥ 1 (numéros 1…N par étage).
+   * Null = ancienne numérotation globale 1…apartmentCount sur tout le bien.
+   */
+  apartmentsPerFloor Int?              @map("apartments_per_floor")
   /** Plafond d’unités d’habitation au rez-de-chaussée. Null/0 = pas de logement habitable au RDC. */
   rezApartmentCount Int?               @map("rez_apartment_count")
   /** Plafond optionnel pour numéros entrepôt / commerce (distinct des logements). */
@@ -129,7 +140,6 @@ model Unit {
   leases        Lease[]
   charges       Charge[]
 
-  @@unique([buildingId, apartmentSlot])
   @@unique([buildingId, locauxSlot])
   @@index([buildingId])
   @@map("units")

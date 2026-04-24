@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PaymentStatus, ReminderChannel } from '@prisma/client';
+import { CollectionMethod, PaymentStatus, ReminderChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { startOfTodayUtc } from '../common/date.util';
@@ -298,6 +298,9 @@ export class PaymentsService {
         status: paidFull ? PaymentStatus.PAID : cur.dueDate < today ? PaymentStatus.LATE : PaymentStatus.PENDING,
         paidAt: paidFull ? (dto.paidAt ? new Date(dto.paidAt) : new Date()) : null,
       };
+      if (paidFull && dto.collectionMethod === undefined && !cur.collectionMethod) {
+        data.collectionMethod = CollectionMethod.CASH;
+      }
       if (dto.notes !== undefined) data.notes = dto.notes;
       this.mergeCollectionFields(dto, data);
       return this.prisma.payment.update({
@@ -316,7 +319,7 @@ export class PaymentsService {
       data.paidAt = new Date();
     }
     if (data.status === PaymentStatus.PAID) {
-      const cur = await this.prisma.payment.findUnique({ where: { id }, select: { amountDue: true } });
+      const cur = await this.prisma.payment.findUnique({ where: { id }, select: { amountDue: true, collectionMethod: true } });
       if (cur) {
         const due = cur.amountDue.toNumber();
         if (data.amountPaid !== undefined) {
@@ -326,6 +329,9 @@ export class PaymentsService {
           }
         } else {
           data.amountPaid = due;
+        }
+        if (dto.collectionMethod === undefined && !cur.collectionMethod) {
+          data.collectionMethod = CollectionMethod.CASH;
         }
       }
     }

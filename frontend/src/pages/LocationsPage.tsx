@@ -9,6 +9,9 @@ import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { SortableTh } from '@/components/SortableTh';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 
 type OverviewRow = {
   leaseId: string;
@@ -49,7 +52,7 @@ function statusClass(fr: string) {
 
 type LocationSortKey = 'place' | 'buildingUnit' | 'tenant' | 'rent' | 'dueDay' | 'status' | 'active';
 
-function compareLocationRows(a: OverviewRow, b: OverviewRow, key: LocationSortKey, dir: 'asc' | 'desc'): number {
+function compareLocationRows(a: OverviewRow, b: OverviewRow, key: LocationSortKey, dir: TableSortDir): number {
   const sign = dir === 'asc' ? 1 : -1;
   let c = 0;
   switch (key) {
@@ -85,45 +88,8 @@ function compareLocationRows(a: OverviewRow, b: OverviewRow, key: LocationSortKe
   return c * sign;
 }
 
-function LocationSortTh({
-  label,
-  columnKey,
-  activeKey,
-  dir,
-  onSort,
-  thClassName = '',
-  align = 'start',
-}: {
-  label: string;
-  columnKey: LocationSortKey;
-  activeKey: LocationSortKey;
-  dir: 'asc' | 'desc';
-  onSort: (k: LocationSortKey) => void;
-  thClassName?: string;
-  align?: 'start' | 'end';
-}) {
-  const active = activeKey === columnKey;
-  return (
-    <th
-      scope="col"
-      className={`min-w-0 whitespace-normal px-2 py-2.5 leading-tight sm:whitespace-nowrap sm:px-4 sm:py-2.5 lg:px-5 ${align === 'end' ? 'text-right' : ''} ${thClassName}`}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(columnKey)}
-        className={`inline-flex max-w-full items-center gap-1.5 rounded-md text-[11px] font-semibold uppercase tracking-[0.06em] transition hover:text-brand-700 dark:hover:text-brand-300 ${
-          align === 'end' ? 'w-full justify-end' : 'text-left'
-        } ${active ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'}`}
-        aria-label={`Trier par ${label}${active ? ` (${dir === 'asc' ? 'croissant' : 'décroissant'})` : ''}`}
-      >
-        <span>{label}</span>
-        <span className="select-none font-normal tabular-nums opacity-75" aria-hidden>
-          {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
-}
+const locationSortThBase =
+  'min-w-0 whitespace-normal px-2 py-2.5 leading-tight sm:whitespace-nowrap sm:px-4 sm:py-2.5 lg:px-5';
 
 /** Barre de recherche partagée : filtre les cartes et le tableau (même état). */
 function LocationsSearchField({
@@ -153,7 +119,7 @@ function LocationsSearchField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Locataire, bien, unité, ville, statut…"
-        className="w-full rounded-xl border-slate-200 py-2.5 pl-9 pr-10 text-sm shadow-sm dark:border-slate-600"
+        className="w-full rounded-xl border-slate-200 py-2.5 !pl-11 pr-10 text-sm shadow-sm dark:border-slate-600"
         aria-label="Filtrer les locations — cartes et tableau"
         autoComplete="off"
       />
@@ -205,7 +171,7 @@ export function LocationsPage() {
   const [showAll, setShowAll] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const [tableSortKey, setTableSortKey] = useState<LocationSortKey>('tenant');
-  const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('asc');
+  const [tableSortDir, setTableSortDir] = useState<TableSortDir>('asc');
   /** Mémorise le scroll fenêtre avant un changement de recherche pour éviter que le tableau « saute » quand la liste se réduit. */
   const searchScrollYRef = useRef<number | null>(null);
 
@@ -231,12 +197,9 @@ export function LocationsPage() {
   }, [filteredRows, tableSortKey, tableSortDir]);
 
   function toggleTableSort(key: LocationSortKey) {
-    if (tableSortKey === key) {
-      setTableSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setTableSortKey(key);
-      setTableSortDir('asc');
-    }
+    const n = toggleTableSortColumn(tableSortKey, tableSortDir, key);
+    setTableSortKey(n.key);
+    setTableSortDir(n.dir);
   }
 
   const load = useCallback(() => {
@@ -451,56 +414,62 @@ export function LocationsPage() {
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
-                    <LocationSortTh
+                    <SortableTh
                       label="Lieu"
                       columnKey="place"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
-                      thClassName="border-l-[3px] border-l-brand-500/40 pl-[13px] sm:pl-[17px] dark:border-l-brand-400/35"
+                      thClassName={`${locationSortThBase} border-l-[3px] border-l-brand-500/40 pl-[13px] sm:pl-[17px] dark:border-l-brand-400/35`}
                     />
-                    <LocationSortTh
+                    <SortableTh
                       label="Bien / unité"
                       columnKey="buildingUnit"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
+                      thClassName={locationSortThBase}
                     />
-                    <LocationSortTh
+                    <SortableTh
                       label="Locataire"
                       columnKey="tenant"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
+                      thClassName={locationSortThBase}
                     />
-                    <LocationSortTh
+                    <SortableTh
                       label="Loyer"
                       columnKey="rent"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
                       align="end"
+                      thClassName={locationSortThBase}
                     />
-                    <LocationSortTh
+                    <SortableTh
                       label="Échéance"
                       columnKey="dueDay"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
+                      thClassName={locationSortThBase}
                     />
-                    <LocationSortTh
+                    <SortableTh
                       label="Mois en cours"
                       columnKey="status"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
+                      thClassName={locationSortThBase}
                     />
-                    <LocationSortTh
+                    <SortableTh
                       label="Bail"
                       columnKey="active"
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
+                      thClassName={locationSortThBase}
                     />
                     <th className="min-w-0 w-[9rem] whitespace-normal px-2 py-2.5 text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.06em] text-slate-500 sm:w-[1%] sm:whitespace-nowrap sm:px-4 lg:px-5 dark:text-slate-400">
                       Actions

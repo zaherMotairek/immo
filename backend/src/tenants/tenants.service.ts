@@ -93,6 +93,55 @@ export class TenantsService {
     return join(process.cwd(), root, 'tenant-id-docs');
   }
 
+  private idDocIndexDir(): string {
+    return join(this.idDocUploadDir(), '_index');
+  }
+
+  private idDocIndexPath(tenantId: string): string {
+    return join(this.idDocIndexDir(), `${tenantId}.json`);
+  }
+
+  private async readIdDocIndex(tenantId: string): Promise<Array<{
+    fileKey: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    uploadedAt: string;
+  }>> {
+    const p = this.idDocIndexPath(tenantId);
+    if (!existsSync(p)) return [];
+    try {
+      const raw = await readFile(p, 'utf-8');
+      const j = JSON.parse(raw) as unknown;
+      if (!Array.isArray(j)) return [];
+      return j.filter(
+        (x): x is { fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string } =>
+          !!x &&
+          typeof (x as any).fileKey === 'string' &&
+          typeof (x as any).fileName === 'string' &&
+          typeof (x as any).mimeType === 'string' &&
+          typeof (x as any).size === 'number' &&
+          typeof (x as any).uploadedAt === 'string',
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeIdDocIndex(
+    tenantId: string,
+    files: Array<{ fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string }>,
+  ) {
+    await mkdir(this.idDocIndexDir(), { recursive: true });
+    await writeFile(this.idDocIndexPath(tenantId), JSON.stringify(files, null, 2), 'utf-8');
+  }
+
+  async listIdDocuments(tenantId: string, organizationId: string) {
+    const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
+    if (!tenant) throw new NotFoundException('Locataire introuvable');
+    return this.readIdDocIndex(tenantId);
+  }
+
   private async removeIdDocFromDisk(key: string | null | undefined) {
     if (!key) return;
     const full = join(this.idDocUploadDir(), key);
@@ -124,10 +173,19 @@ export class TenantsService {
     const fullPath = join(dir, key);
     await writeFile(fullPath, file.buffer);
 
-    if (tenant.idDocFileKey) await this.removeIdDocFromDisk(tenant.idDocFileKey);
-
     const safeOriginal =
       file.originalname.replace(/[^\w.\-\s()[\]]/g, '_').slice(0, 240) || `piece-identite${ext}`;
+    const uploadedAtIso = new Date().toISOString();
+
+    const current = await this.readIdDocIndex(tenantId);
+    current.push({
+      fileKey: key,
+      fileName: safeOriginal,
+      mimeType: file.mimetype,
+      size: file.size,
+      uploadedAt: uploadedAtIso,
+    });
+    await this.writeIdDocIndex(tenantId, current);
 
     await this.prisma.tenant.update({
       where: { id: tenantId },
@@ -136,7 +194,7 @@ export class TenantsService {
         idDocOriginalName: safeOriginal,
         idDocMime: file.mimetype,
         idDocSize: file.size,
-        idDocUploadedAt: new Date(),
+        idDocUploadedAt: new Date(uploadedAtIso),
       },
     });
 
@@ -145,8 +203,26 @@ export class TenantsService {
       fileName: safeOriginal,
       mimeType: file.mimetype,
       size: file.size,
-      uploadedAt: new Date().toISOString(),
+      uploadedAt: uploadedAtIso,
     };
+  }
+
+  async getIdDocumentStreamByKey(tenantId: string, organizationId: string, fileKey: string) {
+    const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
+    if (!tenant) throw new NotFoundException('Locataire introuvable');
+    const list = await this.readIdDocIndex(tenantId);
+    const f = list.find((x) => x.fileKey === fileKey);
+    if (!f) throw new NotFoundException('Pièce d’identité introuvable.');
+    const fullPath = join(this.idDocUploadDir(), f.fileKey);
+    if (!existsSync(fullPath)) {
+      throw new NotFoundException('Fichier introuvable sur le serveur.');
+    }
+    const buffer = await readFile(fullPath);
+    const safeName = (f.fileName?.replace(/[^\w.\-]/g, '_') || 'piece-identite').slice(0, 120);
+    return new StreamableFile(buffer, {
+      type: f.mimeType,
+      disposition: `inline; filename="${safeName}"`,
+    });
   }
 
   async getIdDocumentStream(tenantId: string, organizationId: string) {
@@ -191,6 +267,17 @@ export class TenantsService {
         idDocUploadedAt: null,
       },
     });
+    return { ok: true, removed: true };
+  }
+
+  async removeIdDocumentByKey(tenantId: string, organizationId: string, fileKey: string) {
+    const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
+    if (!tenant) throw new NotFoundException('Locataire introuvable');
+    const list = await this.readIdDocIndex(tenantId);
+    const keep = list.filter((x) => x.fileKey !== fileKey);
+    if (keep.length === list.length) return { ok: true, removed: false };
+    await this.removeIdDocFromDisk(fileKey);
+    await this.writeIdDocIndex(tenantId, keep);
     return { ok: true, removed: true };
   }
 }

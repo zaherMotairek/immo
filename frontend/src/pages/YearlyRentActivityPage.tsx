@@ -8,6 +8,8 @@ import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/payme
 import { statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Label, Select, StatTile } from '@/components/ui';
+import { toggleTableSortColumn } from '@/lib/tableSort';
+import type { TableSortDir } from '@/lib/tableSort';
 import { unitKindLabel } from '@/lib/unitKind';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -103,6 +105,55 @@ function buildLeaseRows(payments: PaymentRow[], _year: number): LeaseRowModel[] 
       return { key, label, sub, byMonth };
     })
     .sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' }));
+}
+
+type YearlyLeaseSortKey = 'label' | 'sub';
+
+function compareYearlyLeaseRows(a: LeaseRowModel, b: LeaseRowModel, key: YearlyLeaseSortKey, dir: TableSortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  const c =
+    key === 'sub'
+      ? a.sub.localeCompare(b.sub, 'fr', { sensitivity: 'base' })
+      : a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' });
+  const tie = c === 0 ? a.key.localeCompare(b.key) : c;
+  return tie * sign;
+}
+
+function YearlyFirstColSortControls({
+  scope,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  scope: 'tenant' | 'building';
+  activeKey: YearlyLeaseSortKey;
+  dir: TableSortDir;
+  onSort: (k: YearlyLeaseSortKey) => void;
+}) {
+  function btn(key: YearlyLeaseSortKey, text: string) {
+    const active = activeKey === key;
+    return (
+      <button
+        type="button"
+        onClick={() => onSort(key)}
+        className={`inline-flex max-w-full items-center gap-1 rounded-md text-left text-[10px] font-semibold uppercase tracking-wide transition hover:text-brand-700 dark:hover:text-brand-300 ${
+          active ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'
+        }`}
+        aria-label={`Trier par ${text}${active ? ` (${dir === 'asc' ? 'croissant' : 'décroissant'})` : ''}`}
+      >
+        <span>{text}</span>
+        <span className="select-none font-normal tabular-nums opacity-75" aria-hidden>
+          {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {btn('label', scope === 'tenant' ? 'Bail (lieu)' : 'Lieu')}
+      {btn('sub', 'Locataire · nature')}
+    </div>
+  );
 }
 
 type CellBlock = {
@@ -207,6 +258,8 @@ export function YearlyRentActivityPage() {
   const [tenants, setTenants] = useState<TenantOpt[]>([]);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
   const [listsErr, setListsErr] = useState<string | null>(null);
+  const [yearlyLeaseSortKey, setYearlyLeaseSortKey] = useState<YearlyLeaseSortKey>('label');
+  const [yearlyLeaseSortDir, setYearlyLeaseSortDir] = useState<TableSortDir>('asc');
 
   useEffect(() => {
     let cancelled = false;
@@ -269,6 +322,18 @@ export function YearlyRentActivityPage() {
   }, []);
 
   const leaseRows = useMemo(() => buildLeaseRows(rows, year), [rows, year]);
+
+  const sortedLeaseRows = useMemo(() => {
+    const copy = [...leaseRows];
+    copy.sort((a, b) => compareYearlyLeaseRows(a, b, yearlyLeaseSortKey, yearlyLeaseSortDir));
+    return copy;
+  }, [leaseRows, yearlyLeaseSortKey, yearlyLeaseSortDir]);
+
+  function toggleYearlyLeaseSort(key: YearlyLeaseSortKey) {
+    const n = toggleTableSortColumn(yearlyLeaseSortKey, yearlyLeaseSortDir, key);
+    setYearlyLeaseSortKey(n.key);
+    setYearlyLeaseSortDir(n.dir);
+  }
 
   const yearOptions = useMemo(() => {
     const y = new Date().getFullYear();
@@ -385,7 +450,7 @@ export function YearlyRentActivityPage() {
         iconTo="/paiements"
         title="Activité loyers (vue annuelle)"
         hintTitle="Une ligne par bail actif : statut et montants (FCFA) mois par mois. Le lien vers Paiements reprend la même année, le même locataire ou le même bien, et tous les mois. Les baux inactifs ne sont pas listés par l’API."
-        titleExtra={<StatTile className="shrink-0 print:hidden" label="Total" value={String(leaseRows.length)} />}
+        titleExtra={<StatTile className="shrink-0 print:hidden" label="Total" value={String(sortedLeaseRows.length)} />}
       />
 
       <Card className="space-y-4 p-4 print:hidden sm:p-5">
@@ -511,7 +576,7 @@ export function YearlyRentActivityPage() {
         </Card>
       ) : loading ? (
         <p className="text-slate-500 print:hidden dark:text-slate-400">Chargement…</p>
-      ) : leaseRows.length === 0 ? (
+      ) : sortedLeaseRows.length === 0 ? (
         <Card className="space-y-4 p-6 text-sm text-slate-600 print:hidden dark:text-slate-400">
           <p>Aucune échéance pour cette sélection sur l’année {year} (baux actifs uniquement).</p>
           {selectionOk ? (
@@ -570,8 +635,16 @@ export function YearlyRentActivityPage() {
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-400 print:text-[8px]">
-                  <th className="sticky left-0 z-10 min-w-[14rem] bg-slate-50 px-3 py-2.5 shadow-[1px_0_0_0_rgb(226_232_240)] print:static print:min-w-0 print:max-w-none print:bg-white print:px-1.5 print:py-1 print:align-bottom print:font-bold print:normal-case print:shadow-none dark:bg-slate-900/95 dark:shadow-[1px_0_0_0_rgb(51_65_85)]">
-                    {scope === 'tenant' ? 'Bail (lieu)' : 'Locataire · lieu'}
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-10 min-w-[14rem] bg-slate-50 px-3 py-2.5 align-top shadow-[1px_0_0_0_rgb(226_232_240)] print:static print:min-w-0 print:max-w-none print:bg-white print:px-1.5 print:py-1 print:align-bottom print:font-bold print:normal-case print:shadow-none dark:bg-slate-900/95 dark:shadow-[1px_0_0_0_rgb(51_65_85)]"
+                  >
+                    <YearlyFirstColSortControls
+                      scope={scope}
+                      activeKey={yearlyLeaseSortKey}
+                      dir={yearlyLeaseSortDir}
+                      onSort={toggleYearlyLeaseSort}
+                    />
                   </th>
                   {MONTHS.map((m) => (
                     <th
@@ -584,7 +657,7 @@ export function YearlyRentActivityPage() {
                 </tr>
               </thead>
               <tbody>
-                {leaseRows.map((lr) => (
+                {sortedLeaseRows.map((lr) => (
                   <tr
                     key={lr.key}
                     className="border-b border-slate-100 odd:bg-white even:bg-slate-50/50 print:break-inside-avoid dark:border-slate-800 dark:odd:bg-slate-900/40 dark:even:bg-slate-900/20"

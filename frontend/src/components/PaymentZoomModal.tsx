@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
-import { fcfa } from '@/lib/format';
+import { fcfa, formatDateFr } from '@/lib/format';
 import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -226,7 +226,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
             </div>
             <div className="rounded-xl border border-slate-200/90 bg-white px-3 py-3 dark:border-slate-600 dark:bg-slate-900/80">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Date d&apos;échéance</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-50">{p.dueDate.slice(0, 10)}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-50">{formatDateFr(p.dueDate)}</p>
             </div>
             {showPartiel ? (
               <>
@@ -243,7 +243,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
             {p.status === 'PAID' && p.paidAt ? (
               <div className="sm:col-span-2 rounded-xl border border-emerald-200/90 bg-emerald-50/70 px-3 py-3 dark:border-emerald-800/40 dark:bg-emerald-950/25">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">Paiement enregistré</p>
-                <p className="mt-1 text-sm font-semibold text-emerald-900 dark:text-emerald-200">Payé le {p.paidAt.slice(0, 10)}</p>
+                <p className="mt-1 text-sm font-semibold text-emerald-900 dark:text-emerald-200">Payé le {formatDateFr(p.paidAt)}</p>
               </div>
             ) : null}
             {p.status === 'WAIVED' ? (
@@ -253,7 +253,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
                 </p>
                 {p.waivedAt ? (
                   <p className="mt-1 text-sm font-semibold text-violet-900 dark:text-violet-200">
-                    Enregistrée le {String(p.waivedAt).slice(0, 10)}
+                    Enregistrée le {formatDateFr(p.waivedAt)}
                   </p>
                 ) : null}
                 {p.waiveReason?.trim() ? (

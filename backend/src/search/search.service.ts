@@ -82,7 +82,6 @@ export class SearchService {
           OR: [{ label: ic }, { notes: ic }],
         },
         orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
-        take: 12,
         select: {
           id: true,
           label: true,
@@ -113,8 +112,7 @@ export class SearchService {
             },
           ],
         },
-        orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
-        take: 12,
+        orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }, { dueDate: 'desc' }],
         select: {
           id: true,
           periodYear: true,
@@ -125,7 +123,7 @@ export class SearchService {
           lease: {
             select: {
               id: true,
-              tenant: { select: { firstName: true, lastName: true } },
+              tenant: { select: { id: true, firstName: true, lastName: true } },
               unit: {
                 select: {
                   label: true,
