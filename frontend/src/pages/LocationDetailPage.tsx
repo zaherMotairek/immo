@@ -9,8 +9,9 @@ import { fcfa, formatAmountDigitsGrouped, formatDateFr, INPUT_AMOUNT_FCFA_LABEL 
 import { unitKindLabel } from '@/lib/unitKind';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
+import { OdooNotebook } from '@/components/OdooKit';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
-import { resolveReturnTarget } from '@/lib/navigation';
+import { inferBackLabelFromPath, resolveReturnTarget, type AppNavigateState } from '@/lib/navigation';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { SortableTh } from '@/components/SortableTh';
@@ -145,11 +146,26 @@ export function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const isSheet = Boolean((routerLocation.state as AppNavigateState | null)?.backgroundLocation);
   const { setReturnFallback } = useAppNavigation();
   const back = useMemo(
     () => resolveReturnTarget(routerLocation.state, { fallbackHref: '/locations', fallbackLabel: 'Locations' }),
     [routerLocation.state],
   );
+
+  function openLocationFullPage() {
+    if (!id) return;
+    const bg = (routerLocation.state as AppNavigateState | null)?.backgroundLocation;
+    navigate(`/locations/${id}`, {
+      replace: true,
+      state: bg
+        ? {
+            from: bg.pathname + bg.search,
+            fromLabel: inferBackLabelFromPath(bg.pathname + bg.search),
+          }
+        : { from: '/locations', fromLabel: 'Locations' },
+    });
+  }
   useEffect(() => {
     setReturnFallback(back.href);
     return () => setReturnFallback('/');
@@ -428,6 +444,7 @@ export function LocationDetailPage() {
         backLabel={back.label}
         breadcrumbCurrent={locationHeadline}
         breadcrumbTitle={locationHeadline}
+        omitTopNav={isSheet}
         headerEnd={
           data.leaseId ? (
             <PdfPrintButton
@@ -487,16 +504,26 @@ export function LocationDetailPage() {
         </div>
       </PageDetailHero>
 
-      <Card id="fiche-lieu" className="scroll-mt-24 !overflow-hidden !p-0 text-[15px] leading-relaxed text-slate-800 shadow-sm dark:text-slate-200">
-        <div className="border-b border-slate-300/90 bg-slate-100/90 px-5 py-4 dark:border-slate-600/80 dark:bg-slate-800/90">
-          <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Lieu, locataire & finances</h2>
-          <p className="mt-1.5 text-[15px] font-medium text-slate-700 dark:text-slate-300">
-            Lieu & locataire · caution & règlements groupés.
+      {isSheet ? (
+        <Card className="border-brand-200/80 bg-brand-50/40 dark:border-brand-800/50 dark:bg-brand-950/25">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+            Vue panneau latéral · pour plus d’espace ou une impression plus confortable :
           </p>
-        </div>
+          <Button type="button" variant="secondary" className="mt-3 py-2.5 text-sm font-semibold" onClick={() => openLocationFullPage()}>
+            Ouvrir la fiche en pleine page
+          </Button>
+        </Card>
+      ) : null}
 
-        <div className="grid lg:grid-cols-2 lg:divide-x lg:divide-slate-300/90 dark:lg:divide-slate-600/70">
-          <div className="p-5">
+      <OdooNotebook
+        defaultTabId="lieu"
+        tabs={[
+          {
+            id: 'lieu',
+            label: 'Lieu & finances',
+            content: (
+        <div className="space-y-4 text-[15px] leading-relaxed text-slate-800 dark:text-slate-200">
+          <div className="rounded-lg border border-slate-200/90 bg-white p-5 dark:border-slate-600/80 dark:bg-slate-900/55">
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">Lieu & logement</h3>
             <div className="space-y-4">
               <div>
@@ -554,7 +581,7 @@ export function LocationDetailPage() {
             </div>
           </div>
 
-          <div id="fiche-finances" className="border-t border-slate-300/90 bg-slate-50/90 p-5 dark:border-slate-600/80 dark:bg-slate-900/75 lg:border-t-0">
+          <div id="fiche-finances" className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-5 dark:border-slate-600/80 dark:bg-slate-900/75">
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">Finances sur ce bail</h3>
             <p className="mb-4 text-[15px] font-medium text-slate-800 dark:text-slate-200">
               Détail mois par mois : bouton <span className="font-bold text-slate-950 dark:text-white">Paiements</span> en haut de page.
@@ -711,10 +738,14 @@ export function LocationDetailPage() {
             ) : null}
           </div>
         </div>
-      </Card>
-
-      <Card id="fiche-bail" className="scroll-mt-24 !overflow-hidden !p-0 text-[15px] leading-relaxed text-slate-800 shadow-sm dark:text-slate-200">
-        <div className="!p-5">
+            ),
+          },
+          {
+            id: 'bail',
+            label: 'Contrat & bail',
+            content: (
+              <div className="text-[15px] leading-relaxed text-slate-800 dark:text-slate-200">
+        <div className="!p-1 sm:!p-2">
           <SectionHeader title="Contrat signé" hintTitle="PDF ou image, 15 Mo max." />
           <LeaseContractSection leaseId={data.leaseId} contract={data.contract} onChanged={reload} />
         </div>
@@ -828,7 +859,11 @@ export function LocationDetailPage() {
             Supprimer définitivement…
           </Button>
         </div>
-      </Card>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {waiveTargetId ? (
         <div

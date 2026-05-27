@@ -12,6 +12,14 @@ import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/compon
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 import {
+  OdooActionBar,
+  OdooKanbanBoard,
+  OdooKanbanCard,
+  OdooKanbanColumn,
+  OdooListToolbar,
+  type OdooViewMode,
+} from '@/components/OdooKit';
+import {
   BUILDING_STRUCTURE_OPTIONS,
   IMMEUBLE_LOGEMENTS_PAR_ETAGE_HINT,
   IMMEUBLE_FLOORS_HINT,
@@ -51,8 +59,8 @@ function structureKindShort(k?: BuildingStructureValue | string | null) {
 function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructureValue | string | null }) {
   if (structureKind === 'IMMEUBLE') {
     return (
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
-        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
+        <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
           <path d="M3 21h18M6 21V10l6-3.5L18 10v11M10 21v-5h4v5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
@@ -60,8 +68,8 @@ function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructure
   }
   if (structureKind === 'TERRAIN_LOTS') {
     return (
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-lime-100 text-lime-900 dark:bg-lime-950/45 dark:text-lime-200">
-        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-lime-100 text-lime-900 dark:bg-lime-950/45 dark:text-lime-200">
+        <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
           <path d="M4 20h16M6 20V10l4-6 4 4 4-4v16" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M8 14h2M12 12h2M16 14h2" strokeLinecap="round" />
         </svg>
@@ -69,8 +77,8 @@ function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructure
     );
   }
   return (
-    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/45 dark:text-amber-200">
-      <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-950/45 dark:text-amber-200">
+      <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M9 22V12h6v10" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -128,7 +136,9 @@ export function BuildingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState('');
+  const [viewMode, setViewMode] = useState<OdooViewMode>('list');
   const [addFormOpen, setAddFormOpen] = useState(false);
+  const [structureSettingsOpen, setStructureSettingsOpen] = useState(false);
   const addFormRef = useRef<HTMLDivElement | null>(null);
 
   function openAddForm() {
@@ -152,6 +162,7 @@ export function BuildingsPage() {
     setApartmentsPerFloorImmeuble('');
     setRezApartmentImmeuble('');
     setTerrainLotCountNew('');
+    setStructureSettingsOpen(false);
     setErr(null);
   }
 
@@ -363,28 +374,28 @@ export function BuildingsPage() {
     return `/buildings/worksheet.pdf${qs ? `?${qs}` : ''}`;
   }, [genreFilter, listSearch]);
 
+  const kanbanColumns = useMemo(() => {
+    const groups: Record<BuildingStructureValue, BuildingRow[]> = {
+      IMMEUBLE: [],
+      TERRAIN_LOTS: [],
+      MONO_LOT: [],
+    };
+    for (const row of filteredRows) {
+      const kind = row.structureKind ?? 'MONO_LOT';
+      groups[kind].push(row);
+    }
+    return groups;
+  }, [filteredRows]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <AppPageTitle
           className="max-w-3xl"
           iconTo="/biens"
           title="Biens immobiliers"
           hintTitle="Immeuble collectif, villa, entrepôt, terrain… même principe : nom du site + localisation (Côte d’Ivoire). Supprimer un bien : bouton en bas de carte (supprime aussi unités, baux et loyers liés)."
-          titleExtra={
-            <div className="flex flex-wrap items-center gap-2">
-              <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
-              <PdfPrintButton
-                path={worksheetPdfPath}
-                title="Feuille de route PDF : cases « fait », notes terrain/bureau — mêmes filtre genre et recherche que ci-dessous"
-              />
-              <PdfPrintButton
-                path="/reports/table-biens.pdf"
-                title="Tableau PDF compact de tout le patrimoine (sans cases à cocher, sans filtres)"
-                variant="icon"
-              />
-            </div>
-          }
+          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
         />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddForm()}>
           <span className="text-base leading-none" aria-hidden>
@@ -394,17 +405,51 @@ export function BuildingsPage() {
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200/90 bg-slate-50/90 p-4 shadow-sm shadow-slate-900/5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/25 sm:p-5">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+      <OdooActionBar
+        left={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
+            <span className="font-semibold">Affichage</span>
+            <span>{filteredRows.length} bien(s)</span>
+            <span>· {totalUnitsFiltered} unité(s)</span>
+            {genreFilter ? <span className="font-semibold text-brand-700 dark:text-brand-300">Filtre genre actif</span> : null}
+          </div>
+        }
+        right={
+          rows.length > 0 ? (
+            <OdooListToolbar
+              search={listSearch}
+              onSearchChange={setListSearch}
+              searchPlaceholder="Rechercher (nom, ville, commune…)"
+              searchAriaLabel="Filtrer les biens"
+              showViewToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              exports={
+                <>
+                  <PdfPrintButton
+                    path={worksheetPdfPath}
+                    title="Feuille de route PDF (filtres actifs)"
+                    variant="labeled"
+                  />
+                  <PdfPrintButton path="/reports/table-biens.pdf" title="Tableau PDF complet" variant="icon" />
+                </>
+              }
+            />
+          ) : null
+        }
+      />
+
+      <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-2.5 shadow-sm shadow-slate-900/5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/25">
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Afficher</p>
           <HelpHint className="align-middle" title={filterHint} />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1">
           <button
             type="button"
             title="Tout le patrimoine, tous les genres de biens"
             onClick={() => clearGenreFilter()}
-            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
               !genreFilter
                 ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
                 : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
@@ -420,7 +465,7 @@ export function BuildingsPage() {
                 type="button"
                 title={opt.description}
                 onClick={() => selectGenreFilter(opt.value)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
                   active
                     ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
                     : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
@@ -434,11 +479,13 @@ export function BuildingsPage() {
       </div>
 
       <Card>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-700">
+        <div className="mb-3 border-b border-slate-200/80 pb-3 dark:border-slate-700">
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Vos sites</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              {viewMode === 'kanban' ? 'Kanban patrimoine' : 'Vos sites'}
+            </h2>
             {rows.length > 0 ? (
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
                 {listSearch.trim() ? (
                   <>
                     <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
@@ -464,37 +511,6 @@ export function BuildingsPage() {
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Aucun bien pour cette vue.</p>
             )}
           </div>
-          {rows.length > 0 ? (
-            <div className="relative w-full max-w-md shrink-0 sm:w-auto">
-              <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-slate-400" aria-hidden>
-                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-                </svg>
-              </span>
-              <Input
-                type="search"
-                value={listSearch}
-                onChange={(e) => setListSearch(e.target.value)}
-                placeholder="Rechercher (nom, ville, commune, CP, type…)"
-                className="w-full rounded-xl border-slate-200 py-2.5 !pl-11 pr-8 text-sm shadow-sm dark:border-slate-600"
-                aria-label="Filtrer les biens"
-                autoComplete="off"
-              />
-              {listSearch.trim() ? (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 z-[1] -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-                  onClick={() => setListSearch('')}
-                  aria-label="Effacer la recherche"
-                >
-                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
-                  </svg>
-                </button>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
         {listErr && (
@@ -514,8 +530,28 @@ export function BuildingsPage() {
           </div>
         )}
 
-        {filteredRows.length > 0 ? (
-        <ul className="grid list-none gap-4 sm:grid-cols-2">
+        {filteredRows.length > 0 && viewMode === 'kanban' ? (
+          <OdooKanbanBoard>
+            {BUILDING_STRUCTURE_OPTIONS.map((opt) => (
+              <OdooKanbanColumn key={opt.value} title={opt.cardTitle} count={kanbanColumns[opt.value].length}>
+                {kanbanColumns[opt.value].map((b) => (
+                  <OdooKanbanCard key={b.id} onClick={() => navigate(`/biens/${b.id}`)}>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{b.name}</p>
+                    <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+                      {[b.commune ?? '—', b.city].filter(Boolean).join(' · ')}
+                    </p>
+                    <p className="mt-1 text-[10px] font-bold tabular-nums text-brand-700 dark:text-brand-300">
+                      {b._count.units} unité{b._count.units !== 1 ? 's' : ''}
+                    </p>
+                  </OdooKanbanCard>
+                ))}
+              </OdooKanbanColumn>
+            ))}
+          </OdooKanbanBoard>
+        ) : null}
+
+        {filteredRows.length > 0 && viewMode === 'list' ? (
+        <ul className="grid list-none gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredRows.map((b) => {
             const isImmeuble = b.structureKind === 'IMMEUBLE';
             return (
@@ -524,31 +560,31 @@ export function BuildingsPage() {
                 id={`bien-row-${b.id}`}
                 className={`scroll-mt-28 ${bienRowFlashClass(flashBuildingId === b.id)}`}
               >
-                <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/95 to-slate-100/40 shadow-sm transition hover:border-brand-400/55 hover:shadow-md dark:border-slate-700 dark:from-slate-900/80 dark:to-slate-900/40 dark:hover:border-brand-500/45">
+                <div className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200/90 bg-gradient-to-b from-slate-50/95 to-slate-100/40 shadow-sm transition hover:border-brand-400/55 hover:shadow dark:border-slate-700 dark:from-slate-900/80 dark:to-slate-900/40 dark:hover:border-brand-500/45">
                   <SmartLink
                     to={`/biens/${b.id}`}
                     returnFocusId={b.id}
-                    className="group flex flex-1 flex-col p-4 no-underline outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    className="group flex flex-1 flex-col p-2.5 no-underline outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                   >
-                    <div className="flex gap-3">
+                    <div className="flex gap-2">
                       <BuildingCardIcon structureKind={b.structureKind} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                             <BuildingScopeBadge className="shrink-0" />
-                            <h3 className="min-w-0 text-base font-semibold leading-snug text-slate-900 group-hover:text-brand-700 dark:text-slate-100 dark:group-hover:text-brand-400 sm:text-lg">
+                            <h3 className="min-w-0 text-sm font-semibold leading-snug text-slate-900 group-hover:text-brand-700 dark:text-slate-100 dark:group-hover:text-brand-400">
                               {b.name}
                             </h3>
                           </div>
-                          <span className="shrink-0 rounded-lg bg-brand-500/15 px-2 py-0.5 text-xs font-bold tabular-nums text-brand-800 dark:bg-brand-500/20 dark:text-brand-200">
+                          <span className="shrink-0 rounded-md bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-brand-800 dark:bg-brand-500/20 dark:text-brand-200">
                             {b._count.units}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                        <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
                           {[b.commune ?? '—', b.city].filter(Boolean).join(' · ')}
                           {b.postalCode ? ` · ${b.postalCode}` : ''}
                         </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-1.5 flex flex-wrap gap-1">
                           <span className="rounded-md bg-slate-200/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                             {structureKindShort(b.structureKind)}
                           </span>
@@ -571,11 +607,11 @@ export function BuildingsPage() {
                       </div>
                     </div>
                   </SmartLink>
-                  <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200/60 bg-slate-100/40 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50">
+                  <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200/60 bg-slate-100/40 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900/50">
                     <SmartLink
                       to={`/biens/${b.id}`}
                       returnFocusId={b.id}
-                      className="text-xs font-medium text-brand-600 transition hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300"
+                      className="text-[11px] font-medium text-brand-600 transition hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300"
                     >
                       Ouvrir la fiche
                       <span className="inline-block transition hover:translate-x-0.5" aria-hidden>
@@ -656,9 +692,6 @@ export function BuildingsPage() {
               </span>
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Nouveau bien</h2>
-                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-                  {addFormOpen ? 'Masquer le formulaire' : 'Afficher le formulaire d’enregistrement'}
-                </p>
               </div>
             </div>
             <svg
@@ -680,59 +713,65 @@ export function BuildingsPage() {
                   className="align-middle"
                   title="Immeuble multi locataires ou terrain avec plusieurs locataires : un seul bien avec plusieurs unités et plusieurs baux. Villa, entrepôt entier ou parcelle unique sans découpe : un seul lot, une unité, un bail."
                 />
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Choisissez d’abord le genre de bien, puis indiquez étages / nombre d’unités si besoin, puis nom et lieu.
-                </span>
               </div>
         <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <Label className="mb-0">Genre de bien</Label>
-              <HelpHint
-                className="align-middle"
-                title={BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKind)?.description ?? ''}
-              />
-            </div>
-            <div
-              className="grid gap-2 sm:grid-cols-3"
-              role="radiogroup"
-              aria-label="Genre de bien"
+          <div className="sm:col-span-2 rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/40">
+            <button
+              type="button"
+              onClick={() => setStructureSettingsOpen((v) => !v)}
+              aria-expanded={structureSettingsOpen}
+              className="flex w-full items-center justify-between gap-3 text-left"
             >
-              {BUILDING_STRUCTURE_OPTIONS.map((o) => {
-                const on = structureKind === o.value;
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setStructureKind(o.value)}
-                    className={`rounded-xl border-2 p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
-                      on
-                        ? 'border-brand-600 bg-brand-50 shadow-sm dark:border-brand-500 dark:bg-brand-950/40'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/80 dark:hover:border-slate-500 dark:hover:bg-slate-800/80'
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold text-slate-900 dark:text-slate-50">{o.cardTitle}</span>
-                    <span className="mt-1 block text-[11px] leading-snug text-slate-600 dark:text-slate-400">{o.cardHint}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {structureKind === 'IMMEUBLE' ? (
-            <div className="sm:col-span-2">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Taille de l’immeuble (indicatif)
-              </p>
-              <p className="mb-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                Indiquez le <strong className="font-semibold text-slate-800 dark:text-slate-200">nombre d’étages</strong>{' '}
-                au-dessus du rez-de-chaussée, puis combien de{' '}
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">logements par étage</strong> (même
-                nombre sur chaque étage 1…N). Le{' '}
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">total des logements</strong> est
-                calculé automatiquement (étages × par étage + unités au RDC si vous incluez le rez-de-chaussée).
-              </p>
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Organisation du bien (optionnel)
+              </span>
+              <svg
+                className={`size-4 shrink-0 text-slate-500 transition-transform duration-200 dark:text-slate-400 ${
+                  structureSettingsOpen ? 'rotate-180' : ''
+                }`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {structureSettingsOpen ? (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                    <Label className="mb-0">Genre de bien</Label>
+                    <HelpHint
+                      className="align-middle"
+                      title={BUILDING_STRUCTURE_OPTIONS.find((o) => o.value === structureKind)?.description ?? ''}
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Genre de bien">
+                    {BUILDING_STRUCTURE_OPTIONS.map((o) => {
+                      const on = structureKind === o.value;
+                      return (
+                        <button
+                          key={o.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => setStructureKind(o.value)}
+                          className={`rounded-xl border-2 p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                            on
+                              ? 'border-brand-600 bg-brand-50 shadow-sm dark:border-brand-500 dark:bg-brand-950/40'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/80 dark:hover:border-slate-500 dark:hover:bg-slate-800/80'
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-50">{o.cardTitle}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {structureKind === 'IMMEUBLE' ? (
+                  <div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
@@ -785,13 +824,9 @@ export function BuildingsPage() {
                   <Label htmlFor="new-building-has-rdc" className="mb-0 cursor-pointer font-medium">
                     Inclure le rez-de-chaussée dans les étages
                   </Label>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs leading-snug text-slate-600 dark:text-slate-400">
+                  <div className="mt-1">
                     <HelpHint title={IMMEUBLE_RDC_CHECKBOX_HINT} className="align-middle shrink-0" />
-                    <span>
-                      Si coché, le rez-de-chaussée (étage 0) apparaît dans les listes d’étages. Le nombre total de
-                      logements reste à votre saisie.
-                    </span>
-                  </p>
+                  </div>
                 </div>
               </div>
               {includeRezDeChaussee ? (
@@ -812,12 +847,9 @@ export function BuildingsPage() {
                   />
                 </div>
               ) : null}
-            </div>
-          ) : structureKind === 'TERRAIN_LOTS' ? (
-            <div className="sm:col-span-2">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Découpe du terrain
-              </p>
+                  </div>
+                ) : structureKind === 'TERRAIN_LOTS' ? (
+                  <div>
               <div className="max-w-xs">
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
                   <Label htmlFor="new-building-terrain-lots" className="mb-0">
@@ -837,8 +869,11 @@ export function BuildingsPage() {
                   placeholder="Ex. 4"
                 />
               </div>
-            </div>
-          ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <div className="sm:col-span-2">
             <Label>Nom ou référence du bien</Label>
             <Input

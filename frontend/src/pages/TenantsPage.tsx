@@ -23,6 +23,14 @@ import { unitKindLabel } from '@/lib/unitKind';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
+import {
+  OdooActionBar,
+  OdooKanbanBoard,
+  OdooKanbanCard,
+  OdooKanbanColumn,
+  OdooListToolbar,
+  type OdooViewMode,
+} from '@/components/OdooKit';
 
 type Tenant = {
   id: string;
@@ -127,6 +135,7 @@ export function TenantsPage() {
   const [editErr, setEditErr] = useState<string | null>(null);
   const [addTenantOpen, setAddTenantOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
+  const [viewMode, setViewMode] = useState<OdooViewMode>('list');
   const addTenantFormRef = useRef<HTMLDivElement | null>(null);
 
   const filteredRows = useMemo(() => {
@@ -163,6 +172,16 @@ export function TenantsPage() {
     copy.sort((a, b) => compareTenantRows(a, b, tenantSortKey, tenantSortDir));
     return copy;
   }, [filteredRows, tenantSortKey, tenantSortDir]);
+
+  const kanbanTenants = useMemo(() => {
+    const withLease: Tenant[] = [];
+    const withoutLease: Tenant[] = [];
+    for (const t of filteredRows) {
+      if (t.leases.length > 0) withLease.push(t);
+      else withoutLease.push(t);
+    }
+    return { withLease, withoutLease };
+  }, [filteredRows]);
 
   function openAddTenantForm() {
     setAddTenantOpen(true);
@@ -355,15 +374,7 @@ export function TenantsPage() {
           iconTo="/locataires"
           title="Locataires"
           hintTitle="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
-          titleExtra={
-            <div className="flex flex-wrap items-center gap-2">
-              <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
-              <PdfPrintButton
-                path="/reports/table-locataires.pdf"
-                title="Liste de tous les locataires en PDF (aperçu comme le tableau)"
-              />
-            </div>
-          }
+          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
         />
         <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
           <span className="text-base leading-none" aria-hidden>
@@ -372,6 +383,37 @@ export function TenantsPage() {
           Ajouter un locataire
         </Button>
       </div>
+
+      <OdooActionBar
+        left={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
+            <span className="font-semibold">Liste</span>
+            <span>
+              {filteredRows.length} / {rows.length} locataire(s) affiché(s)
+            </span>
+          </div>
+        }
+        right={
+          rows.length > 0 ? (
+            <OdooListToolbar
+              search={listSearch}
+              onSearchChange={setListSearch}
+              searchPlaceholder="Rechercher (nom, bien, ville…)"
+              searchAriaLabel="Filtrer la liste des locataires"
+              showViewToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              exports={
+                <PdfPrintButton
+                  path="/reports/table-locataires.pdf"
+                  title="Liste de tous les locataires en PDF"
+                  variant="labeled"
+                />
+              }
+            />
+          ) : null
+        }
+      />
 
       <div ref={addTenantFormRef} id="nouveau-locataire" className="scroll-mt-24">
         <Card className="!p-0 overflow-hidden">
@@ -446,49 +488,55 @@ export function TenantsPage() {
       </div>
 
       <Card className="overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
-        <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:px-5">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Liste des locataires</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">
+              {viewMode === 'kanban' ? 'Kanban locataires' : 'Liste des locataires'}
+            </h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               {filteredRows.length === rows.length
                 ? `${rows.length} fiche${rows.length !== 1 ? 's' : ''}`
                 : `${filteredRows.length} sur ${rows.length} affichée${filteredRows.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          {rows.length > 0 ? (
-            <div className="relative w-full min-w-0 sm:max-w-xs">
-              <span className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-slate-400" aria-hidden>
-                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-                </svg>
-              </span>
-              <Input
-                type="search"
-                value={listSearch}
-                onChange={(e) => setListSearch(e.target.value)}
-                placeholder="Rechercher (nom, bien, ville…)"
-                className="w-full rounded-lg border-slate-200 py-2 !pl-11 pr-8 text-sm dark:border-slate-600"
-                aria-label="Filtrer la liste des locataires"
-                autoComplete="off"
-              />
-              {listSearch.trim() ? (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 z-[1] -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-                  onClick={() => setListSearch('')}
-                  aria-label="Effacer la recherche"
-                >
-                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
-                  </svg>
-                </button>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
-        {rows.length > 0 ? (
+        {rows.length > 0 && filteredRows.length > 0 && viewMode === 'kanban' ? (
+          <div className="p-4">
+            <OdooKanbanBoard>
+              <OdooKanbanColumn title="Avec bail" count={kanbanTenants.withLease.length}>
+                {kanbanTenants.withLease.map((t) => {
+                  const l = t.leases[0];
+                  return (
+                    <OdooKanbanCard key={t.id} onClick={() => navigate(`/locataires?edit=${t.id}`)}>
+                      <p className="font-semibold text-slate-900 dark:text-slate-50">
+                        {t.firstName} {t.lastName}
+                      </p>
+                      {l ? (
+                        <p className="mt-1 text-xs text-[var(--color-muted)]">
+                          {l.unit.building.name} · {l.unit.label}
+                        </p>
+                      ) : null}
+                      {t.phone?.trim() ? <p className="mt-1 text-xs text-brand-700 dark:text-brand-300">{t.phone}</p> : null}
+                    </OdooKanbanCard>
+                  );
+                })}
+              </OdooKanbanColumn>
+              <OdooKanbanColumn title="Sans bail" count={kanbanTenants.withoutLease.length}>
+                {kanbanTenants.withoutLease.map((t) => (
+                  <OdooKanbanCard key={t.id} onClick={() => navigate(`/locataires?edit=${t.id}`)}>
+                    <p className="font-semibold text-slate-900 dark:text-slate-50">
+                      {t.firstName} {t.lastName}
+                    </p>
+                    {t.email?.trim() ? <p className="mt-1 text-xs text-[var(--color-muted)]">{t.email}</p> : null}
+                  </OdooKanbanCard>
+                ))}
+              </OdooKanbanColumn>
+            </OdooKanbanBoard>
+          </div>
+        ) : null}
+
+        {rows.length > 0 && viewMode === 'list' ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px] border-collapse text-left text-sm">
             <thead>

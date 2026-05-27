@@ -403,6 +403,152 @@ export type ExcelImportResult = {
   warnings: string[];
 };
 
+export type AccountingSummary = {
+  year: number;
+  totals: {
+    due: number;
+    paid: number;
+    waived: number;
+    charges: number;
+    netEstimated: number;
+  };
+  estimatedProfit: number;
+  monthly: Array<{
+    month: number;
+    due: number;
+    paid: number;
+    waived: number;
+    charges: number;
+    netEstimated: number;
+  }>;
+};
+
+export async function getAccountingSummary(year: number): Promise<AccountingSummary> {
+  return api<AccountingSummary>(`/reports/accounting-summary?year=${encodeURIComponent(String(year))}`);
+}
+
+export type AccountingWorkspace = AccountingSummary & {
+  receivables: Array<{
+    paymentId: string;
+    tenantFullName: string;
+    buildingName: string;
+    unitLabel: string;
+    periodYear: number;
+    periodMonth: number;
+    dueDate: string;
+    status: string;
+    amountDue: number;
+    amountPaid: number;
+    outstanding: number;
+  }>;
+  ledger: Array<{
+    date: string;
+    journal: string;
+    piece: string;
+    label: string;
+    debit: number;
+    credit: number;
+    due: number;
+    status: string;
+  }>;
+};
+
+export async function getAccountingWorkspace(year: number): Promise<AccountingWorkspace> {
+  return api<AccountingWorkspace>(`/reports/accounting-workspace?year=${encodeURIComponent(String(year))}`);
+}
+
+export type AccountingClosure = {
+  periodYear: number;
+  periodMonth: number;
+  closedByUserId: string | null;
+  closedByEmail: string | null;
+  closedAt: string;
+};
+
+export async function getAccountingClosures(year: number): Promise<AccountingClosure[]> {
+  return api<AccountingClosure[]>(`/reports/accounting-closures?year=${encodeURIComponent(String(year))}`);
+}
+
+export async function closeAccountingPeriod(year: number, month: number): Promise<void> {
+  await api('/reports/accounting-closures/close', {
+    method: 'POST',
+    json: { year, month },
+  });
+}
+
+export async function openAccountingPeriod(year: number, month: number): Promise<void> {
+  await api('/reports/accounting-closures/open', {
+    method: 'POST',
+    json: { year, month },
+  });
+}
+
+export type AuditLogEntry = {
+  id: string;
+  organizationId: string;
+  actorUserId: string | null;
+  actorEmail: string | null;
+  actorName: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  summary: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export async function getAuditLogs(params?: {
+  action?: string;
+  actorUserId?: string;
+  entityType?: string;
+  limit?: number;
+}): Promise<AuditLogEntry[]> {
+  const q = new URLSearchParams();
+  if (params?.action) q.set('action', params.action);
+  if (params?.actorUserId) q.set('actorUserId', params.actorUserId);
+  if (params?.entityType) q.set('entityType', params.entityType);
+  if (params?.limit != null) q.set('limit', String(params.limit));
+  const suffix = q.toString() ? `?${q.toString()}` : '';
+  return api<AuditLogEntry[]>(`/audit/logs${suffix}`);
+}
+
+export type ReceiptSignatureMeta = {
+  hasSignature: boolean;
+  fileKey: string | null;
+  mimeType: string | null;
+  uploadedAt: string | null;
+};
+
+export async function getReceiptSignatureMeta(): Promise<ReceiptSignatureMeta> {
+  return api<ReceiptSignatureMeta>('/auth/receipt-signature');
+}
+
+export async function uploadReceiptSignature(file: File): Promise<ReceiptSignatureMeta> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${baseUrl()}/auth/receipt-signature/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (!res.ok) throw new Error('Upload signature impossible');
+  return (await res.json()) as ReceiptSignatureMeta;
+}
+
+export async function saveDrawnReceiptSignature(dataUrl: string): Promise<ReceiptSignatureMeta> {
+  return api<ReceiptSignatureMeta>('/auth/receipt-signature/draw', {
+    method: 'POST',
+    json: { dataUrl },
+  });
+}
+
+export async function createPaymentReceiptShareLink(paymentId: string): Promise<{ shareUrl: string; expiresAt: string }> {
+  return api<{ ok: boolean; shareUrl: string; expiresAt: string }>(`/payments/${paymentId}/receipt-share-link`, {
+    method: 'POST',
+  });
+}
+
 /** Importe un classeur au même format que l’export (feuilles Biens, Baux, Paiements, Charges, etc.). */
 export async function importReportExcel(file: File): Promise<ExcelImportResult> {
   const fd = new FormData();

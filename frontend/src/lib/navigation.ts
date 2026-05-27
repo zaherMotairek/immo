@@ -1,7 +1,11 @@
+import type { Location } from 'react-router-dom';
+
 /** État passé aux navigations pour retrouver le fil d’Ariane « Retour » et la position de scroll. */
 export type AppNavigateState = {
   from?: string;
   fromLabel?: string;
+  /** Liste derrière un panneau latéral (fiche location depuis une liste / lien dédié). */
+  backgroundLocation?: Location;
 };
 
 export const SCROLL_STORAGE_PREFIX = 'immo:scroll:';

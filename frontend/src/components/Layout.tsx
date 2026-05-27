@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { saveScrollForPath } from '@/lib/navigation';
 import { useAuth } from '@/auth/AuthContext';
-import { NavigationProvider } from '@/context/NavigationContext';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { GlobalSearchBar } from './GlobalSearchBar';
 import { SidebarNavIcon } from './SidebarNavIcons';
@@ -23,8 +22,10 @@ const navPrimary: NavItem[] = [
 const navSecondary: NavItem[] = [
   { to: '/locations', label: 'Carte des biens' },
   { to: '/activite-loyers', label: 'Calendrier loyers' },
-  { to: '/cautions', label: 'Cautions' },
-  { to: '/charges', label: 'Charges' },
+  { to: '/cautions', label: 'Cautions & charges' },
+  { to: '/comptabilite', label: 'Comptabilité' },
+  { to: '/collecteurs', label: 'Collecteurs loyers' },
+  { to: '/journal-securite', label: 'Journal sécurité' },
   { to: '/exports', label: 'Fichiers Excel' },
 ];
 
@@ -33,18 +34,15 @@ const navAccount: NavItem[] = [{ to: '/profil', label: 'Mon compte' }];
 const NAV_MORE_STORAGE = 'immopilot-nav-plus-open';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-[var(--radius-input)] border-l-[3px] py-2.5 pl-2.5 pr-3 text-[13px] font-medium transition ${
-    isActive
-      ? 'border-sky-400 bg-white/[0.1] text-white shadow-sm shadow-black/15'
-      : 'border-transparent text-slate-300 hover:border-slate-500/80 hover:bg-white/[0.06] hover:text-white'
-  }`;
+  `odoo-nav-item ${isActive ? 'odoo-nav-item-active' : ''}`;
 
 const navClassMobile = ({ isActive }: { isActive: boolean }) =>
-  `shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition ${
-    isActive ? 'bg-brand-600 text-white shadow-md shadow-brand-900/30' : 'bg-slate-800/90 text-slate-300'
+  `shrink-0 rounded-sm px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition ${
+    isActive ? 'bg-brand-600 text-white shadow-sm' : 'bg-white/10 text-slate-300'
   }`;
 
-const moreToolsBtnClass = `w-full rounded-[var(--radius-input)] border border-slate-600/80 bg-slate-800/40 py-2.5 pl-2.5 pr-3 text-left text-[12px] font-semibold text-slate-200 transition hover:bg-white/[0.06] hover:text-white`;
+const moreToolsBtnClass =
+  'odoo-nav-item w-full border border-white/10 bg-white/5 py-2.5 pl-2.5 pr-3 text-left text-[12px] font-semibold';
 
 const MOBILE_NAV_KEY = 'immopilot-mobile-nav-open';
 const DESKTOP_NAV_KEY = 'immopilot-desktop-nav-open';
@@ -146,7 +144,7 @@ export function Layout() {
       </a>
       <aside
         id="navigation-mobile-aside"
-        className={`border-b border-slate-800/80 bg-[#0c0f14] text-slate-100 print:hidden lg:h-[100dvh] lg:max-h-[100dvh] lg:w-[15.5rem] lg:shrink-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r lg:border-slate-800/70 lg:sticky lg:top-0 lg:self-start ${
+        className={`odoo-sidebar border-b text-slate-100 shadow-[4px_0_24px_-8px_rgb(0_0_0/0.35)] print:hidden lg:h-[100dvh] lg:max-h-[100dvh] lg:w-[15.5rem] lg:shrink-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r lg:sticky lg:top-0 lg:self-start ${
           desktopNavOpen ? 'lg:flex' : 'lg:hidden'
         } ${!mobileNavOpen ? 'max-lg:hidden' : ''} ${
           mobileNavOpen
@@ -160,11 +158,11 @@ export function Layout() {
           <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="hidden h-8 w-1 shrink-0 rounded-full bg-gradient-to-b from-sky-400 to-brand-600 lg:block" aria-hidden />
+                <span className="hidden h-8 w-1 shrink-0 rounded-sm bg-brand-600 lg:block" aria-hidden />
                 <div className="min-w-0">
-                  <div className="truncate text-[15px] font-semibold tracking-tight text-white">ImmoPilot</div>
+                  <div className="odoo-sidebar-brand truncate text-[15px] font-semibold">ImmoPilot</div>
                   <p className="hidden text-[11px] font-medium leading-tight text-slate-400 lg:mt-0.5 lg:block">
-                    Loyers & biens — en clair
+                    Gestion locative
                   </p>
                 </div>
               </div>
@@ -291,7 +289,7 @@ export function Layout() {
         </div>
 
         {/* Pastilles horizontales : téléphone & tablette < lg */}
-        <div className="border-t border-slate-800/80 bg-[#0a0c10] lg:hidden">
+        <div className="border-t border-zinc-800/80 bg-zinc-950 lg:hidden">
           <nav
             className="flex touch-pan-x gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-2 py-2.5 [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as CSSProperties}
@@ -333,7 +331,7 @@ export function Layout() {
               {adminItem ? (
                 <NavLink
                   to={adminItem.to}
-                  className="rounded-full border border-brand-600/50 bg-brand-900/30 px-2.5 py-1.5 text-[11px] font-semibold text-brand-100"
+                  className="rounded-full border border-brand-500/40 bg-brand-900/25 px-2.5 py-1.5 text-[11px] font-semibold text-brand-100"
                   onClick={saveScrollBeforeMenuNav}
                 >
                   {adminItem.label}
@@ -351,7 +349,7 @@ export function Layout() {
         className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 outline-none print:bg-white print:text-black dark:text-slate-100"
       >
         {!mobileNavOpen ? (
-          <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-slate-800/90 bg-[#0c0f14] px-3 py-2.5 print:hidden lg:hidden">
+          <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-zinc-800/90 bg-zinc-950 px-3 py-2.5 print:hidden lg:hidden">
             <button
               type="button"
               className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/90 text-slate-100 transition hover:bg-slate-700"
@@ -368,7 +366,7 @@ export function Layout() {
             <span className="min-w-0 truncate text-sm font-semibold text-white">ImmoPilot</span>
           </div>
         ) : null}
-        <div className="sticky top-0 z-30 max-lg:static max-lg:z-auto border-b border-slate-200/90 bg-white/80 px-3 pb-3 pt-3 shadow-[0_1px_0_rgb(15_23_42/0.06),0_8px_32px_rgb(15_23_42/0.05)] backdrop-blur-xl print:hidden dark:border-slate-700/75 dark:bg-slate-900/88 dark:shadow-[0_1px_0_rgb(0_0_0/0.25),0_8px_32px_rgb(0_0_0/0.2)] sm:px-6 sm:pb-3.5 sm:pt-3.5 lg:px-6 xl:px-8">
+        <div className="odoo-chrome-bar sticky top-0 z-30 max-lg:static max-lg:z-auto px-3 pb-3 pt-3 print:hidden sm:px-6 sm:pb-3.5 sm:pt-3.5 lg:px-6 xl:px-8">
           <div className="mx-auto flex w-full max-w-[min(100%,96rem)] items-center gap-3">
             <button
               type="button"
@@ -384,16 +382,14 @@ export function Layout() {
             </div>
           </div>
         </div>
-        <div className="flex-1 p-3 print:p-4 sm:p-6 lg:px-6 lg:pb-14 lg:pt-7 xl:px-8 xl:pt-8">
+        <div className="flex-1 p-3 print:p-4 sm:p-6 lg:px-6 lg:pb-14 lg:pt-7 xl:px-8 xl:pt-8 xl:pb-16">
           <div className="mx-auto w-full max-w-[min(100%,96rem)]">
-            <NavigationProvider>
-              <ScrollRestoration />
-              <Outlet />
-            </NavigationProvider>
+            <ScrollRestoration />
+            <Outlet />
           </div>
         </div>
       </main>
-      <div className="safe-pb flex items-center justify-between border-t border-slate-800/80 bg-[#0c0f14] px-3 py-3 text-slate-200 print:hidden lg:hidden">
+      <div className="safe-pb flex items-center justify-between border-t border-zinc-800/80 bg-zinc-950 px-3 py-3 text-slate-200 print:hidden lg:hidden">
         <span className="truncate text-[11px] text-slate-400">{user?.email}</span>
         <Button
           variant="secondary"

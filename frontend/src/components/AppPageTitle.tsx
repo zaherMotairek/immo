@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { HelpHint } from '@/components/ui';
 import { SidebarNavIcon } from '@/components/SidebarNavIcons';
 
 type AppPageTitleProps = {
@@ -13,24 +12,16 @@ type AppPageTitleProps = {
   className?: string;
 };
 
-/** Titre de section : icône + titre ; les explications passent par l’info-bulle « ? ». */
-export function AppPageTitle({ iconTo, title, hintTitle, titleExtra, className = '' }: AppPageTitleProps) {
+/** Panneau de contrôle type Odoo : icône module + titre + actions. */
+export function AppPageTitle({ iconTo, title, hintTitle: _hintTitle, titleExtra, className = '' }: AppPageTitleProps) {
   return (
-    <div className={`flex items-start gap-2.5 sm:gap-4 ${className}`}>
-      <div
-        className="flex size-[2.8rem] shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-slate-200/90 bg-gradient-to-br from-brand-50 via-white to-sky-50/90 text-brand-700 shadow-[0_2px_8px_rgb(15_23_42/0.07)] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:from-brand-950/55 dark:via-slate-900 dark:to-slate-800/90 dark:text-brand-300 dark:shadow-black/25 dark:ring-white/[0.05] sm:size-[3.5rem]"
-        aria-hidden
-      >
-        <SidebarNavIcon to={iconTo} className="size-5 sm:size-[1.65rem]" />
+    <div className={`odoo-control-panel ${className}`}>
+      <div className="odoo-control-panel-icon" aria-hidden>
+        <SidebarNavIcon to={iconTo} className="size-5" />
       </div>
-      <div className="min-w-0 flex-1 pt-0.5">
+      <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <h1 className="text-[1.3rem] font-bold leading-[1.2] tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl sm:leading-tight">
-            {title}
-          </h1>
-          {hintTitle ? (
-            <HelpHint className="mobile-secondary shrink-0 align-middle [&_button]:translate-y-px" title={hintTitle} />
-          ) : null}
+          <h1>{title}</h1>
           {titleExtra}
         </div>
       </div>

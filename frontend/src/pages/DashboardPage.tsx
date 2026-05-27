@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { EmptyState } from '@/components/EmptyState';
 import { api } from '@/lib/api';
 import { fcfa, formatDateFr } from '@/lib/format';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
+import { collectionCollectBadge, type CollectionTaskSummary } from '@/lib/paymentRow';
 import {
   KpiIconAlert,
   KpiIconBuilding,
@@ -13,23 +14,27 @@ import {
   KpiIconTrendUp,
   KpiIconUnits,
 } from '@/components/dashboardKpiIcons';
-import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
-import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { LinkButton } from '@/components/LinkButton';
 import { SmartLink } from '@/components/SmartLink';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
-import { Button, Card, HelpHint, StatTile } from '@/components/ui';
+import { Button, Card, HelpHint } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
-import {
-  formatPhoneForWhatsApp,
-  overdueReminderWhatsAppText,
-  whatsAppWebUrl,
-} from '@/lib/whatsappReminder';
+import { listBlockRowClass, listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 type DashboardPaymentAlert = {
   paymentId: string;
@@ -50,6 +55,7 @@ type DashboardPaymentAlert = {
   building?: string;
   commune?: string;
   city?: string;
+  collectionTask?: CollectionTaskSummary | null;
 };
 
 type Overview = {
@@ -121,7 +127,7 @@ function dashboardAlertOverdue(a: DashboardPaymentAlert) {
   return d < today;
 }
 
-type UpcomingSortKey = 'tenant' | 'place' | 'remaining' | 'due' | 'status' | 'lease';
+type UpcomingSortKey = 'tenant' | 'place' | 'remaining' | 'due' | 'status';
 
 function compareUpcomingRows(a: DashboardPaymentAlert, b: DashboardPaymentAlert, key: UpcomingSortKey, dir: TableSortDir): number {
   const sign = dir === 'asc' ? 1 : -1;
@@ -147,9 +153,6 @@ function compareUpcomingRows(a: DashboardPaymentAlert, b: DashboardPaymentAlert,
     case 'status':
       c = a.status.localeCompare(b.status);
       break;
-    case 'lease':
-      c = (a.leaseId ?? '').localeCompare(b.leaseId ?? '');
-      break;
     default:
       c = 0;
   }
@@ -160,20 +163,6 @@ function compareUpcomingRows(a: DashboardPaymentAlert, b: DashboardPaymentAlert,
 export function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [sendingId, setSendingId] = useState<string | null>(null);
-
-  async function sendReminder(paymentId: string) {
-    setSendingId(paymentId);
-    try {
-      const res = await api<{ message?: string }>(`/payments/${paymentId}/send-reminder`, { method: 'POST' });
-      alert(res.message ?? 'Relance envoyée.');
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible.');
-    } finally {
-      setSendingId(null);
-    }
-  }
-
   useEffect(() => {
     api<Overview>('/dashboard')
       .then(setData)
@@ -224,6 +213,35 @@ export function DashboardPage() {
     setCollapsedAlertMonths(new Set(alertMonthGroups.map(([k]) => k)));
   }, [alertMonthGroups]);
 
+  /** Parts du loyer mensuel attendu : encaissé vs reste (somme = attendu). */
+  const coveragePieData = useMemo(() => {
+    if (!data) return null;
+    const exp = data.kpis.expectedMonthlyRent;
+    if (exp <= 0) return null;
+    const enc = Math.min(data.kpis.collectedThisMonth, exp);
+    const rest = Math.max(0, exp - data.kpis.collectedThisMonth);
+    return [
+      { key: 'enc', name: 'Encaissé', value: enc, fill: '#10b981' },
+      { key: 'rest', name: 'Reste (à percevoir)', value: rest, fill: '#94a3b8' },
+    ];
+  }, [data]);
+
+  const barChartWrapRef = useRef<HTMLDivElement>(null);
+  const [barChartW, setBarChartW] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = barChartWrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      if (w > 0) setBarChartW(w);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [data]);
+
   if (err) {
     return (
       <Card className="border-red-200/90 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/30">
@@ -250,6 +268,24 @@ export function DashboardPage() {
   };
   const isEmptyPortfolio = kpis.buildings === 0;
   const showUpcomingReminder = !isEmptyPortfolio && sortedUpcomingItems.length > 0;
+  const dashboardBars = [
+    { key: 'expected', label: 'Attendu', value: kpis.expectedMonthlyRent, color: '#3b82f6' },
+    { key: 'collected', label: 'Encaissé', value: kpis.collectedThisMonth, color: '#10b981' },
+    { key: 'deposits', label: 'Cautions', value: kpis.depositsCollectedThisMonth, color: '#8b5cf6' },
+    { key: 'overdue', label: 'Retards', value: kpis.overdueAmount, color: '#f59e0b' },
+  ];
+
+  const periodNow = new Date();
+  const monthLabelRaw = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(periodNow);
+  const monthLabelCap = monthLabelRaw.charAt(0).toUpperCase() + monthLabelRaw.slice(1);
+  const rangeStart = new Date(periodNow.getFullYear(), periodNow.getMonth(), 1);
+  const rangeEnd = new Date(periodNow.getFullYear(), periodNow.getMonth() + 1, 0);
+  const rangeLabel = `${rangeStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} – ${rangeEnd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+  const pctOfExpected =
+    kpis.expectedMonthlyRent > 0
+      ? Math.round((kpis.collectedThisMonth / kpis.expectedMonthlyRent) * 1000) / 10
+      : null;
+  const remainingVsExpected = Math.max(0, kpis.expectedMonthlyRent - kpis.collectedThisMonth);
 
   return (
     <div className="space-y-6">
@@ -257,39 +293,155 @@ export function DashboardPage() {
         className="max-w-3xl"
         iconTo="/"
         title="Tableau de bord"
-        hintTitle="Vue d’ensemble : encaissements du mois, retards, alertes, accès rapide aux paiements. « Encaissé ce mois » = loyers + cautions reçus ce mois-ci (détail en deux lignes plus bas sur la page)."
-        titleExtra={
-          <div className="flex flex-wrap items-center gap-2">
-            <StatTile className="shrink-0" label="Total" value={String(kpis.tenants)} />
-            <PdfPrintButton
-              path="/dashboard/worksheet.pdf"
-              title="Feuille de route PDF : cases « perçu », notes manuscrites, puis saisie dans Paiements"
-            />
-          </div>
-        }
+        hintTitle="Vue d’ensemble : encaissements du mois, retards, alertes, accès rapide aux paiements. Les KPIs reflètent le mois civil en cours."
       />
 
       {!isEmptyPortfolio ? (
-        <p className="mobile-secondary max-w-3xl rounded-xl border border-slate-200/90 bg-white/90 px-4 py-3 text-sm leading-snug text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">
-          <span className="font-semibold text-slate-900 dark:text-slate-50">Mois en cours : </span>
-          loyers attendus <strong className="tabular-nums">{fcfa(kpis.expectedMonthlyRent)}</strong>
-          {' · '}
-          déjà encaissés <strong className="tabular-nums text-emerald-800 dark:text-emerald-300">{fcfa(kpis.collectedThisMonth)}</strong>
-          {kpis.depositsCollectedThisMonth > 0 ? (
-            <>
-              {' · '}
-              cautions encaissées ce mois <strong className="tabular-nums">{fcfa(kpis.depositsCollectedThisMonth)}</strong>
-            </>
+        <Card className="overflow-hidden border-slate-200/70 bg-gradient-to-br from-white/95 via-slate-50/50 to-slate-100/25 shadow-[0_12px_40px_-16px_rgb(15_23_42/0.12)] dark:border-slate-600/60 dark:from-slate-900/95 dark:via-slate-900 dark:to-zinc-950/90 dark:shadow-black/25">
+          <div className="flex flex-col gap-4 border-b border-slate-200/80 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-slate-700/80">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Synthèse · Mois en cours</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{monthLabelCap}</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{rangeLabel}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PdfPrintButton
+                path="/dashboard/worksheet.pdf"
+                title="Feuille de route PDF : cases « perçu », notes manuscrites, puis saisie dans Paiements"
+              />
+            </div>
+          </div>
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4 sm:p-5">
+            <Card className="!p-4 border-emerald-200/70 bg-emerald-50/45 dark:border-emerald-900/45 dark:bg-emerald-950/25">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900/85 dark:text-emerald-300/95">Encaissé (loyers)</p>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-emerald-950 dark:text-emerald-50">{fcfa(kpis.collectedThisMonth)}</p>
+                  {pctOfExpected !== null ? (
+                    <p className="mt-1 text-xs font-medium text-emerald-800/90 dark:text-emerald-400/95">{pctOfExpected}% de l’attendu</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Attendu non renseigné</p>
+                  )}
+                </div>
+                <KpiIconMoney className="size-9 shrink-0 text-emerald-600/65 dark:text-emerald-500/55" aria-hidden />
+              </div>
+            </Card>
+            <Card className="!p-4 border-slate-200/90 dark:border-slate-600/70">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Attendu ce mois</p>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(kpis.expectedMonthlyRent)}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Loyers mensuels actifs</p>
+                </div>
+                <KpiIconTrendUp className="size-9 shrink-0 text-slate-400/90 dark:text-slate-500/80" aria-hidden />
+              </div>
+            </Card>
+            <Card className="!p-4 border-slate-200/90 dark:border-slate-600/70">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reste (vs attendu)</p>
+                    <HelpHint title="Écart entre le total attendu du mois et les loyers déjà encaissés sur les échéances du mois (indicateur de couverture, pas un solde comptable)." />
+                  </div>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(remainingVsExpected)}</p>
+                </div>
+                <KpiIconUnits className="size-9 shrink-0 text-slate-400/90 dark:text-slate-500/80" aria-hidden />
+              </div>
+            </Card>
+            <Card className="!p-4 border-amber-200/80 bg-amber-50/60 dark:border-amber-800/60 dark:bg-amber-950/25">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Retards / impayés</p>
+                    <HelpHint title="Total restant dû sur les échéances en retard ou impayées." />
+                  </div>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-amber-900 dark:text-amber-100">{fcfa(kpis.overdueAmount)}</p>
+                  <p className="mt-1 text-xs font-medium text-amber-900/85 dark:text-amber-300/90">{kpis.overdueCount} échéance(s)</p>
+                </div>
+                <KpiIconAlert className="size-9 shrink-0 text-amber-600/75 dark:text-amber-500/60" aria-hidden />
+              </div>
+            </Card>
+          </div>
+          {coveragePieData ? (
+            <div
+              className="border-t border-slate-200/80 px-4 py-5 sm:px-6 dark:border-slate-700/80"
+              role="img"
+              aria-label={`Encaissement du mois : ${pctOfExpected ?? 0} pour cent du loyer attendu encaissé, reste ${fcfa(remainingVsExpected)} à percevoir.`}
+            >
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-10">
+                <div className="min-w-0 flex-1 text-center md:text-left">
+                  <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Encaissé vs reste (loyer attendu)</p>
+                    <HelpHint title="Graphique sur la base du loyer mensuel attendu (baux actifs). « Reste » = différence avec ce qui est déjà encaissé ce mois sur les échéances du mois. En début de mois, l’anneau est souvent très « reste » : les échéances arrivent plus tard." />
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                    Même indicateur que la carte « Encaissé » ({pctOfExpected !== null ? `${pctOfExpected}%` : '—'} de l’attendu), en vue proportionnelle.
+                  </p>
+                  <ul className="mt-4 flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs tabular-nums md:justify-start">
+                    <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="size-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                      <span>
+                        Encaissé · <strong>{fcfa(Math.min(kpis.collectedThisMonth, kpis.expectedMonthlyRent))}</strong>
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="size-2.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500" aria-hidden />
+                      <span>
+                        Reste à percevoir · <strong>{fcfa(remainingVsExpected)}</strong>
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="relative mx-auto h-[200px] w-[200px] shrink-0 md:mx-0">
+                  <PieChart width={200} height={200}>
+                    <Pie
+                      data={coveragePieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={62}
+                      outerRadius={88}
+                      paddingAngle={
+                        coveragePieData.filter((d) => d.value > 0).length > 1 ? 2 : 0
+                      }
+                      stroke="none"
+                    >
+                      {coveragePieData.map((slice) => (
+                        <Cell key={slice.key} fill={slice.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => [fcfa(Number(v)), 'Montant']} />
+                  </PieChart>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-0.5">
+                    {pctOfExpected !== null ? (
+                      <>
+                        <span className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-50">{pctOfExpected}%</span>
+                        <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          encaissé
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-sm font-medium text-slate-500">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
-          {kpis.overdueAmount > 0 ? (
-            <>
-              {' · '}
-              <span className="text-amber-900 dark:text-amber-200">
-                retards / impayés <strong className="tabular-nums">{fcfa(kpis.overdueAmount)}</strong>
-              </span>
-            </>
-          ) : null}
-        </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-200/80 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400 sm:px-6">
+            <span>
+              Cautions encaissées ce mois :{' '}
+              <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(kpis.depositsCollectedThisMonth)}</span>
+            </span>
+            <span className="text-slate-300 dark:text-slate-600" aria-hidden>
+              ·
+            </span>
+            <SmartLink to="/cautions" className="font-semibold text-brand-700 hover:underline dark:text-brand-400">
+              Voir les cautions →
+            </SmartLink>
+          </div>
+        </Card>
       ) : null}
 
       {showUpcomingReminder ? (
@@ -305,21 +457,18 @@ export function DashboardPage() {
                   Dans les 2 jours — loyers à encaisser
                 </p>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-100">
-                  D’ici <strong className="font-semibold text-sky-950 dark:text-sky-100">deux jours</strong> (y compris{' '}
-                  <span className="whitespace-nowrap">aujourd’hui</span>), loyers à encaisser pour{' '}
-                  <strong className="font-semibold text-slate-900 dark:text-slate-50">
-                    {formatUpcomingLoyersPhrase(sortedUpcomingItems)}
-                  </strong>
-                  . Reste au total :{' '}
-                  <strong className="tabular-nums text-slate-900 dark:text-slate-50">
-                    {fcfa(upcomingCollections.totalRemaining)}
-                  </strong>
-                  .
+                  {sortedUpcomingItems.length} échéance{sortedUpcomingItems.length !== 1 ? 's' : ''} à traiter pour{' '}
+                  <strong className="font-semibold text-slate-900 dark:text-slate-50">{formatUpcomingLoyersPhrase(sortedUpcomingItems)}</strong>.
+                  Total restant : <strong className="tabular-nums text-slate-900 dark:text-slate-50">{fcfa(upcomingCollections.totalRemaining)}</strong>.
                 </p>
-                <p className="mobile-secondary mt-1.5 text-xs text-slate-600 dark:text-slate-400">
-                  Fenêtre : {formatEncaissementWindowFr(upcomingCollections.windowStart, upcomingCollections.windowEnd)} ·{' '}
-                  {sortedUpcomingItems.length} échéance{sortedUpcomingItems.length !== 1 ? 's' : ''}
-                </p>
+                <div className="mobile-secondary mt-1.5 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                  <HelpHint
+                    title={`Fenêtre: ${formatEncaissementWindowFr(upcomingCollections.windowStart, upcomingCollections.windowEnd)}. ${sortedUpcomingItems.length} échéance${
+                      sortedUpcomingItems.length !== 1 ? 's' : ''
+                    } à encaisser.`}
+                  />
+                  <span>Détails période</span>
+                </div>
               </div>
               <SmartLink
                 to="/paiements?year=all&month=all"
@@ -330,7 +479,7 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="overflow-x-auto bg-white dark:bg-slate-950/25">
-            <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                   <SortableTh
@@ -342,7 +491,7 @@ export function DashboardPage() {
                     thClassName="px-4 py-2.5 sm:px-5"
                   />
                   <SortableTh
-                    label="Bien / unité"
+                    label="Lieu"
                     columnKey="place"
                     activeKey={upcomingSortKey}
                     dir={upcomingSortDir}
@@ -350,7 +499,7 @@ export function DashboardPage() {
                     thClassName="px-4 py-2.5 sm:px-5"
                   />
                   <SortableTh
-                    label="Reste à encaisser"
+                    label="Montant"
                     columnKey="remaining"
                     activeKey={upcomingSortKey}
                     dir={upcomingSortDir}
@@ -359,7 +508,7 @@ export function DashboardPage() {
                     thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
                   />
                   <SortableTh
-                    label="Période & échéance"
+                    label="Période · échéance"
                     columnKey="due"
                     activeKey={upcomingSortKey}
                     dir={upcomingSortDir}
@@ -374,17 +523,10 @@ export function DashboardPage() {
                     onSort={toggleUpcomingSort}
                     thClassName="px-4 py-2.5 sm:px-5"
                   />
-                  <SortableTh
-                    label="Fiche location"
-                    columnKey="lease"
-                    activeKey={upcomingSortKey}
-                    dir={upcomingSortDir}
-                    onSort={toggleUpcomingSort}
-                    thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                  <th
+                    className="w-[1%] whitespace-nowrap px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-3 dark:text-slate-400"
+                    aria-label="Détail"
                   />
-                  <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                    Détail
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -393,77 +535,88 @@ export function DashboardPage() {
                   const py = Number(pyStr);
                   const pm = Number(pmStr);
                   const dueStr = formatDateFr(row.dueDate);
+                  const periodCompact =
+                    !Number.isNaN(py) && !Number.isNaN(pm) ? `${String(pm).padStart(2, '0')}/${py}` : row.period;
+                  const lieuTitle = row.building
+                    ? `${row.building} — ${unitKindLabel(row.unitKind)} ${row.unit ?? '—'} · ${[row.commune, row.city].filter(Boolean).join(', ') || '—'}`
+                    : '';
                   return (
-                    <tr key={row.paymentId} className={listTableDataRowClass(rowIndex)}>
+                    <tr
+                      key={row.paymentId}
+                      id={`dashboard-upcoming-${row.paymentId}`}
+                      onClick={(e) => {
+                        const t = e.target as HTMLElement;
+                        if (t.closest('a, button, input, textarea, select, label')) return;
+                        setZoomAlertPaymentId(row.paymentId);
+                      }}
+                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${
+                        zoomAlertPaymentId === row.paymentId
+                          ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
+                          : 'cursor-pointer'
+                      }`}
+                    >
                       <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
                         <SmartLink
                           to={`/locataires?edit=${encodeURIComponent(row.tenantId)}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                         >
                           {row.tenant || 'Locataire'}
                         </SmartLink>
                       </td>
-                      <td className={`max-w-[24rem] ${listTableCellClass} text-slate-800 dark:text-slate-200`}>
+                      <td
+                        className={`max-w-[14rem] truncate ${listTableCellClass} text-slate-800 dark:text-slate-200`}
+                        title={lieuTitle}
+                      >
                         {row.building ? (
-                          <BuildingUnitStack
-                            buildingName={row.building}
-                            buildingSubline={
-                              [row.commune, row.city].filter(Boolean).length ? (
-                                <>{[row.commune, row.city].filter(Boolean).join(', ')}</>
-                              ) : undefined
-                            }
-                            unitKindLabel={unitKindLabel(row.unitKind)}
-                            unitLabel={row.unit ?? '—'}
-                          />
+                          <>
+                            <span className="font-medium text-slate-900 dark:text-slate-100">{row.building}</span>
+                            <span className="text-slate-400 dark:text-slate-500"> · </span>
+                            <span className="text-xs text-slate-700 dark:text-slate-300">{row.unit ?? '—'}</span>
+                          </>
                         ) : (
                           <span className="text-slate-500">—</span>
                         )}
                       </td>
-                      <td className={`whitespace-nowrap text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100 ${listTableCellClass}`}>
-                        {fcfa(alertRemaining(row))}
-                        {(row.amountPaid ?? 0) > 0 ? (
-                          <span className="mt-1 block text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                            Déjà {fcfa(row.amountPaid ?? 0)} · Loyer {fcfa(row.amountDue)}
+                      <td className={`whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200 ${listTableCellClass}`}>
+                        <span className="font-semibold">{fcfa(row.amountDue)}</span>
+                        {(row.status === 'PENDING' || row.status === 'LATE') && (row.amountPaid ?? 0) > 0 ? (
+                          <span className="mt-0.5 block text-[11px] font-medium tabular-nums text-emerald-800 dark:text-emerald-300">
+                            Reste {fcfa(alertRemaining(row))}
                           </span>
                         ) : null}
                       </td>
                       <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
-                        <p className="text-sm font-medium">
-                          {!Number.isNaN(py) && !Number.isNaN(pm) ? monthTitle(py, pm) : row.period}
-                        </p>
-                        <p className="mt-0.5 text-xs">
+                        <p className="text-xs font-semibold">{periodCompact}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           <span className="font-semibold text-sky-800 dark:text-sky-300">{relativeDueDayFr(row.dueDate)}</span>
                           {' · '}
                           {dueStr}
                         </p>
                       </td>
                       <td className={listTableCellClass}>
-                        <span
-                          className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(row.status)}`}
-                        >
-                          {statusLabel(row.status)}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span
+                            className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(row.status)}`}
+                          >
+                            {statusLabel(row.status)}
+                          </span>
+                          {(() => {
+                            const b = collectionCollectBadge(row.collectionTask);
+                            return b ? (
+                              <span
+                                className={`inline-block max-w-full rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case leading-tight ${b.className}`}
+                              >
+                                {b.label}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                       </td>
-                      <td className={`whitespace-nowrap ${listTableCellClass}`}>
-                        {row.leaseId ? (
-                          <FicheLocationLink leaseId={row.leaseId} returnFocusRowId={row.paymentId} />
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className={`text-right align-middle ${listTableCellClass}`}>
-                        <button
-                          type="button"
-                          title="Détail et encaissement"
-                          aria-label={`Détail pour ${row.tenant}`}
-                          onClick={() => setZoomAlertPaymentId(row.paymentId)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-brand-500/40 bg-brand-50/90 text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
-                        >
-                          <svg className="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                            <circle cx="11" cy="11" r="8" />
-                            <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </button>
+                      <td className={`w-10 text-center align-middle ${listTableCellClass} text-neutral-400 dark:text-zinc-500`} aria-hidden>
+                        <svg className="mx-auto size-5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                          <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                       </td>
                     </tr>
                   );
@@ -498,8 +651,8 @@ export function DashboardPage() {
           className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
           aria-label={`Voir les biens — ${kpis.buildings} enregistré${kpis.buildings !== 1 ? 's' : ''}`}
         >
-          <Card className="relative !p-4 h-full transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
-            <p className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+          <Card className="relative !p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:border-slate-600/70 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
+            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-2">
                 <KpiIconBuilding className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400" />
                 Biens
@@ -508,7 +661,7 @@ export function DashboardPage() {
                 Ouvrir →
               </span>
             </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums dark:text-slate-100">{kpis.buildings}</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{kpis.buildings}</p>
           </Card>
         </SmartLink>
         <SmartLink
@@ -516,8 +669,8 @@ export function DashboardPage() {
           className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
           aria-label={`Voir les biens et les unités — ${kpis.units} unité${kpis.units !== 1 ? 's' : ''}`}
         >
-          <Card className="relative !p-4 h-full transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
-            <p className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+          <Card className="relative !p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:border-slate-600/70 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
+            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-2">
                 <KpiIconUnits className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400" />
                 Unités
@@ -526,7 +679,7 @@ export function DashboardPage() {
                 Ouvrir →
               </span>
             </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums dark:text-slate-100">{kpis.units}</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{kpis.units}</p>
           </Card>
         </SmartLink>
         <SmartLink
@@ -534,8 +687,8 @@ export function DashboardPage() {
           className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
           aria-label={`Voir les locataires — ${kpis.tenants} enregistré${kpis.tenants !== 1 ? 's' : ''}`}
         >
-          <Card className="relative !p-4 h-full transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
-            <p className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+          <Card className="relative !p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:border-slate-600/70 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
+            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-2">
                 <KpiIconTenant className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400" />
                 Locataires
@@ -544,66 +697,81 @@ export function DashboardPage() {
                 Ouvrir →
               </span>
             </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums dark:text-slate-100">{kpis.tenants}</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{kpis.tenants}</p>
           </Card>
         </SmartLink>
-        <Card className="!p-4">
-          <p className="flex items-center gap-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+        <SmartLink
+          to="/paiements?year=all&month=all"
+          className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
+        >
+          <Card className="!p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 dark:border-slate-600/70">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <KpiIconMoney className="h-4 w-4 shrink-0 text-slate-400" />
             Loyer mensuel attendu
           </p>
-          <p className="mt-1 text-2xl font-semibold dark:text-slate-100">{fcfa(kpis.expectedMonthlyRent)}</p>
-        </Card>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(kpis.expectedMonthlyRent)}</p>
+            <p className="mt-1 text-xs font-semibold text-brand-700 dark:text-brand-400">Ouvrir les paiements →</p>
+          </Card>
+        </SmartLink>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card>
-          <h2 className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
-            <KpiIconTrendUp className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            Encaissements du mois
-          </h2>
-          <div className="mt-3 space-y-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Loyers (échéances)</p>
-              <p className="mt-1 text-3xl font-bold text-emerald-700 dark:text-emerald-400">{fcfa(kpis.collectedThisMonth)}</p>
-            </div>
-            <div className="border-t border-slate-200/90 pt-3 dark:border-slate-600/80">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Cautions encaissées ce mois
-              </p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                {fcfa(kpis.depositsCollectedThisMonth)}
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Dépôts de garantie marqués encaissés ce mois — non confondus avec les loyers.
-              </p>
-              <SmartLink
-                to="/cautions"
-                className="mt-2 inline-block text-xs font-semibold text-brand-700 hover:underline dark:text-brand-400"
-              >
-                Voir toutes les cautions encaissées →
-              </SmartLink>
-            </div>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Vue rapide en graphique</h2>
+            <HelpHint title="Comparatif direct des montants clés du mois. Bleu : attendu, vert : encaissé, violet : cautions, orange : retards." />
+          </div>
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Les montants encaissés et cautions sont aussi détaillés dans la synthèse du mois ci-dessus — pas de doublon en dessous.
+          </p>
+          <div ref={barChartWrapRef} className="h-[240px] w-full min-h-[240px] min-w-0">
+            {barChartW > 0 ? (
+              <BarChart width={barChartW} height={240} data={dashboardBars} margin={{ top: 12, right: 8, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.45} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: '#64748b', fontSize: 11 }}
+                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(148, 163, 184, 0.12)' }}
+                  formatter={(v) => [fcfa(Number(v)), 'Montant']}
+                  labelStyle={{ fontWeight: 700 }}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={58}>
+                  {dashboardBars.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : null}
           </div>
         </Card>
         <Card
-          className={
-            kpis.overdueCount > 0
-              ? 'border-amber-200 bg-amber-50/50 dark:border-amber-700/50 dark:bg-amber-950/25'
-              : ''
-          }
+          className={`lg:col-span-2 ${kpis.overdueCount > 0 ? 'border-amber-200 bg-amber-50/50 dark:border-amber-700/50 dark:bg-amber-950/25' : ''}`}
         >
           <h2 className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
             <KpiIconAlert className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             Impayés / retard
           </h2>
-          <p className="mt-2 text-3xl font-bold text-amber-800 dark:text-amber-300">{fcfa(kpis.overdueAmount)}</p>
-          <p className="text-sm text-slate-600 dark:text-slate-400">{kpis.overdueCount} échéance(s)</p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <SmartLink to="/locations" className="text-sm font-medium text-brand-700 dark:text-brand-400">
-              Voir les locations →
+          <p className="mt-3 text-3xl font-bold tabular-nums text-amber-800 dark:text-amber-300">{fcfa(kpis.overdueAmount)}</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{kpis.overdueCount} échéance(s) concernée(s)</p>
+          <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            Traiter les retards depuis les paiements ou les fiches location. Les alertes détaillées suivent plus bas.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+            <SmartLink
+              to="/locations"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-brand-400 dark:hover:bg-slate-700/80"
+            >
+              Locations →
             </SmartLink>
-            <SmartLink to="/paiements?overdue=1" className="text-sm font-medium text-brand-700 dark:text-brand-400">
+            <SmartLink
+              to="/paiements?overdue=1"
+              className="inline-flex items-center justify-center rounded-xl border border-amber-300/80 bg-white px-4 py-2.5 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-50 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/55"
+            >
               Paiements en retard →
             </SmartLink>
           </div>
@@ -616,7 +784,7 @@ export function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Alertes loyers</h2>
             <HelpHint
               className="align-middle"
-              title="Même présentation que la page Paiements : regroupement par mois de facturation, badge de statut, actions de relance. La loupe ouvre le détail sur place : encaissement, versement partiel, relances. Un lien vers Paiements reste disponible dans la fenêtre."
+              title="Comme sur la page Paiements : regroupement par mois, liste compacte ; cliquer une ligne ouvre le panneau à droite (encaissement, versement partiel, relances, fiche location)."
             />
           </div>
           <LinkButton to="/paiements?overdue=1&year=all&month=all" variant="secondary" className="py-2 text-xs">
@@ -700,110 +868,95 @@ export function DashboardPage() {
                     </div>
                   </button>
                   <ul id={`dashboard-alerts-month-${key}`} className="list-none" hidden={monthCollapsed}>
-                    {items.map((a, rowIdx) => (
-                      <li
-                        key={a.paymentId}
-                        className={`grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-start sm:gap-3 sm:px-5 ${
-                          rowIdx < items.length - 1 ? 'border-b border-slate-100 dark:border-slate-700/80' : ''
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <SmartLink
-                              to={`/locataires?edit=${encodeURIComponent(a.tenantId)}`}
-                              className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
-                            >
-                              {a.tenant || 'Locataire'}
-                            </SmartLink>
-                            <span
-                              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(a.status)}`}
-                            >
-                              {statusLabel(a.status)}
-                            </span>
-                            {a.leaseId ? <FicheLocationLink leaseId={a.leaseId} /> : null}
-                          </div>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {[a.commune, a.city].filter(Boolean).join(', ') || '—'} · {a.building ?? '—'} —{' '}
-                            {unitKindLabel(a.unitKind)} — {a.unit ?? '—'}
-                          </p>
-                          <p className="mt-1 text-sm">
-                            <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-                              Loyer {fcfa(a.amountDue)}
-                            </span>
-                            {(a.status === 'PENDING' || a.status === 'LATE') && (a.amountPaid ?? 0) > 0 && (
-                              <span className="ml-2 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                                · encaissé {fcfa(a.amountPaid ?? 0)} · reste {fcfa(alertRemaining(a))}
-                              </span>
-                            )}
-                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                              échéance {formatDateFr(a.dueDate)}
-                            </span>
-                          </p>
-                          {dashboardAlertOverdue(a) &&
-                            !a.tenantEmail &&
-                            !formatPhoneForWhatsApp(a.tenantPhone) && (
-                              <p className="mt-1 max-w-[28rem] text-xs text-amber-800 dark:text-amber-200">
-                                Ajoutez un e-mail ou un n° avec indicatif (ex. +225…) dans Locataires pour relancer.
-                              </p>
-                            )}
-                        </div>
-                        <button
-                          type="button"
-                          title="Détail et encaissement — sur le tableau de bord"
-                          aria-label={`Détail et encaissement pour ${a.tenant}`}
-                          onClick={() => setZoomAlertPaymentId(a.paymentId)}
-                          className="flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-xl border border-brand-500/40 bg-brand-50/90 text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45 sm:mt-0.5"
+                    {items.map((a, rowIdx) => {
+                      const [pY, pM] = a.period.split('-');
+                      const periodCompact =
+                        pY && pM && !Number.isNaN(Number(pY)) && !Number.isNaN(Number(pM))
+                          ? `${String(pM).padStart(2, '0')}/${pY}`
+                          : a.period;
+                      const lieuTitle = a.building
+                        ? `${a.building} — ${unitKindLabel(a.unitKind)} ${a.unit ?? '—'} · ${[a.commune, a.city].filter(Boolean).join(', ') || '—'}`
+                        : '';
+                      return (
+                        <li
+                          key={a.paymentId}
+                          id={`dashboard-alert-${a.paymentId}`}
+                          onClick={(e) => {
+                            const t = e.target as HTMLElement;
+                            if (t.closest('a, button, input, textarea, select, label')) return;
+                            setZoomAlertPaymentId(a.paymentId);
+                          }}
+                          className={`scroll-mt-28 ${listBlockRowClass(rowIdx)} sm:items-start cursor-pointer ${
+                            zoomAlertPaymentId === a.paymentId
+                              ? '!bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:!bg-brand-950/40 dark:ring-brand-500/30'
+                              : ''
+                          }`}
                         >
-                          <svg className="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                            <circle cx="11" cy="11" r="8" />
-                            <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </button>
-                        <div className="flex flex-wrap gap-2 sm:max-w-[min(100%,24rem)] sm:justify-end sm:self-start">
-                          {dashboardAlertOverdue(a) && a.tenantEmail && (
-                            <Button
-                              variant="secondary"
-                              className="py-2 text-xs"
-                              disabled={sendingId !== null}
-                              onClick={() => sendReminder(a.paymentId)}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <SmartLink
+                                to={`/locataires?edit=${encodeURIComponent(a.tenantId)}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                              >
+                                {a.tenant || 'Locataire'}
+                              </SmartLink>
+                              <span
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(a.status)}`}
+                              >
+                                {statusLabel(a.status)}
+                              </span>
+                              {(() => {
+                                const b = collectionCollectBadge(a.collectionTask);
+                                return b ? (
+                                  <span
+                                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case ${b.className}`}
+                                  >
+                                    {b.label}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
+                            <p
+                              className="max-w-[min(100%,28rem)] truncate text-xs text-slate-600 dark:text-slate-400"
+                              title={lieuTitle}
                             >
-                              {sendingId === a.paymentId ? 'Envoi…' : 'Relance e-mail'}
-                            </Button>
-                          )}
-                          {dashboardAlertOverdue(a) &&
-                            (() => {
-                              const waDigits = formatPhoneForWhatsApp(a.tenantPhone);
-                              if (!waDigits || !a.building || !a.unit) return null;
-                              const [pY, pM] = a.period.split('-');
-                              const periodLabel = pY && pM ? `${pM}/${pY}` : a.period;
-                              const waHref = whatsAppWebUrl(
-                                waDigits,
-                                overdueReminderWhatsAppText({
-                                  firstName: a.tenantFirstName || a.tenant || '—',
-                                  periodLabel,
-                                  amountFcfa: alertRemaining(a),
-                                  dueDateStr: formatDateFr(a.dueDate),
-                                  buildingName: a.building,
-                                  unitLabel: a.unit,
-                                }),
-                              );
-                              return (
-                                <a
-                                  href={waHref}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center justify-center rounded-xl border border-emerald-600/90 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-900 shadow-sm hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200"
-                                >
-                                  WhatsApp
-                                </a>
-                              );
-                            })()}
-                          <LinkButton to={`/locataires?edit=${a.tenantId}`} variant="ghost" className="py-2 text-xs">
-                            Modifier locataire
-                          </LinkButton>
-                        </div>
-                      </li>
-                    ))}
+                              {a.building ? (
+                                <>
+                                  <span className="font-medium text-slate-800 dark:text-slate-200">{a.building}</span>
+                                  <span className="text-slate-400 dark:text-slate-500"> · </span>
+                                  <span>{a.unit ?? '—'}</span>
+                                  {[a.commune, a.city].filter(Boolean).length ? (
+                                    <>
+                                      <span className="text-slate-400 dark:text-slate-500"> · </span>
+                                      <span>{[a.commune, a.city].filter(Boolean).join(', ')}</span>
+                                    </>
+                                  ) : null}
+                                </>
+                              ) : (
+                                '—'
+                              )}
+                            </p>
+                            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm tabular-nums">
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">{fcfa(a.amountDue)}</span>
+                              {(a.status === 'PENDING' || a.status === 'LATE') && (a.amountPaid ?? 0) > 0 ? (
+                                <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                                  Reste {fcfa(alertRemaining(a))}
+                                </span>
+                              ) : null}
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                {periodCompact} · {formatDateFr(a.dueDate)}
+                              </span>
+                            </p>
+                          </div>
+                          <div className="shrink-0 self-center text-neutral-400 dark:text-zinc-500 sm:pt-0.5" aria-hidden>
+                            <svg className="size-5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                              <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </Card>
               );

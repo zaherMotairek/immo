@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BuildingStructureKind, ChargeCategory, CollectionMethod, PaymentStatus, UnitKind } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import * as ExcelJS from 'exceljs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit') as typeof import('pdfkit');
@@ -11,6 +12,7 @@ import { TenantsService } from '../tenants/tenants.service';
 import { BuildingsService } from '../buildings/buildings.service';
 import { selectApartmentsPerFloorByOrg } from '../buildings/apartments-per-floor-column';
 import { startOfTodayUtc } from '../common/date.util';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import {
   drawFooter,
   drawSectionHeading,
@@ -88,6 +90,236 @@ export class ReportsService {
     private readonly tenants: TenantsService,
     private readonly buildings: BuildingsService,
   ) {}
+
+  private async listClosedPeriodsSet(organizationId: string, year: number) {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `
+      SELECT "period_month" AS "periodMonth"
+      FROM "accounting_period_closures"
+      WHERE "organization_id" = $1 AND "period_year" = $2
+      `,
+      organizationId,
+      year,
+    )) as Array<{ periodMonth: number }>;
+    return new Set(rows.map((r) => r.periodMonth));
+  }
+
+  async listAccountingClosures(organizationId: string, year: number) {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `
+      SELECT
+        "period_year" AS "periodYear",
+        "period_month" AS "periodMonth",
+        "closed_by_user_id" AS "closedByUserId",
+        "closed_by_email" AS "closedByEmail",
+        "closed_at" AS "closedAt"
+      FROM "accounting_period_closures"
+      WHERE "organization_id" = $1 AND "period_year" = $2
+      ORDER BY "period_month" ASC
+      `,
+      organizationId,
+      year,
+    )) as Array<{
+      periodYear: number;
+      periodMonth: number;
+      closedByUserId: string | null;
+      closedByEmail: string | null;
+      closedAt: Date;
+    }>;
+    return rows.map((r) => ({
+      ...r,
+      closedAt: r.closedAt.toISOString(),
+    }));
+  }
+
+  async closeAccountingPeriod(organizationId: string, year: number, month: number, actor: JwtAuthUser) {
+    if (!Number.isInteger(year) || year < 1990 || year > 2100) {
+      throw new Error('Année invalide.');
+    }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new Error('Mois invalide.');
+    }
+    await this.prisma.$executeRawUnsafe(
+      `
+      INSERT INTO "accounting_period_closures"
+      ("id","organization_id","period_year","period_month","closed_by_user_id","closed_by_email","closed_at")
+      VALUES ($1,$2,$3,$4,$5,$6,NOW())
+      ON CONFLICT ("organization_id","period_year","period_month")
+      DO NOTHING
+      `,
+      randomUUID(),
+      organizationId,
+      year,
+      month,
+      actor.id,
+      actor.email,
+    );
+    return { ok: true };
+  }
+
+  async openAccountingPeriod(organizationId: string, year: number, month: number) {
+    if (!Number.isInteger(year) || year < 1990 || year > 2100) {
+      throw new Error('Année invalide.');
+    }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new Error('Mois invalide.');
+    }
+    await this.prisma.$executeRawUnsafe(
+      `
+      DELETE FROM "accounting_period_closures"
+      WHERE "organization_id" = $1 AND "period_year" = $2 AND "period_month" = $3
+      `,
+      organizationId,
+      year,
+      month,
+    );
+    return { ok: true };
+  }
+
+  async buildAccountingSummary(year: number, organizationId: string) {
+    await this.payments.syncLateStatuses();
+    const leaseInOrg = { unit: { building: { organizationId } } };
+    const [payments, charges] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { periodYear: year, lease: leaseInOrg },
+        include: { lease: { include: { unit: { include: { building: true } } } } },
+      }),
+      this.prisma.charge.findMany({
+        where: { periodYear: year, building: { organizationId } },
+      }),
+    ]);
+
+    const monthly = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      due: 0,
+      paid: 0,
+      waived: 0,
+      charges: 0,
+      netEstimated: 0,
+    }));
+
+    for (const p of payments) {
+      const idx = p.periodMonth - 1;
+      if (idx < 0 || idx > 11) continue;
+      const due = p.amountDue.toNumber();
+      const paid = p.amountPaid?.toNumber() ?? (p.status === PaymentStatus.PAID ? due : 0);
+      const waived = p.status === PaymentStatus.WAIVED ? due : 0;
+      monthly[idx]!.due += due;
+      monthly[idx]!.paid += paid;
+      monthly[idx]!.waived += waived;
+    }
+    for (const c of charges) {
+      const m = c.periodMonth ?? 0;
+      if (m < 1 || m > 12) continue;
+      monthly[m - 1]!.charges += c.amount.toNumber();
+    }
+    const closedMonths = await this.listClosedPeriodsSet(organizationId, year);
+    for (const m of monthly) {
+      m.netEstimated = m.paid - m.charges;
+      (m as { closed?: boolean }).closed = closedMonths.has(m.month);
+    }
+
+    const totals = monthly.reduce(
+      (acc, m) => {
+        acc.due += m.due;
+        acc.paid += m.paid;
+        acc.waived += m.waived;
+        acc.charges += m.charges;
+        acc.netEstimated += m.netEstimated;
+        return acc;
+      },
+      { due: 0, paid: 0, waived: 0, charges: 0, netEstimated: 0 },
+    );
+
+    return {
+      year,
+      totals,
+      estimatedProfit: totals.netEstimated,
+      monthly,
+    };
+  }
+
+  async buildAccountingWorkspace(year: number, organizationId: string) {
+    await this.payments.syncLateStatuses();
+    const leaseInOrg = { unit: { building: { organizationId } } };
+    const [summary, payments, charges] = await Promise.all([
+      this.buildAccountingSummary(year, organizationId),
+      this.prisma.payment.findMany({
+        where: { periodYear: year, lease: leaseInOrg },
+        include: {
+          lease: {
+            include: {
+              tenant: true,
+              unit: { include: { building: true } },
+            },
+          },
+        },
+        orderBy: [{ dueDate: 'asc' }],
+      }),
+      this.prisma.charge.findMany({
+        where: { periodYear: year, building: { organizationId } },
+        include: { building: true, unit: true },
+        orderBy: [{ periodMonth: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+
+    const receivables = payments
+      .map((p) => {
+        const due = p.amountDue.toNumber();
+        const paid = p.amountPaid?.toNumber() ?? 0;
+        const outstanding = Math.max(0, due - paid);
+        if (outstanding <= 0.005) return null;
+        const tenant = `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`.trim();
+        return {
+          paymentId: p.id,
+          tenantFullName: tenant,
+          buildingName: p.lease.unit.building.name,
+          unitLabel: p.lease.unit.label,
+          periodYear: p.periodYear,
+          periodMonth: p.periodMonth,
+          dueDate: p.dueDate.toISOString().slice(0, 10),
+          status: p.status,
+          amountDue: due,
+          amountPaid: paid,
+          outstanding,
+        };
+      })
+      .filter(Boolean);
+
+    const ledger = [
+      ...payments.map((p) => {
+        const due = p.amountDue.toNumber();
+        const paid = p.amountPaid?.toNumber() ?? (p.status === PaymentStatus.PAID ? due : 0);
+        const tenant = `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`.trim();
+        return {
+          date: p.dueDate.toISOString().slice(0, 10),
+          journal: 'LOYERS',
+          piece: p.id.slice(0, 8),
+          label: `${tenant} · ${p.lease.unit.building.name} · ${p.lease.unit.label} · ${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`,
+          debit: 0,
+          credit: paid,
+          due,
+          status: p.status,
+        };
+      }),
+      ...charges.map((c) => ({
+        date: c.createdAt.toISOString().slice(0, 10),
+        journal: 'CHARGES',
+        piece: c.id.slice(0, 8),
+        label: `${chargeCategoryFr(c.category)} · ${c.building.name}${c.unit?.label ? ` · ${c.unit.label}` : ''} · ${c.label}`,
+        debit: c.amount.toNumber(),
+        credit: 0,
+        due: 0,
+        status: c.paid ? 'PAID' : 'UNPAID',
+      })),
+    ].sort((a, b) => a.date.localeCompare(b.date) || a.journal.localeCompare(b.journal));
+
+    return {
+      ...summary,
+      receivables,
+      ledger,
+    };
+  }
 
   async buildPdf(year: number, organizationId: string): Promise<Buffer> {
     await this.payments.syncLateStatuses();

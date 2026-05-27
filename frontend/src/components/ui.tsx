@@ -16,7 +16,7 @@ export function Card({
   return (
     <div
       {...rest}
-      className={`rounded-[var(--radius-card)] border border-slate-200/95 bg-white p-3 text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_6px_24px_rgb(15_23_42/0.06)] ring-1 ring-slate-900/[0.035] sm:p-5 dark:border-slate-700/72 dark:bg-slate-900/94 dark:text-slate-100 dark:shadow-[0_2px_10px_rgb(0_0_0/0.22)] dark:ring-white/[0.045] ${className}`}
+      className={`odoo-sheet p-3 text-[var(--color-ink)] sm:p-5 dark:text-zinc-100 ${className}`}
     >
       {children}
     </div>
@@ -40,10 +40,10 @@ export function StatTile({
 }) {
   return (
     <div
-      className={`rounded-xl border px-3 py-2.5 shadow-sm ${
+      className={`rounded-[var(--radius-card)] border px-3 py-2.5 ${
         emphasize
           ? 'border-amber-400/85 bg-amber-50/95 dark:border-amber-600/55 dark:bg-amber-950/35'
-          : 'border-slate-200/90 bg-white/90 dark:border-slate-600/80 dark:bg-slate-800/50'
+          : 'border-[var(--odoo-border)] bg-[var(--color-surface)] dark:border-zinc-600 dark:bg-zinc-800/50'
       } ${className}`}
     >
       <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
@@ -69,16 +69,16 @@ export function Button({
   variant?: 'primary' | 'primarySoft' | 'secondary' | 'ghost' | 'danger';
 }) {
   const base =
-    'inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--radius-input)] px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 active:scale-[0.98] sm:min-h-10 sm:px-4 sm:py-2.5';
+    'inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--radius-input)] px-3 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 sm:min-h-10 sm:px-4 sm:py-2.5';
   const styles = {
-    primary: 'bg-brand-600 text-white shadow-md shadow-brand-600/25 hover:bg-brand-700 focus-visible:outline-brand-600',
-    /** Même famille que le primaire, ton plus clair (ex. acompte à côté de « Marquer payé »). */
+    primary:
+      'odoo-btn-primary focus-visible:outline-brand-600',
     primarySoft:
-      'border border-brand-500/40 bg-brand-100 text-brand-700 shadow-sm shadow-brand-600/10 hover:border-brand-600/50 hover:bg-brand-50 dark:border-brand-500/45 dark:bg-brand-600/28 dark:text-white dark:shadow-black/20 dark:hover:bg-brand-600/40',
+      'border border-brand-600/35 bg-brand-50 text-brand-800 hover:bg-brand-100 dark:border-brand-500/45 dark:bg-brand-950/40 dark:text-brand-100',
     secondary:
-      'border border-slate-300/90 bg-slate-100/85 text-slate-800 shadow-sm hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600',
-    ghost: 'text-slate-800 hover:bg-slate-200/80 dark:text-slate-100 dark:hover:bg-slate-700',
-    danger: 'bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700 focus-visible:outline-red-600',
+      'odoo-btn-secondary dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700',
+    ghost: 'text-[var(--color-ink)] hover:bg-[var(--odoo-row-hover)] dark:text-zinc-100 dark:hover:bg-zinc-700',
+    danger: 'border border-red-700 bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600',
   };
   return (
     <button type={type} className={`${base} ${styles[variant]} ${className}`} {...props}>
@@ -88,7 +88,7 @@ export function Button({
 }
 
 const inputBaseClass =
-  'w-full min-h-9 rounded-[var(--radius-input)] border border-slate-200/95 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04)] placeholder:font-normal placeholder:text-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:min-h-10 sm:px-3.5 sm:py-2.5 dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50 dark:placeholder:text-slate-400 dark:focus:bg-slate-950 dark:focus:ring-brand-500/24';
+  'w-full min-h-9 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)] shadow-none placeholder:text-[var(--color-muted)] transition focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600/30 sm:min-h-10 sm:px-3.5 sm:py-2.5 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-50';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className = '', ...props },

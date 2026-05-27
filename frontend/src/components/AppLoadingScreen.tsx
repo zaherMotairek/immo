@@ -2,7 +2,7 @@
 export function AppLoadingScreen({ message = 'Chargement…' }: { message?: string }) {
   return (
     <div
-      className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-gradient-to-br from-[var(--color-surface)] via-[var(--color-app-bg)] to-[var(--color-app-bg-deep)] px-6 dark:from-[#12141a] dark:via-[#0b0c0f] dark:to-[#07080b]"
+      className="app-mesh-fullscreen flex min-h-dvh flex-col items-center justify-center gap-8 px-6"
       role="status"
       aria-live="polite"
       aria-busy="true"
@@ -10,7 +10,7 @@ export function AppLoadingScreen({ message = 'Chargement…' }: { message?: stri
       <div className="flex flex-col items-center gap-6">
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
           <span
-            className="h-10 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-sky-400 to-brand-600"
+            className="h-10 w-1.5 shrink-0 rounded-sm bg-brand-600"
             aria-hidden
           />
           <div className="text-center sm:text-left">

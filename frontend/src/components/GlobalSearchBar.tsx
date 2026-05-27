@@ -435,10 +435,13 @@ export function GlobalSearchBar() {
       const from = routerLocation.pathname + routerLocation.search;
       saveScrollForPath(from);
       maybeSaveSearchReturnFocus(from, to);
-      const state: AppNavigateState = { from };
+      const state: AppNavigateState = {
+        from,
+        ...(to.match(/^\/locations\/[^/?#]+$/) ? { backgroundLocation: routerLocation } : {}),
+      };
       navigate(to, { state });
     },
-    [navigate, routerLocation.pathname, routerLocation.search],
+    [navigate, routerLocation],
   );
 
   const applyRecent = useCallback((r: string) => {

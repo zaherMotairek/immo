@@ -11,6 +11,8 @@ import {
 import { Prisma } from '@prisma/client';
 import type { Express } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import {
@@ -21,7 +23,10 @@ import {
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   list(organizationId: string) {
     return this.prisma.tenant.findMany({
@@ -55,7 +60,7 @@ export class TenantsService {
     return this.prisma.tenant.create({ data: { ...dto, organizationId } });
   }
 
-  async update(id: string, organizationId: string, dto: UpdateTenantDto) {
+  async update(id: string, organizationId: string, dto: UpdateTenantDto, actor?: JwtAuthUser) {
     await this.ensure(id, organizationId);
     const data: Prisma.TenantUpdateInput = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName.trim();
@@ -63,7 +68,16 @@ export class TenantsService {
     if (dto.phone !== undefined) data.phone = dto.phone?.trim() || null;
     if (dto.email !== undefined) data.email = dto.email?.trim() || null;
     if (dto.notes !== undefined) data.notes = dto.notes?.trim() || null;
-    return this.prisma.tenant.update({ where: { id }, data });
+    const updated = await this.prisma.tenant.update({ where: { id }, data });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'TENANT_UPDATED',
+      entityType: 'tenant',
+      entityId: id,
+      summary: `Fiche locataire modifiee: ${updated.firstName} ${updated.lastName}`.trim(),
+    });
+    return updated;
   }
 
   async remove(id: string, organizationId: string) {
@@ -152,7 +166,7 @@ export class TenantsService {
     }
   }
 
-  async saveIdDocument(tenantId: string, organizationId: string, file: Express.Multer.File) {
+  async saveIdDocument(tenantId: string, organizationId: string, file: Express.Multer.File, actor?: JwtAuthUser) {
     if (!TENANT_ID_DOC_ALLOWED_MIMES.has(file.mimetype)) {
       throw new BadRequestException(
         'Format non accepté. Utilisez un PDF ou une image (JPEG, PNG, WebP).',
@@ -196,6 +210,16 @@ export class TenantsService {
         idDocSize: file.size,
         idDocUploadedAt: new Date(uploadedAtIso),
       },
+    });
+
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'TENANT_ID_DOC_UPLOADED',
+      entityType: 'tenant',
+      entityId: tenantId,
+      summary: `Piece identite ajoutee: ${safeOriginal}`,
+      metadata: { fileKey: key, size: file.size, mimeType: file.mimetype },
     });
 
     return {
@@ -250,7 +274,7 @@ export class TenantsService {
     });
   }
 
-  async removeIdDocument(tenantId: string, organizationId: string) {
+  async removeIdDocument(tenantId: string, organizationId: string, actor?: JwtAuthUser) {
     const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
     if (!tenant) throw new NotFoundException('Locataire introuvable');
     if (!tenant.idDocFileKey) {
@@ -267,10 +291,18 @@ export class TenantsService {
         idDocUploadedAt: null,
       },
     });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'TENANT_ID_DOC_REMOVED',
+      entityType: 'tenant',
+      entityId: tenantId,
+      summary: "Piece d'identite principale supprimee",
+    });
     return { ok: true, removed: true };
   }
 
-  async removeIdDocumentByKey(tenantId: string, organizationId: string, fileKey: string) {
+  async removeIdDocumentByKey(tenantId: string, organizationId: string, fileKey: string, actor?: JwtAuthUser) {
     const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
     if (!tenant) throw new NotFoundException('Locataire introuvable');
     const list = await this.readIdDocIndex(tenantId);
@@ -278,6 +310,15 @@ export class TenantsService {
     if (keep.length === list.length) return { ok: true, removed: false };
     await this.removeIdDocFromDisk(fileKey);
     await this.writeIdDocIndex(tenantId, keep);
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'TENANT_ID_DOC_REMOVED',
+      entityType: 'tenant',
+      entityId: tenantId,
+      summary: "Piece d'identite supprimee",
+      metadata: { fileKey },
+    });
     return { ok: true, removed: true };
   }
 }

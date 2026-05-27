@@ -92,7 +92,7 @@ export class LeasesController {
 
   @Patch(':id')
   update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateLeaseDto) {
-    return this.leases.update(id, user.organizationId, dto);
+    return this.leases.update(id, user.organizationId, dto, user);
   }
 
   @Delete(':id')
@@ -119,12 +119,12 @@ export class LeasesController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('Fichier manquant (formulaire : champ « file »).');
-    return this.leases.saveContract(id, user.organizationId, file);
+    return this.leases.saveContract(id, user.organizationId, file, user);
   }
 
   @Delete(':id/contract')
   deleteContractFile(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
-    return this.leases.removeContract(id, user.organizationId);
+    return this.leases.removeContract(id, user.organizationId, user);
   }
 
   @Delete(':id/contracts/:fileKey')
@@ -133,7 +133,7 @@ export class LeasesController {
     @Param('id') id: string,
     @Param('fileKey') fileKey: string,
   ) {
-    return this.leases.removeContractByKey(id, user.organizationId, fileKey);
+    return this.leases.removeContractByKey(id, user.organizationId, fileKey, user);
   }
 
   @Post(':id/generate-payments')

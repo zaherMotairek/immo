@@ -1,0 +1,198 @@
+/**
+ * Kit UI inspiré d’Odoo (ERP) : noir élégant, barre latérale sombre, zone de contenu claire,
+ * listes denses, panneau de contrôle, boutons plats.
+ */
+
+@layer components {
+  /* —— Coquille application —— */
+  .odoo-sidebar {
+    background: linear-gradient(180deg, var(--odoo-sidebar-top) 0%, var(--odoo-sidebar-bottom) 100%);
+    border-color: rgb(0 0 0 / 0.25);
+  }
+
+  .odoo-sidebar-brand {
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+
+  .odoo-nav-item {
+    border-left-width: 3px;
+    border-left-color: transparent;
+    border-radius: 0;
+    padding: 0.5rem 0.75rem 0.5rem 0.625rem;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgb(226 232 240 / 0.88);
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease,
+      border-color 0.12s ease;
+  }
+
+  .odoo-nav-item:hover {
+    background-color: rgb(255 255 255 / 0.06);
+    color: #fff;
+  }
+
+  .odoo-nav-item-active {
+    background-color: rgb(255 255 255 / 0.1);
+    border-left-color: #fff;
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  }
+
+  .odoo-chrome-bar {
+    border-bottom: 1px solid var(--odoo-border);
+    background: var(--color-surface);
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.04);
+  }
+
+  html.dark .odoo-chrome-bar {
+    border-bottom-color: var(--odoo-border);
+    background: rgb(30 30 32);
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.35);
+  }
+
+  /* —— Panneau de contrôle (titre de page type Odoo) —— */
+  .odoo-control-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--odoo-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  }
+
+  html.dark .odoo-control-panel {
+    background: rgb(24 24 27);
+    border-color: var(--odoo-border);
+  }
+
+  .odoo-control-panel-icon {
+    display: flex;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--odoo-border);
+    border-radius: var(--radius-card);
+    background: var(--color-brand-50);
+    color: var(--color-brand-600);
+  }
+
+  html.dark .odoo-control-panel-icon {
+    background: rgb(13 148 136 / 0.18);
+    color: rgb(153 246 228);
+    border-color: rgb(13 148 136 / 0.35);
+  }
+
+  .odoo-control-panel h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-ink);
+    letter-spacing: -0.02em;
+  }
+
+  html.dark .odoo-control-panel h1 {
+    color: #f4f4f5;
+  }
+
+  /* —— Cartes & listes —— */
+  .odoo-sheet {
+    border: 1px solid var(--odoo-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  }
+
+  html.dark .odoo-sheet {
+    background: rgb(24 24 27);
+    border-color: var(--odoo-border);
+  }
+
+  .odoo-list-table thead {
+    background: var(--odoo-table-head-bg);
+    border-bottom: 1px solid var(--odoo-border);
+  }
+
+  .odoo-list-table thead th {
+    padding: 0.5rem 0.75rem;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink);
+  }
+
+  .odoo-list-table tbody tr {
+    border-bottom: 1px solid var(--odoo-border-subtle);
+  }
+
+  .odoo-list-table tbody tr:hover {
+    background: var(--odoo-row-hover);
+  }
+
+  .odoo-btn-primary {
+    background: var(--color-brand-600);
+    color: #fff;
+    border: 1px solid var(--color-brand-700);
+    border-radius: var(--radius-input);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  }
+
+  .odoo-btn-primary:hover {
+    background: var(--color-brand-700);
+  }
+
+  .odoo-btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--odoo-border);
+    border-radius: var(--radius-input);
+  }
+
+  .odoo-btn-secondary:hover {
+    background: var(--odoo-row-hover);
+  }
+
+  /* Toutes les listes dans le contenu principal */
+  main table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.94rem;
+  }
+
+  main table thead {
+    background: var(--odoo-table-head-bg);
+    border-bottom: 1px solid var(--odoo-border);
+  }
+
+  main table thead th {
+    padding: 0.5rem 0.75rem;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink);
+  }
+
+  main table tbody tr {
+    border-bottom: 1px solid var(--odoo-border-subtle);
+  }
+
+  main table tbody td {
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+
+  main table tbody tr:hover {
+    background: var(--odoo-row-hover);
+  }
+}

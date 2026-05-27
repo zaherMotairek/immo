@@ -1,4 +1,5 @@
 import { SmartLink } from '@/components/SmartLink';
+import { useLocation } from 'react-router-dom';
 
 const pillClass =
   'inline-flex items-center gap-1.5 rounded-lg border border-brand-200/90 bg-brand-50/90 px-2.5 py-1.5 text-xs font-semibold text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-600/40 dark:bg-brand-950/40 dark:text-brand-200 dark:hover:bg-brand-900/50';
@@ -12,9 +13,11 @@ type Props = {
 };
 
 export function FicheLocationLink({ leaseId, className, title = 'Fiche du bail (location)', returnFocusRowId }: Props) {
+  const loc = useLocation();
   return (
     <SmartLink
       to={`/locations/${leaseId}`}
+      state={{ backgroundLocation: loc }}
       returnFocusId={returnFocusRowId ?? leaseId}
       className={[pillClass, className].filter(Boolean).join(' ')}
       title={title}

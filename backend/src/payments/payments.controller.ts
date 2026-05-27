@@ -8,6 +8,8 @@ import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BulkReceiptDto } from './dto/bulk-receipt.dto';
 import { LogReminderDto } from './dto/log-reminder.dto';
 import { WaivePaymentDto } from './dto/waive-payment.dto';
+import { UpsertCollectionTaskDto } from './dto/upsert-collection-task.dto';
+import { NotifyCollectorDto } from './dto/notify-collector.dto';
 
 @Controller('payments')
 @UseGuards(JwtAuthGuard)
@@ -89,34 +91,49 @@ export class PaymentsController {
 
   @Post(':id/send-reminder')
   sendReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
-    return this.payments.sendOverdueReminder(id, user.organizationId);
+    return this.payments.sendOverdueReminder(id, user.organizationId, user);
   }
 
   /** Noter une relance WhatsApp (après envoi manuel — sans API opérateur). */
   @Post(':id/reminders')
   logReminder(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: LogReminderDto) {
-    return this.payments.logReminder(id, user.organizationId, dto.channel);
+    return this.payments.logReminder(id, user.organizationId, dto.channel, user);
   }
 
   /** Gratuité de loyer (geste commercial) : motif obligatoire, pas d’encaissement. */
   @Post(':id/waive')
   waive(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: WaivePaymentDto) {
-    return this.payments.waiveRent(id, user.organizationId, dto.reason);
+    return this.payments.waiveRent(id, user.organizationId, dto.reason, user);
+  }
+
+  @Post(':id/collection')
+  upsertCollectionTask(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpsertCollectionTaskDto) {
+    return this.payments.upsertCollectionTask(id, user.organizationId, dto, user);
+  }
+
+  @Post(':id/collection/notify')
+  notifyCollector(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: NotifyCollectorDto) {
+    return this.payments.notifyCollector(id, user.organizationId, dto.note, user);
   }
 
   /** Reçu PDF pour une échéance déjà marquée payée (impression / archivage). */
   @Get(':id/receipt')
   async receipt(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Res() res: Response) {
-    const buf = await this.payments.buildReceiptPdf([id], user.organizationId);
+    const buf = await this.payments.buildReceiptPdf([id], user.organizationId, user);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="recu-loyer-${id.slice(0, 8)}.pdf"`);
     res.send(buf);
   }
 
+  @Post(':id/receipt-share-link')
+  createReceiptShareLink(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.payments.createReceiptShareLink(id, user.organizationId, user);
+  }
+
   /** Reçu PDF unique pour plusieurs loyers payés (même bail), ex. après prépaiement de plusieurs mois. */
   @Post('receipts/bulk')
   async bulkReceipt(@CurrentUser() user: JwtAuthUser, @Body() dto: BulkReceiptDto, @Res() res: Response) {
-    const buf = await this.payments.buildReceiptPdf(dto.paymentIds, user.organizationId);
+    const buf = await this.payments.buildReceiptPdf(dto.paymentIds, user.organizationId, user);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="recu-loyers-${Date.now()}.pdf"`);
     res.send(buf);
@@ -129,6 +146,6 @@ export class PaymentsController {
 
   @Patch(':id')
   update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdatePaymentDto) {
-    return this.payments.update(id, user.organizationId, dto);
+    return this.payments.update(id, user.organizationId, dto, user);
   }
 }

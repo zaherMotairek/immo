@@ -1,24 +1,23 @@
 /**
- * Styles communs pour les tableaux et listes « données » (zébrage, séparation, liseré gauche).
- * Utiliser sur Locataires, Baux, Paiements, unités, cautions, etc.
+ * Styles communs pour les tableaux et listes « données » — rendu type liste Odoo.
  */
 
-/** Première cellule d’une ligne de données : liseré bleu + padding vertical généreux. */
+/** Première cellule : accent de module discret. */
 export const listTableFirstCellClass =
-  'border-l-[3px] border-l-brand-500/55 px-3 py-2.5 pl-[10px] sm:px-5 sm:py-4 sm:pl-[17px] dark:border-l-brand-400/45';
+  'border-l-[3px] border-l-brand-600/70 px-3 py-2 pl-[10px] sm:px-4 sm:py-2.5 sm:pl-[14px] dark:border-l-brand-500/55';
 
 /** Cellules suivantes (sans liseré). */
-export const listTableCellClass = 'px-3 py-2.5 sm:px-5 sm:py-4';
+export const listTableCellClass = 'px-3 py-2 text-[0.94rem] sm:px-4 sm:py-2.5';
 
-/** Ligne en édition / mise en avant (locataires, etc.). */
+/** Ligne en édition / mise en avant. */
 export const listTableRowEditingClass =
-  'border-b-2 border-slate-200/90 bg-brand-50/70 dark:border-slate-600 dark:bg-brand-950/30';
+  'border-b border-[var(--odoo-border)] bg-brand-50/80 dark:border-zinc-600 dark:bg-brand-950/35';
 
 export const listTableEditingFirstCellClass =
-  'border-l-[3px] border-l-brand-600/60 px-3 py-2.5 pl-[10px] sm:px-5 sm:py-4 sm:pl-[17px] dark:border-l-brand-400/50';
+  'border-l-[3px] border-l-brand-600 px-3 py-2 pl-[10px] sm:px-4 sm:py-2.5 sm:pl-[14px] dark:border-l-brand-500';
 
-const stripeEven = 'bg-white dark:bg-slate-900/45';
-const stripeOdd = 'bg-slate-50/95 dark:bg-slate-800/55';
+const stripeEven = 'bg-[var(--color-surface)] dark:bg-zinc-900/40';
+const stripeOdd = 'bg-[var(--odoo-table-head-bg)]/40 dark:bg-zinc-800/40';
 
 function stripeClass(rowIndex: number): string {
   return rowIndex % 2 === 0 ? stripeEven : stripeOdd;
@@ -26,12 +25,15 @@ function stripeClass(rowIndex: number): string {
 
 /** Classes pour `<tr>` de données (bordure bas, zébrage, survol). */
 export function listTableDataRowClass(rowIndex: number): string {
-  return `align-top border-b-2 border-slate-200/90 transition-colors hover:bg-slate-100/90 dark:border-slate-600/70 dark:hover:bg-slate-700/45 ${stripeClass(rowIndex)}`;
+  return `align-top border-b border-[var(--odoo-border-subtle)] transition-colors hover:bg-[var(--odoo-row-hover)] dark:border-zinc-700/80 dark:hover:bg-zinc-800/60 ${stripeClass(rowIndex)}`;
 }
 
 /**
- * Ligne de liste en `<ul>` / `<li>` (ex. charges) : même logique visuelle que les tableaux.
+ * Ligne de liste en `<ul>` / `<li>` : même logique visuelle que les tableaux.
  */
 export function listBlockRowClass(rowIndex: number): string {
-  return `flex flex-col gap-1 border-b-2 border-slate-200/90 border-l-[3px] border-l-brand-500/55 py-2.5 pl-3 pr-3 transition-colors hover:bg-slate-100/90 dark:border-slate-600/70 dark:border-l-brand-400/45 dark:hover:bg-slate-700/45 sm:flex-row sm:items-center sm:justify-between sm:py-4 sm:pl-5 sm:pr-4 ${stripeClass(rowIndex)}`;
+  return `flex flex-col gap-1 border-b border-[var(--odoo-border-subtle)] border-l-[3px] border-l-brand-600/70 py-2.5 pl-3 pr-3 transition-colors hover:bg-[var(--odoo-row-hover)] dark:border-zinc-700/80 dark:border-l-brand-500/55 dark:hover:bg-zinc-800/60 sm:flex-row sm:items-center sm:justify-between sm:py-2.5 sm:pl-4 sm:pr-4 ${stripeClass(rowIndex)}`;
 }
+
+/** En-tête de tableau : appliquer sur `<table className="odoo-list-table w-full ...">`. */
+export const listTableClassName = 'odoo-list-table w-full text-[0.94rem]';

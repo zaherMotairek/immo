@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa, formatDateFr } from '@/lib/format';
@@ -6,6 +6,7 @@ import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/payme
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { unitKindLabel } from '@/lib/unitKind';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
+import { OdooSheetHeader } from '@/components/OdooKit';
 import { AmountFcfaInput, Button, Card, Input, Label } from '@/components/ui';
 import { COLLECTION_METHOD_OPTIONS, reminderChannelLabel } from '@/lib/collectionMethodUi';
 import { formatPhoneForWhatsApp } from '@/lib/whatsappReminder';
@@ -17,7 +18,20 @@ export type PaymentZoomModalProps = {
   onUpdated?: () => void;
 };
 
+type CollectorOpt = {
+  id: string;
+  name: string;
+  phone: string;
+  active: boolean;
+};
+
+/** Durée alignée sur les classes Tailwind du panneau et du backdrop (slide + fondu). */
+const SHEET_TRANSITION_MS = 480;
+
 export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomModalProps) {
+  const [sheetEntered, setSheetEntered] = useState(false);
+  const closeAnimLock = useRef(false);
+
   const [row, setRow] = useState<PaymentRow | null>(null);
   const [fetchErr, setFetchErr] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -30,6 +44,10 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
   const [refDraft, setRefDraft] = useState('');
   const [savingCollection, setSavingCollection] = useState(false);
   const [loggingWa, setLoggingWa] = useState(false);
+  const [collectors, setCollectors] = useState<CollectorOpt[]>([]);
+  const [collectorIdDraft, setCollectorIdDraft] = useState('');
+  const [collectionNoteDraft, setCollectionNoteDraft] = useState('');
+  const [savingTask, setSavingTask] = useState(false);
 
   const reloadRow = useCallback(() => {
     if (!paymentId) return Promise.resolve();
@@ -63,16 +81,54 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
     if (!row) return;
     setMethodDraft(row.collectionMethod ?? '');
     setRefDraft(row.collectionReference ?? '');
-  }, [row?.id, row?.collectionMethod, row?.collectionReference]);
+    setCollectorIdDraft(row.collectionTask?.collectorId ?? '');
+    setCollectionNoteDraft(row.collectionTask?.lastNote ?? '');
+  }, [row]);
+
+  useEffect(() => {
+    if (!paymentId) return;
+    api<CollectorOpt[]>('/collectors')
+      .then((r) => setCollectors(r.filter((x) => x.active)))
+      .catch(() => setCollectors([]));
+  }, [paymentId]);
+
+  const closeAnimated = useCallback(() => {
+    if (closeAnimLock.current) return;
+    closeAnimLock.current = true;
+    setSheetEntered(false);
+    window.setTimeout(() => {
+      onClose();
+      closeAnimLock.current = false;
+    }, SHEET_TRANSITION_MS);
+  }, [onClose]);
+
+  /** Entrée : une frame hors écran puis slide-in (effet « sheet » type Shadcn). */
+  useEffect(() => {
+    if (!paymentId) return;
+    setSheetEntered(false);
+    const tid = window.setTimeout(() => setSheetEntered(true), 32);
+    return () => window.clearTimeout(tid);
+  }, [paymentId]);
 
   useEffect(() => {
     if (!paymentId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (partialFor || partialSubmitting) return;
+      closeAnimated();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paymentId, onClose]);
+  }, [paymentId, partialFor, partialSubmitting, closeAnimated]);
+
+  useEffect(() => {
+    if (!paymentId) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [paymentId]);
 
   async function markPaid(p: PaymentRow) {
     const json: Record<string, unknown> = {
@@ -173,6 +229,28 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       alert(e instanceof Error ? e.message : 'Envoi impossible.');
     } finally {
       setSendingId(null);
+    }
+  }
+
+  async function saveCollectionTask(p: PaymentRow) {
+    setSavingTask(true);
+    try {
+      const res = await api<PaymentRow & { collectorNotifyUrl?: string }>(`/payments/${p.id}/collection`, {
+        method: 'POST',
+        json: {
+          collectorId: collectorIdDraft || null,
+          note: collectionNoteDraft.trim() || null,
+        },
+      });
+      if (res.collectorNotifyUrl) {
+        window.open(res.collectorNotifyUrl, '_blank', 'noopener,noreferrer');
+      }
+      await reloadRow();
+      onUpdated?.();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Mise à jour collecte impossible.');
+    } finally {
+      setSavingTask(false);
     }
   }
 
@@ -325,6 +403,45 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
         </div>
 
         <div className="border-t border-slate-200/90 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900/95 sm:px-5">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Collecte terrain</p>
+          <p className="mb-3 text-xs text-slate-600 dark:text-slate-400">
+            Choisissez un collecteur puis enregistrez : un message WhatsApp s’ouvre tout seul pour lui. Sans collecteur, rien n’est
+            envoyé. Quand l’argent est rentré, utilisez « Marquer payé » plus bas.
+          </p>
+          <div>
+            <Label htmlFor="zoom-collector-id">Collecteur</Label>
+            <select
+              id="zoom-collector-id"
+              className="mt-1 w-full min-h-11 rounded-[var(--radius-input)] border border-slate-200/95 bg-white px-3 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgb(15_23_42/0.04)] dark:border-slate-600 dark:bg-slate-950/50 dark:text-slate-50"
+              value={collectorIdDraft}
+              onChange={(e) => setCollectorIdDraft(e.target.value)}
+            >
+              <option value="">— Aucun —</option>
+              {collectors.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} · {c.phone}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mt-3">
+            <Label htmlFor="zoom-collection-note">Note pour le collecteur (optionnel)</Label>
+            <Input
+              id="zoom-collection-note"
+              className="mt-1 min-h-11 text-sm"
+              value={collectionNoteDraft}
+              onChange={(e) => setCollectionNoteDraft(e.target.value)}
+              placeholder="Ex. passer à 18h…"
+            />
+          </div>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" className="py-2 text-xs" disabled={savingTask} onClick={() => void saveCollectionTask(p)}>
+              {savingTask ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200/90 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900/95 sm:px-5">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Actions</p>
           <div className="flex flex-row flex-wrap items-center gap-2">
             <PaymentLineActions
@@ -359,7 +476,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
   return (
     <>
       <div
-        className="fixed inset-0 z-[95] flex items-end justify-center p-0 sm:items-center sm:p-4"
+        className="fixed inset-0 z-[95]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-zoom-modal-title"
@@ -367,42 +484,39 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       >
         <button
           type="button"
-          className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
-          aria-label="Fermer la vue agrandie"
-          onClick={onClose}
+          className={`payment-detail-backdrop absolute inset-0 bg-black/45 backdrop-blur-[1px] transition-opacity duration-[480ms] ease-out ${
+            sheetEntered ? 'opacity-100' : 'opacity-0'
+          }`}
+          aria-label="Fermer le panneau de détail"
+          onClick={closeAnimated}
         />
-        <div className="relative flex max-h-[min(94dvh,960px)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-slate-200/90 bg-slate-100/50 shadow-2xl dark:border-slate-600 dark:bg-slate-950 sm:rounded-2xl">
-          <div className="shrink-0 border-b border-slate-200/90 bg-gradient-to-br from-white via-slate-50/95 to-slate-100/90 px-5 py-5 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/90">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                  Vue agrandie — une échéance
-                </p>
-                <h2
-                  id="payment-zoom-modal-title"
-                  className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl"
-                >
-                  {row ? (
-                    <>
-                      {row.lease.tenant.firstName} {row.lease.tenant.lastName}
-                    </>
-                  ) : (
-                    'Chargement…'
-                  )}
-                </h2>
-                {row ? (
-                  <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-                    {monthTitle(row.periodYear, row.periodMonth)} · facturation {String(row.periodMonth).padStart(2, '0')}/
-                    {row.periodYear}
-                  </p>
-                ) : null}
-              </div>
-              <Button type="button" variant="secondary" className="shrink-0 py-2.5 text-sm font-semibold" onClick={onClose}>
-                Fermer
-              </Button>
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-5 sm:px-6">
+        <div
+          className={`payment-detail-sheet absolute inset-y-0 right-0 z-10 flex w-full max-w-lg flex-col border-l border-neutral-200 bg-neutral-100 shadow-[-8px_0_40px_-12px_rgba(0,0,0,0.25)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 ${
+            sheetEntered ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <OdooSheetHeader
+            kicker="Détail du paiement"
+            titleId="payment-zoom-modal-title"
+            title={
+              row ? (
+                <>
+                  {row.lease.tenant.firstName} {row.lease.tenant.lastName}
+                </>
+              ) : (
+                'Chargement…'
+              )
+            }
+            subtitle={
+              row ? (
+                <>
+                  {monthTitle(row.periodYear, row.periodMonth)} · {String(row.periodMonth).padStart(2, '0')}/{row.periodYear}
+                </>
+              ) : undefined
+            }
+            onClose={closeAnimated}
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
             {fetchErr ? (
               <p className="text-center text-sm text-red-600 dark:text-red-400">{fetchErr}</p>
             ) : row ? (

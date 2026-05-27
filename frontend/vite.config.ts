@@ -58,6 +58,8 @@ export default defineConfig({
       '/dashboard': { target: 'http://localhost:4000', changeOrigin: true },
       '/reports': { target: 'http://localhost:4000', changeOrigin: true },
       '/search': { target: 'http://localhost:4000', changeOrigin: true },
+      '/audit': { target: 'http://localhost:4000', changeOrigin: true },
+      '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
 });

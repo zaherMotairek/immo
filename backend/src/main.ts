@@ -30,7 +30,9 @@ async function bootstrap() {
               h === 'localhost' ||
               h === '127.0.0.1' ||
               /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) ||
-              /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+              /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) ||
+              /** Réseaux privés 172.16.0.0 – 172.31.255.255 (certains routeurs / Wi‑Fi invité) */
+              /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(h);
             callback(null, local);
           } catch {
             callback(null, false);

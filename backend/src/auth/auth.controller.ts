@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Patch, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -44,5 +46,26 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   changePassword(@CurrentUser() user: JwtAuthUser, @Body() dto: ChangePasswordDto) {
     return this.auth.changePassword(user, dto);
+  }
+
+  @Get('receipt-signature')
+  @UseGuards(JwtAuthGuard)
+  receiptSignature(@CurrentUser() user: JwtAuthUser) {
+    return this.auth.getReceiptSignature(user);
+  }
+
+  @Post('receipt-signature/upload')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  uploadReceiptSignature(@CurrentUser() user: JwtAuthUser, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Fichier manquant.');
+    return this.auth.uploadReceiptSignature(user, file);
+  }
+
+  @Post('receipt-signature/draw')
+  @UseGuards(JwtAuthGuard)
+  drawReceiptSignature(@CurrentUser() user: JwtAuthUser, @Body() body: { dataUrl?: string }) {
+    if (!body?.dataUrl?.trim()) throw new BadRequestException('Signature dessinée manquante.');
+    return this.auth.saveDrawnReceiptSignature(user, body.dataUrl);
   }
 }

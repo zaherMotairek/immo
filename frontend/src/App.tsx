@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { Layout } from './components/Layout';
@@ -13,13 +13,18 @@ import { LocationsPage } from './pages/LocationsPage';
 import { LocationDetailPage } from './pages/LocationDetailPage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { YearlyRentActivityPage } from './pages/YearlyRentActivityPage';
-import { CautionsEncaisséesPage } from './pages/CautionsEncaisséesPage';
-import { ChargesPage } from './pages/ChargesPage';
+import { CautionsChargesPage } from './pages/CautionsChargesPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { AdminClientsPage } from './pages/AdminClientsPage';
+import { ComptabilitePage } from './pages/ComptabilitePage';
+import { AuditLogPage } from './pages/AuditLogPage';
+import { CollectorsPage } from './pages/CollectorsPage';
+import { LocationFicheSheet } from './components/LocationFicheSheet';
+import { NavigationProvider } from './context/NavigationContext';
+import type { AppNavigateState } from './lib/navigation';
 
 function Protected({ children }: { children: ReactElement }) {
   const { user, ready } = useAuth();
@@ -44,9 +49,23 @@ function LegacyPathImmeublesToBiens() {
   return <Navigate to={`/biens/${id}`} replace />;
 }
 
-export default function App() {
+/** Fiche location en panneau : même route que la page pleine, mais enveloppée pour garantir NavigationProvider + coquille. */
+function LocationFicheModalRoute() {
   return (
-    <Routes>
+    <LocationFicheSheet>
+      <LocationDetailPage />
+    </LocationFicheSheet>
+  );
+}
+
+export default function App() {
+  const location = useLocation();
+  const backgroundLocation = (location.state as AppNavigateState | null)?.backgroundLocation;
+
+  return (
+    <NavigationProvider>
+    <>
+    <Routes location={backgroundLocation ?? location}>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/mot-de-passe-oubli" element={<ForgotPasswordPage />} />
       <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
@@ -69,9 +88,12 @@ export default function App() {
         <Route path="baux" element={<LeasesPage />} />
         <Route path="paiements" element={<PaymentsPage />} />
         <Route path="activite-loyers" element={<YearlyRentActivityPage />} />
-        <Route path="cautions" element={<CautionsEncaisséesPage />} />
-        <Route path="charges" element={<ChargesPage />} />
+        <Route path="cautions" element={<CautionsChargesPage />} />
+        <Route path="charges" element={<Navigate to="/cautions?tab=charges" replace />} />
         <Route path="exports" element={<ExportsPage />} />
+        <Route path="comptabilite" element={<ComptabilitePage />} />
+        <Route path="journal-securite" element={<AuditLogPage />} />
+        <Route path="collecteurs" element={<CollectorsPage />} />
         <Route path="profil" element={<ProfilePage />} />
         <Route
           path="admin"
@@ -84,5 +106,20 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+
+    {backgroundLocation ? (
+      <Routes>
+        <Route
+          path="/locations/:id"
+          element={
+            <Protected>
+              <LocationFicheModalRoute />
+            </Protected>
+          }
+        />
+      </Routes>
+    ) : null}
+    </>
+    </NavigationProvider>
   );
 }

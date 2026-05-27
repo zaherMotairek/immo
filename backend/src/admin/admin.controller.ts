@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { AdminService } from './admin.service';
 import { CreateClientDto } from './dto/create-client.dto';
+import { InviteOrganizationUserDto } from './dto/invite-organization-user.dto';
 import { UpdateOrganizationBillingDto } from './dto/update-organization-billing.dto';
 
 @Controller('admin')
@@ -27,5 +28,13 @@ export class AdminController {
   @Post('clients')
   createClient(@Body() dto: CreateClientDto) {
     return this.admin.createClientOrganization(dto);
+  }
+
+  @Post('organizations/:id/users/invite')
+  inviteUserToOrganization(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: InviteOrganizationUserDto,
+  ) {
+    return this.admin.inviteOrganizationUser(id, dto);
   }
 }

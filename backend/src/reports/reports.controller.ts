@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
@@ -78,6 +79,45 @@ export class ReportsController {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="immopilot-rapport-${y}.xlsx"`);
     res.send(buf);
+  }
+
+  @Get('accounting-summary')
+  accountingSummary(@CurrentUser() user: JwtAuthUser, @Query('year') year: string | undefined) {
+    const y = year ? parseInt(year, 10) : new Date().getFullYear();
+    return this.reports.buildAccountingSummary(Number.isFinite(y) ? y : new Date().getFullYear(), user.organizationId);
+  }
+
+  @Get('accounting-workspace')
+  accountingWorkspace(@CurrentUser() user: JwtAuthUser, @Query('year') year: string | undefined) {
+    const y = year ? parseInt(year, 10) : new Date().getFullYear();
+    return this.reports.buildAccountingWorkspace(Number.isFinite(y) ? y : new Date().getFullYear(), user.organizationId);
+  }
+
+  @Get('accounting-closures')
+  accountingClosures(@CurrentUser() user: JwtAuthUser, @Query('year') year: string | undefined) {
+    const y = year ? parseInt(year, 10) : new Date().getFullYear();
+    return this.reports.listAccountingClosures(user.organizationId, Number.isFinite(y) ? y : new Date().getFullYear());
+  }
+
+  @Post('accounting-closures/close')
+  closeAccountingPeriod(
+    @CurrentUser() user: JwtAuthUser,
+    @Body() body: { year?: number; month?: number },
+  ) {
+    return this.reports.closeAccountingPeriod(
+      user.organizationId,
+      Number(body?.year),
+      Number(body?.month),
+      user,
+    );
+  }
+
+  @Post('accounting-closures/open')
+  openAccountingPeriod(
+    @CurrentUser() user: JwtAuthUser,
+    @Body() body: { year?: number; month?: number },
+  ) {
+    return this.reports.openAccountingPeriod(user.organizationId, Number(body?.year), Number(body?.month));
   }
 
   @Post('import.xlsx')

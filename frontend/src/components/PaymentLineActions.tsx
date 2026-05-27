@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui';
-import { downloadPaymentReceipt } from '@/lib/api';
+import { createPaymentReceiptShareLink, downloadPaymentReceipt } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
 import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import {
@@ -110,9 +110,35 @@ export function PaymentLineActions({
       )}
       {(p.status === 'PAID' ||
         ((p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0)) && (
-        <Button variant="secondary" className={bp} onClick={() => downloadPaymentReceipt(p.id)}>
-          {compact && !stacked ? 'PDF' : 'Reçu PDF'}
-        </Button>
+        <>
+          <Button variant="secondary" className={bp} onClick={() => downloadPaymentReceipt(p.id)}>
+            {compact && !stacked ? 'PDF' : 'Reçu PDF'}
+          </Button>
+          {(() => {
+            const waDigits = formatPhoneForWhatsApp(p.lease.tenant.phone);
+            if (!waDigits) return null;
+            return (
+              <Button
+                variant="ghost"
+                className={bp}
+                onClick={() => {
+                  void createPaymentReceiptShareLink(p.id)
+                    .then((r) => {
+                      const msg = [
+                        `Bonjour ${p.lease.tenant.firstName},`,
+                        `Voici votre quittance de loyer (${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}).`,
+                        r.shareUrl,
+                      ].join('\n');
+                      window.open(whatsAppWebUrl(waDigits, msg), '_blank', 'noopener,noreferrer');
+                    })
+                    .catch(() => alert('Lien de quittance indisponible.'));
+                }}
+              >
+                {compact && !stacked ? 'WA reçu' : 'WhatsApp reçu'}
+              </Button>
+            );
+          })()}
+        </>
       )}
     </>
   );

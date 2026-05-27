@@ -6,6 +6,8 @@ import { BadRequestException, Injectable, NotFoundException, StreamableFile } fr
 import { PaymentStatus, type Lease } from '@prisma/client';
 import type { Express } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { PaymentsService } from '../payments/payments.service';
 import { addOneYearSameDay, rentDueDateForBilledPeriod, startOfTodayUtc } from '../common/date.util';
 import { CreateLeaseDto } from './dto/create-lease.dto';
@@ -70,6 +72,7 @@ export class LeasesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payments: PaymentsService,
+    private readonly audit: AuditService,
   ) {}
 
   list(organizationId: string) {
@@ -458,7 +461,7 @@ export class LeasesService {
     }
   }
 
-  async update(id: string, organizationId: string, dto: UpdateLeaseDto) {
+  async update(id: string, organizationId: string, dto: UpdateLeaseDto, actor?: JwtAuthUser) {
     await this.ensure(id, organizationId);
     const before = await this.prisma.lease.findUnique({
       where: { id },
@@ -517,6 +520,19 @@ export class LeasesService {
         active: updated.active,
       });
     }
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'LEASE_UPDATED',
+      entityType: 'lease',
+      entityId: id,
+      summary: 'Parametres du bail modifies',
+      metadata: {
+        active: updated.active,
+        monthlyRent: updated.monthlyRent.toNumber(),
+        rentDueDay: updated.rentDueDay,
+      },
+    });
     return updated;
   }
 
@@ -600,7 +616,7 @@ export class LeasesService {
     }
   }
 
-  async saveContract(leaseId: string, organizationId: string, file: Express.Multer.File) {
+  async saveContract(leaseId: string, organizationId: string, file: Express.Multer.File, actor?: JwtAuthUser) {
     if (!LEASE_CONTRACT_ALLOWED_MIMES.has(file.mimetype)) {
       throw new BadRequestException(
         'Format non accepté. Utilisez un PDF ou une image (JPEG, PNG, WebP).',
@@ -647,6 +663,16 @@ export class LeasesService {
       },
     });
 
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'LEASE_CONTRACT_UPLOADED',
+      entityType: 'lease',
+      entityId: leaseId,
+      summary: `Contrat ajoute: ${safeOriginal}`,
+      metadata: { fileKey: key, size: file.size, mimeType: file.mimetype },
+    });
+
     return {
       ok: true,
       fileName: safeOriginal,
@@ -690,7 +716,7 @@ export class LeasesService {
     });
   }
 
-  async removeContract(leaseId: string, organizationId: string) {
+  async removeContract(leaseId: string, organizationId: string, actor?: JwtAuthUser) {
     const lease = await this.prisma.lease.findFirst({
       where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
     });
@@ -709,10 +735,18 @@ export class LeasesService {
         contractUploadedAt: null,
       },
     });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'LEASE_CONTRACT_REMOVED',
+      entityType: 'lease',
+      entityId: leaseId,
+      summary: 'Contrat principal supprime',
+    });
     return { ok: true, removed: true };
   }
 
-  async removeContractByKey(leaseId: string, organizationId: string, fileKey: string) {
+  async removeContractByKey(leaseId: string, organizationId: string, fileKey: string, actor?: JwtAuthUser) {
     const lease = await this.prisma.lease.findFirst({
       where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
     });
@@ -722,6 +756,15 @@ export class LeasesService {
     if (keep.length === list.length) return { ok: true, removed: false };
     await this.removeContractFileFromDisk(fileKey);
     await this.writeContractIndex(leaseId, keep);
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'LEASE_CONTRACT_REMOVED',
+      entityType: 'lease',
+      entityId: leaseId,
+      summary: 'Contrat supprime',
+      metadata: { fileKey },
+    });
     return { ok: true, removed: true };
   }
 

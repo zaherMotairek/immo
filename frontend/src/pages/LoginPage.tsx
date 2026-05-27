@@ -44,7 +44,7 @@ export function LoginPage() {
       <div className="mx-auto w-full max-w-lg">
         <div className="mb-6 text-center sm:mb-8">
           <div className="mx-auto mb-4 flex justify-center">
-            <span className="h-1 w-14 rounded-full bg-gradient-to-r from-sky-400 to-brand-600" aria-hidden />
+            <span className="h-1 w-14 rounded-sm bg-brand-600" aria-hidden />
           </div>
           <p className="mb-2 inline-block rounded-full border border-brand-500/30 bg-brand-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brand-800 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200">
             Gestion locative

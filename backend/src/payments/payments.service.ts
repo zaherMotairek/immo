@@ -4,12 +4,22 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { ConfigService } from '@nestjs/config';
 import { CollectionMethod, PaymentStatus, ReminderChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { AuditService } from '../audit/audit.service';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
+import { AuthService } from '../auth/auth.service';
 import { startOfTodayUtc } from '../common/date.util';
 import { amountXofToFrenchWords } from '../common/number-to-french-words';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
+import {
+  COLLECTION_TASK_STATUSES,
+  type CollectionTaskStatus,
+  type UpsertCollectionTaskDto,
+} from './dto/upsert-collection-task.dto';
 import {
   drawFooter,
   drawPaymentsListKpiSummary,
@@ -27,6 +37,9 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly audit: AuditService,
+    private readonly auth: AuthService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Met à jour les statuts PENDING → LATE si la date d’échéance est passée. */
@@ -98,7 +111,7 @@ export class PaymentsService {
         { status: PaymentStatus.PENDING, dueDate: { lt: today } },
       ];
     }
-    return this.prisma.payment.findMany({
+    const rows = await this.prisma.payment.findMany({
       where,
       /** Ordre calendaire : année puis mois (janv. → déc.), puis échéance dans le mois. */
       orderBy: [{ periodYear: 'asc' }, { periodMonth: 'asc' }, { dueDate: 'asc' }],
@@ -111,6 +124,7 @@ export class PaymentsService {
         },
       },
     });
+    return this.attachCollectionMeta(rows, organizationId);
   }
 
   async get(id: string, organizationId: string) {
@@ -122,11 +136,11 @@ export class PaymentsService {
       include: this.paymentDetailInclude(),
     });
     if (!p) throw new NotFoundException('Paiement introuvable');
-    return p;
+    return this.attachCollectionMetaOne(p, organizationId);
   }
 
   /** Relance locataire par e-mail pour une échéance en retard (LATE ou PENDING dépassé). */
-  async sendOverdueReminder(id: string, organizationId: string) {
+  async sendOverdueReminder(id: string, organizationId: string, actor?: JwtAuthUser) {
     await this.syncLateStatuses();
     const p = await this.prisma.payment.findFirst({
       where: { id, lease: { unit: { building: { organizationId } } } },
@@ -174,6 +188,14 @@ export class PaymentsService {
       await this.prisma.paymentReminder.create({
         data: { paymentId: p.id, channel: ReminderChannel.EMAIL },
       });
+      await this.audit.log({
+        organizationId,
+        actor,
+        action: 'PAYMENT_REMINDER_SENT',
+        entityType: 'payment',
+        entityId: p.id,
+        summary: `Relance e-mail envoyee pour ${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`,
+      });
       return {
         ok: true,
         simulated,
@@ -188,7 +210,7 @@ export class PaymentsService {
   }
 
   /** Enregistre une relance WhatsApp (après envoi manuel depuis le lien — pas d’API WhatsApp). */
-  async logReminder(id: string, organizationId: string, channel: ReminderChannel) {
+  async logReminder(id: string, organizationId: string, channel: ReminderChannel, actor?: JwtAuthUser) {
     await this.syncLateStatuses();
     await this.ensure(id, organizationId);
     const p = await this.prisma.payment.findFirst({
@@ -206,6 +228,15 @@ export class PaymentsService {
     await this.prisma.paymentReminder.create({
       data: { paymentId: id, channel },
     });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_REMINDER_LOGGED',
+      entityType: 'payment',
+      entityId: id,
+      summary: `Relance enregistree via ${channel}`,
+      metadata: { channel },
+    });
     return { ok: true };
   }
 
@@ -213,7 +244,7 @@ export class PaymentsService {
    * Gratuité : le montant dû reste en base (audit), aucun encaissement.
    * Réservé aux échéances encore exigibles (PENDING / LATE).
    */
-  async waiveRent(id: string, organizationId: string, reason: string) {
+  async waiveRent(id: string, organizationId: string, reason: string, actor?: JwtAuthUser) {
     await this.ensure(id, organizationId);
     const trimmed = reason.trim();
     if (trimmed.length < 3) {
@@ -234,7 +265,7 @@ export class PaymentsService {
       );
     }
     const today = startOfTodayUtc();
-    return this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id },
       data: {
         status: PaymentStatus.WAIVED,
@@ -245,9 +276,19 @@ export class PaymentsService {
       },
       include: this.paymentDetailInclude(),
     });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_WAIVED',
+      entityType: 'payment',
+      entityId: id,
+      summary: `Loyer marque gratuit pour ${String(updated.periodMonth).padStart(2, '0')}/${updated.periodYear}`,
+      metadata: { reason: trimmed },
+    });
+    return this.attachCollectionMetaOne(updated, organizationId);
   }
 
-  async update(id: string, organizationId: string, dto: UpdatePaymentDto) {
+  async update(id: string, organizationId: string, dto: UpdatePaymentDto, actor?: JwtAuthUser) {
     await this.ensure(id, organizationId);
 
     if (dto.status === PaymentStatus.WAIVED) {
@@ -303,11 +344,34 @@ export class PaymentsService {
       }
       if (dto.notes !== undefined) data.notes = dto.notes;
       this.mergeCollectionFields(dto, data);
-      return this.prisma.payment.update({
+      const updated = await this.prisma.payment.update({
         where: { id },
         data,
         include: this.paymentDetailInclude(),
       });
+      await this.audit.log({
+        organizationId,
+        actor,
+        action: paidFull ? 'PAYMENT_MARKED_PAID' : 'PAYMENT_PARTIAL_COLLECTED',
+        entityType: 'payment',
+        entityId: id,
+        summary: paidFull
+          ? `Paiement complet ${String(updated.periodMonth).padStart(2, '0')}/${updated.periodYear} · ${
+              updated.lease?.tenant ? `${updated.lease.tenant.firstName} ${updated.lease.tenant.lastName}`.trim() : 'locataire'
+            }`
+          : `Versement partiel ${String(updated.periodMonth).padStart(2, '0')}/${updated.periodYear} · ${
+              updated.lease?.tenant ? `${updated.lease.tenant.firstName} ${updated.lease.tenant.lastName}`.trim() : 'locataire'
+            }`,
+        metadata: {
+          addAmountPaid: add,
+          amountPaidTotal: newTotal,
+          tenantFullName: updated.lease?.tenant
+            ? `${updated.lease.tenant.firstName} ${updated.lease.tenant.lastName}`.trim()
+            : null,
+        },
+      });
+      await this.syncCollectionTaskFromPaymentStatus(updated.id, organizationId, updated.status);
+      return this.attachCollectionMetaOne(updated, organizationId);
     }
 
     const data: Record<string, unknown> = {};
@@ -336,11 +400,208 @@ export class PaymentsService {
       }
     }
     this.mergeCollectionFields(dto, data);
-    return this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id },
       data,
       include: this.paymentDetailInclude(),
     });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: data.status === PaymentStatus.PAID ? 'PAYMENT_MARKED_PAID' : 'PAYMENT_UPDATED',
+      entityType: 'payment',
+      entityId: id,
+      summary:
+        data.status === PaymentStatus.PAID
+          ? `Paiement marque paye pour ${String(updated.periodMonth).padStart(2, '0')}/${updated.periodYear} · ${
+              updated.lease?.tenant ? `${updated.lease.tenant.firstName} ${updated.lease.tenant.lastName}`.trim() : 'locataire'
+            }`
+          : `Paiement modifie pour ${String(updated.periodMonth).padStart(2, '0')}/${updated.periodYear}`,
+      metadata: {
+        status: updated.status,
+        amountPaid: updated.amountPaid?.toNumber() ?? null,
+        tenantFullName: updated.lease?.tenant
+          ? `${updated.lease.tenant.firstName} ${updated.lease.tenant.lastName}`.trim()
+          : null,
+      },
+    });
+    await this.syncCollectionTaskFromPaymentStatus(updated.id, organizationId, updated.status);
+    return this.attachCollectionMetaOne(updated, organizationId);
+  }
+
+  async upsertCollectionTask(
+    paymentId: string,
+    organizationId: string,
+    dto: UpsertCollectionTaskDto,
+    actor?: JwtAuthUser,
+  ) {
+    await this.ensure(paymentId, organizationId);
+    const cur = await this.getCollectionTask(paymentId, organizationId);
+    const curCollectorId = typeof cur?.collectorId === 'string' ? cur.collectorId : null;
+    const collectorId = dto.collectorId !== undefined ? dto.collectorId || null : curCollectorId;
+    /** Sans statut explicite : un collecteur ⇒ mission « assignée » ; sinon pas de collecte. */
+    const nextStatus: CollectionTaskStatus = dto.status ?? (collectorId ? 'ASSIGNED' : 'NONE');
+    if (!COLLECTION_TASK_STATUSES.includes(nextStatus)) {
+      throw new BadRequestException('Statut de collecte invalide.');
+    }
+    if (nextStatus !== 'NONE' && !collectorId) {
+      throw new BadRequestException('Assignez un collecteur pour ce statut.');
+    }
+    if (collectorId) await this.ensureCollector(collectorId, organizationId);
+    await this.prisma.$executeRawUnsafe(
+      `
+      INSERT INTO payment_collection_tasks
+        (payment_id, organization_id, collector_id, status, assigned_at, collected_reported_at, closed_paid_at, last_note, updated_at)
+      VALUES
+        ($1, $2, $3, $4,
+         CASE WHEN $4 IN ('ASSIGNED', 'IN_PROGRESS') THEN NOW() ELSE NULL END,
+         CASE WHEN $4 = 'COLLECTED_REPORTED' THEN NOW() ELSE NULL END,
+         CASE WHEN $4 = 'CLOSED_PAID' THEN NOW() ELSE NULL END,
+         $5, NOW())
+      ON CONFLICT (payment_id) DO UPDATE
+      SET collector_id = EXCLUDED.collector_id,
+          status = EXCLUDED.status,
+          assigned_at = CASE
+            WHEN EXCLUDED.status IN ('ASSIGNED', 'IN_PROGRESS')
+              THEN COALESCE(payment_collection_tasks.assigned_at, NOW())
+            ELSE payment_collection_tasks.assigned_at
+          END,
+          collected_reported_at = CASE
+            WHEN EXCLUDED.status = 'COLLECTED_REPORTED'
+              THEN COALESCE(payment_collection_tasks.collected_reported_at, NOW())
+            ELSE payment_collection_tasks.collected_reported_at
+          END,
+          closed_paid_at = CASE
+            WHEN EXCLUDED.status = 'CLOSED_PAID'
+              THEN COALESCE(payment_collection_tasks.closed_paid_at, NOW())
+            ELSE payment_collection_tasks.closed_paid_at
+          END,
+          last_note = EXCLUDED.last_note,
+          updated_at = NOW()
+      `,
+      paymentId,
+      organizationId,
+      collectorId,
+      nextStatus,
+      dto.note?.trim() || null,
+    );
+    await this.logCollectionEvent(paymentId, organizationId, {
+      collectorId,
+      eventType: 'TASK_UPDATED',
+      statusAfter: nextStatus,
+      note: dto.note?.trim() || null,
+    });
+    const assignmentIntent =
+      !!collectorId &&
+      (nextStatus === 'ASSIGNED' || nextStatus === 'IN_PROGRESS') &&
+      (curCollectorId ?? '') !== (collectorId ?? '');
+
+    let collectorNotifyUrl: string | undefined;
+    if (assignmentIntent || dto.notifyCollector) {
+      const n = await this.notifyCollector(paymentId, organizationId, dto.note, actor);
+      collectorNotifyUrl = n.whatsappUrl;
+    }
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_COLLECTION_TASK_UPDATED',
+      entityType: 'payment',
+      entityId: paymentId,
+      summary: `Collecte mise a jour (${nextStatus})`,
+      metadata: { collectorId, status: nextStatus },
+    });
+    const row = await this.get(paymentId, organizationId);
+    return collectorNotifyUrl ? { ...row, collectorNotifyUrl } : row;
+  }
+
+  /**
+   * Résumé collecte pour dashboards / listes (sans jointure lourde sur tous les champs paiement).
+   */
+  async getCollectionTaskSummaries(paymentIds: string[], organizationId: string) {
+    if (!paymentIds.length) {
+      return new Map<string, { status: string; collectorName: string | null }>();
+    }
+    const unique = [...new Set(paymentIds)];
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `
+      SELECT t.payment_id AS "paymentId", t.status, c.name AS "collectorName"
+      FROM payment_collection_tasks t
+      LEFT JOIN rent_collectors c ON c.id = t.collector_id
+      WHERE t.organization_id = $1
+        AND t.payment_id = ANY($2::text[])
+        AND t.status NOT IN ('NONE', 'CLOSED_PAID')
+      `,
+      organizationId,
+      unique,
+    )) as Array<{ paymentId: string; status: string; collectorName: string | null }>;
+    const m = new Map<string, { status: string; collectorName: string | null }>();
+    for (const r of rows) {
+      m.set(r.paymentId, { status: r.status, collectorName: r.collectorName ?? null });
+    }
+    return m;
+  }
+
+  async notifyCollector(paymentId: string, organizationId: string, note?: string | null, actor?: JwtAuthUser) {
+    await this.ensure(paymentId, organizationId);
+    const p = await this.prisma.payment.findFirst({
+      where: { id: paymentId, lease: { unit: { building: { organizationId } } } },
+      include: this.paymentDetailInclude(),
+    });
+    if (!p) throw new NotFoundException('Paiement introuvable');
+    const task = await this.getCollectionTask(paymentId, organizationId);
+    const taskCollectorId = typeof task?.collectorId === 'string' ? task.collectorId : null;
+    if (!taskCollectorId) throw new BadRequestException('Aucun collecteur assigne.');
+    const collector = await this.getCollector(taskCollectorId, organizationId);
+    if (!collector) throw new NotFoundException('Collecteur introuvable.');
+    const tenantName = `${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`.trim();
+    const amountDue = p.amountDue.toNumber();
+    const amountPaid = p.amountPaid?.toNumber() ?? 0;
+    const remaining = Math.max(0, amountDue - amountPaid);
+    const period = `${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`;
+    const payload = [
+      `Mission collecte loyer`,
+      `Locataire: ${tenantName}`,
+      `Lieu: ${p.lease.unit.building.name} - ${p.lease.unit.label}`,
+      `Periode: ${period}`,
+      `Echeance: ${p.dueDate.toISOString().slice(0, 10)}`,
+      `Montant a collecter: ${Math.round(remaining).toLocaleString('fr-FR')} FCFA`,
+      note?.trim() ? `Note: ${note.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE payment_collection_tasks
+          SET last_notified_at = NOW(),
+              last_message = $3,
+              updated_at = NOW()
+        WHERE payment_id = $1
+          AND organization_id = $2`,
+      paymentId,
+      organizationId,
+      payload,
+    );
+    await this.logCollectionEvent(paymentId, organizationId, {
+      collectorId: taskCollectorId,
+      eventType: 'COLLECTOR_NOTIFIED',
+      statusAfter: typeof task?.status === 'string' ? task.status : null,
+      note: note?.trim() || null,
+      messagePayload: payload,
+    });
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_COLLECTION_COLLECTOR_NOTIFIED',
+      entityType: 'payment',
+      entityId: paymentId,
+      summary: `Collecteur notifie: ${String(collector.name ?? '')}`.trim(),
+      metadata: { collectorId: collector.id, collectorPhone: collector.phone },
+    });
+    return {
+      ok: true,
+      collector,
+      messagePreview: payload,
+      whatsappUrl: `https://wa.me/${String(collector.phone).replace(/\D/g, '')}?text=${encodeURIComponent(payload)}`,
+    };
   }
 
   private paymentDetailInclude() {
@@ -356,6 +617,153 @@ export class PaymentsService {
       const t = dto.collectionReference?.trim();
       data.collectionReference = t && t.length > 0 ? t : null;
     }
+  }
+
+  private async attachCollectionMeta<T extends Record<string, unknown>>(rows: T[], organizationId: string): Promise<T[]> {
+    if (!rows.length) return rows;
+    const ids = rows.map((r) => String(r.id));
+    const tasks = (await this.prisma.$queryRawUnsafe(
+      `
+      SELECT
+        t.payment_id AS "paymentId",
+        t.collector_id AS "collectorId",
+        t.status,
+        t.assigned_at AS "assignedAt",
+        t.collected_reported_at AS "collectedReportedAt",
+        t.closed_paid_at AS "closedPaidAt",
+        t.last_notified_at AS "lastNotifiedAt",
+        t.last_message AS "lastMessage",
+        t.last_note AS "lastNote",
+        c.name AS "collectorName",
+        c.phone AS "collectorPhone",
+        c.active AS "collectorActive"
+      FROM payment_collection_tasks t
+      LEFT JOIN rent_collectors c ON c.id = t.collector_id
+      WHERE t.organization_id = $1
+        AND t.payment_id = ANY($2::text[])
+      `,
+      organizationId,
+      ids,
+    )) as Array<Record<string, unknown>>;
+    const events = (await this.prisma.$queryRawUnsafe(
+      `
+      SELECT
+        e.payment_id AS "paymentId",
+        e.id,
+        e.event_type AS "eventType",
+        e.status_after AS "statusAfter",
+        e.note,
+        e.message_payload AS "messagePayload",
+        e.created_at AS "createdAt",
+        c.name AS "collectorName"
+      FROM payment_collection_events e
+      LEFT JOIN rent_collectors c ON c.id = e.collector_id
+      WHERE e.organization_id = $1
+        AND e.payment_id = ANY($2::text[])
+      ORDER BY e.created_at DESC
+      `,
+      organizationId,
+      ids,
+    )) as Array<Record<string, unknown>>;
+    const taskByPayment = new Map<string, Record<string, unknown>>();
+    for (const t of tasks) taskByPayment.set(String(t.paymentId), t);
+    const evByPayment = new Map<string, Array<Record<string, unknown>>>();
+    for (const ev of events) {
+      const k = String(ev.paymentId);
+      if (!evByPayment.has(k)) evByPayment.set(k, []);
+      evByPayment.get(k)!.push(ev);
+    }
+    return rows.map((row) => ({
+      ...row,
+      collectionTask: taskByPayment.get(String(row.id)) ?? null,
+      collectionEvents: evByPayment.get(String(row.id)) ?? [],
+    }));
+  }
+
+  private async attachCollectionMetaOne<T extends Record<string, unknown>>(row: T, organizationId: string): Promise<T> {
+    const rows = await this.attachCollectionMeta([row], organizationId);
+    return rows[0]!;
+  }
+
+  private async getCollectionTask(paymentId: string, organizationId: string) {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `SELECT payment_id AS "paymentId", collector_id AS "collectorId", status
+         FROM payment_collection_tasks
+        WHERE payment_id = $1
+          AND organization_id = $2
+        LIMIT 1`,
+      paymentId,
+      organizationId,
+    )) as Array<Record<string, unknown>>;
+    return rows[0] ?? null;
+  }
+
+  private async ensureCollector(collectorId: string, organizationId: string) {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `SELECT id FROM rent_collectors WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      collectorId,
+      organizationId,
+    )) as Array<Record<string, unknown>>;
+    if (!rows.length) throw new NotFoundException('Collecteur introuvable.');
+  }
+
+  private async getCollector(collectorId: string, organizationId: string) {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, name, phone, active FROM rent_collectors WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      collectorId,
+      organizationId,
+    )) as Array<Record<string, unknown>>;
+    return rows[0] ?? null;
+  }
+
+  private async logCollectionEvent(
+    paymentId: string,
+    organizationId: string,
+    payload: {
+      collectorId?: string | null;
+      eventType: string;
+      statusAfter?: string | null;
+      note?: string | null;
+      messagePayload?: string | null;
+    },
+  ) {
+    await this.prisma.$executeRawUnsafe(
+      `
+      INSERT INTO payment_collection_events
+        (id, payment_id, organization_id, collector_id, event_type, status_after, note, message_payload, created_at)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      `,
+      randomUUID(),
+      paymentId,
+      organizationId,
+      payload.collectorId ?? null,
+      payload.eventType,
+      payload.statusAfter ?? null,
+      payload.note ?? null,
+      payload.messagePayload ?? null,
+    );
+  }
+
+  private async syncCollectionTaskFromPaymentStatus(
+    paymentId: string,
+    organizationId: string,
+    status: PaymentStatus,
+  ) {
+    if (status !== PaymentStatus.PAID) return;
+    await this.prisma.$executeRawUnsafe(
+      `
+      UPDATE payment_collection_tasks
+         SET status = 'CLOSED_PAID',
+             closed_paid_at = COALESCE(closed_paid_at, NOW()),
+             updated_at = NOW()
+       WHERE payment_id = $1
+         AND organization_id = $2
+         AND status <> 'CLOSED_PAID'
+      `,
+      paymentId,
+      organizationId,
+    );
   }
 
   private async ensure(id: string, organizationId: string) {
@@ -402,7 +810,7 @@ export class PaymentsService {
   /**
    * PDF « quittance » (1 à 24 échéances) : loyer soldé ou acompte. Reçu groupé = même bail uniquement.
    */
-  async buildReceiptPdf(paymentIds: string[], organizationId: string): Promise<Buffer> {
+  async buildReceiptPdf(paymentIds: string[], organizationId: string, actor?: JwtAuthUser): Promise<Buffer> {
     if (!paymentIds.length || paymentIds.length > 24) {
       throw new BadRequestException('Indiquez entre 1 et 24 échéances.');
     }
@@ -439,6 +847,8 @@ export class PaymentsService {
       throw new BadRequestException('Un reçu groupé ne peut contenir que des loyers du même bail.');
     }
 
+    const signature = await this.auth.getReceiptSignatureBufferForOrganization(organizationId);
+
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const PDFDocument = require('pdfkit') as typeof import('pdfkit');
     const chunks: Buffer[] = [];
@@ -462,6 +872,25 @@ export class PaymentsService {
 
     const totalEncaissé = payments.reduce((s, p) => s + (p.amountPaid?.toNumber() ?? 0), 0);
     const totalDû = payments.reduce((s, p) => s + p.amountDue.toNumber(), 0);
+
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_RECEIPT_GENERATED',
+      entityType: 'payment',
+      entityId: payments.length === 1 ? first.id : null,
+      summary:
+        payments.length === 1
+          ? `Recu genere pour ${tenantName} · ${String(first.periodMonth).padStart(2, '0')}/${first.periodYear}`
+          : `Recu groupe genere (${payments.length} periodes) pour ${tenantName}`,
+      metadata: {
+        paymentIds: payments.map((p) => p.id),
+        periods: payments.map((p) => `${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}`),
+        totalPaid: totalEncaissé,
+        totalDue: totalDû,
+        tenantFullName: tenantName,
+      },
+    });
 
     const left = 36;
     const right = 559;
@@ -729,6 +1158,14 @@ export class PaymentsService {
     doc.text('Signature du bailleur (ou mandataire)', left + 12, doc.y, { width: 240 });
     const sigY = doc.y + 20;
     doc.strokeColor(lineGrey).lineWidth(0.5).moveTo(left + 12, sigY).lineTo(left + 240, sigY).stroke();
+    if (signature) {
+      try {
+        // Place la signature à droite du libellé pour éviter de masquer le texte.
+        doc.image(signature.buffer, left + 280, sigY - 40, { fit: [200, 44], valign: 'bottom' });
+      } catch {
+        /* ignore invalid image edge cases */
+      }
+    }
     doc.fontSize(7.5).fillColor('#64748b').text(bailleurLabel, left + 12, sigY + 4, { width: 240 });
 
     doc.y = sigY + 36;
@@ -930,5 +1367,52 @@ export class PaymentsService {
     doc.end();
     await new Promise<void>((resolve) => doc.on('end', () => resolve()));
     return Buffer.concat(chunks);
+  }
+
+  async createReceiptShareLink(paymentId: string, organizationId: string, actor: JwtAuthUser) {
+    await this.ensure(paymentId, organizationId);
+    const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    await this.prisma.$executeRawUnsafe(
+      `
+      INSERT INTO "receipt_share_tokens"
+      ("id","token","organization_id","payment_id","created_by_user_id","expires_at","created_at")
+      VALUES ($1,$2,$3,$4,$5,$6,NOW())
+      `,
+      randomUUID(),
+      token,
+      organizationId,
+      paymentId,
+      actor.id,
+      expiresAt,
+    );
+    const apiBase = (this.config.get<string>('PUBLIC_API_URL') ?? 'http://localhost:4000').replace(/\/$/, '');
+    const shareUrl = `${apiBase}/public/payments/receipts/${encodeURIComponent(token)}`;
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_RECEIPT_SHARE_LINK_CREATED',
+      entityType: 'payment',
+      entityId: paymentId,
+      summary: 'Lien public de quittance genere',
+      metadata: { expiresAt: expiresAt.toISOString() },
+    });
+    return { ok: true, shareUrl, expiresAt: expiresAt.toISOString() };
+  }
+
+  async buildReceiptPdfFromShareToken(token: string): Promise<Buffer | null> {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `
+      SELECT "payment_id" AS "paymentId", "organization_id" AS "organizationId", "expires_at" AS "expiresAt"
+      FROM "receipt_share_tokens"
+      WHERE "token" = $1
+      LIMIT 1
+      `,
+      token,
+    )) as Array<{ paymentId: string; organizationId: string; expiresAt: Date }>;
+    const row = rows[0];
+    if (!row) return null;
+    if (row.expiresAt.getTime() <= Date.now()) return null;
+    return this.buildReceiptPdf([row.paymentId], row.organizationId);
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
@@ -14,11 +14,12 @@ import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select, StatTile
 import { isMultiLotStructure } from '@/lib/buildingStructure';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
-import { buildReturnToBuildingUrl, navigateAfterCreate } from '@/lib/navigation';
+import { buildReturnToBuildingUrl } from '@/lib/navigation';
 import { UNIT_KIND_OPTIONS, unitKindLabel, type UnitKindCode } from '@/lib/unitKind';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
+import { OdooActionBar } from '@/components/OdooKit';
 
 type BuildingOpt = {
   id: string;
@@ -125,6 +126,14 @@ function formatBuildingChoiceLabel(b: BuildingOpt) {
   return tag ? `${b.name} — ${tag} · ${unitsFr}` : `${b.name} — ${unitsFr}`;
 }
 
+function splitFullName(input: string): { firstName: string; lastName: string } {
+  const s = input.trim().replace(/\s+/g, ' ');
+  if (!s) return { firstName: '', lastName: '' };
+  const parts = s.split(' ');
+  if (parts.length === 1) return { firstName: parts[0], lastName: '-' };
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
+}
+
 const filterPillBase =
   'shrink-0 rounded-md border px-2 py-1 text-left text-[11px] font-medium leading-tight whitespace-nowrap transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500';
 const filterPillOn =
@@ -140,6 +149,8 @@ function leaseRowFlashClass(active: boolean) {
 
 export function LeasesPage() {
   useRegisterRootSectionFallback();
+  const routerLocation = useLocation();
+  const locationSheetState = useMemo(() => ({ backgroundLocation: routerLocation }), [routerLocation]);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const leaseIdFocus = params.get('leaseId')?.trim() ?? '';
@@ -152,6 +163,12 @@ export function LeasesPage() {
   const [unitId, setUnitId] = useState('');
   const [tenantId, setTenantId] = useState('');
   const [tenants, setTenants] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [quickTenantOpen, setQuickTenantOpen] = useState(false);
+  const [quickTenantName, setQuickTenantName] = useState('');
+  const [quickTenantPhone, setQuickTenantPhone] = useState('');
+  const [quickTenantEmail, setQuickTenantEmail] = useState('');
+  const [quickTenantBusy, setQuickTenantBusy] = useState(false);
+  const [quickTenantErr, setQuickTenantErr] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [monthlyRent, setMonthlyRent] = useState('');
   const [rentDueDay, setRentDueDay] = useState('1');
@@ -170,7 +187,12 @@ export function LeasesPage() {
   /** Évite de réappliquer le préremplissage tant que l’URL n’a pas changé. */
   const newLeasePrefillAppliedRef = useRef<string | null>(null);
   /** Lien depuis la fiche bien : après création du bail, retour sur ce bien (état par défaut de la page). */
-  const returnToBuildingAfterLeaseRef = useRef<{ buildingId: string } | null>(null);
+  const returnToBuildingAfterLeaseRef = useRef<{
+    buildingId: string;
+    unitId?: string;
+    hintUnitLabel?: string;
+    returnLocation?: string;
+  } | null>(null);
 
   function toggleLeaseSort(key: LeaseSortKey) {
     const n = toggleTableSortColumn(leaseSortKey, leaseSortDir, key);
@@ -202,7 +224,15 @@ export function LeasesPage() {
     returnToBuildingAfterLeaseRef.current = null;
   }
 
-  useEscapeCancel(addLeaseOpen, cancelNewLease);
+  useEscapeCancel(addLeaseOpen || quickTenantOpen, () => {
+    if (quickTenantOpen) {
+      if (quickTenantBusy) return;
+      setQuickTenantOpen(false);
+      setQuickTenantErr(null);
+      return;
+    }
+    cancelNewLease();
+  });
 
   const load = useCallback(() => {
     setLeasesFetched(false);
@@ -229,6 +259,8 @@ export function LeasesPage() {
   useEffect(() => {
     const bid = params.get('buildingId')?.trim() ?? '';
     const uid = params.get('unitId')?.trim() ?? '';
+    const hintUnitLabel = params.get('hintUnitLabel')?.trim() ?? '';
+    const returnLocationFromQuery = params.get('returnLocation')?.trim() ?? '';
     if (!bid) {
       newLeasePrefillAppliedRef.current = null;
       return;
@@ -253,6 +285,8 @@ export function LeasesPage() {
             const q = new URLSearchParams(prev);
             q.delete('buildingId');
             q.delete('unitId');
+            q.delete('hintUnitLabel');
+            q.delete('returnLocation');
             return q;
           },
           { replace: true },
@@ -271,12 +305,19 @@ export function LeasesPage() {
     if (uid) setUnitId(uid);
     setAddLeaseOpen(true);
     setErr(null);
-    returnToBuildingAfterLeaseRef.current = { buildingId: bid };
+    returnToBuildingAfterLeaseRef.current = {
+      buildingId: bid,
+      unitId: uid || undefined,
+      hintUnitLabel: hintUnitLabel || undefined,
+      returnLocation: returnLocationFromQuery || '/baux',
+    };
     setParams(
       (prev) => {
         const q = new URLSearchParams(prev);
         q.delete('buildingId');
         q.delete('unitId');
+        q.delete('hintUnitLabel');
+        q.delete('returnLocation');
         return q;
       },
       { replace: true },
@@ -528,6 +569,15 @@ export function LeasesPage() {
     const bidBeforeSave = buildingIdForLease;
     const uidBeforeSave = uid;
     const returnBuilding = returnToBuildingAfterLeaseRef.current;
+    const returnUrl =
+      returnBuilding && bidBeforeSave === returnBuilding.buildingId && uidBeforeSave
+        ? buildReturnToBuildingUrl({
+            buildingId: returnBuilding.buildingId,
+            unitId: returnBuilding.unitId ?? uidBeforeSave,
+            hintUnitLabel: returnBuilding.hintUnitLabel,
+            returnLocation: returnBuilding.returnLocation ?? '/baux',
+          })
+        : null;
     try {
       await api('/leases', {
         method: 'POST',
@@ -542,20 +592,52 @@ export function LeasesPage() {
       });
       resetNewLeaseForm();
       setAddLeaseOpen(false);
+      if (returnUrl) {
+        returnToBuildingAfterLeaseRef.current = null;
+        navigate(returnUrl, { replace: true });
+        return;
+      }
       returnToBuildingAfterLeaseRef.current = null;
       load();
-      if (returnBuilding && bidBeforeSave === returnBuilding.buildingId && uidBeforeSave) {
-        navigateAfterCreate(
-          navigate,
-          buildReturnToBuildingUrl({
-            buildingId: returnBuilding.buildingId,
-            unitId: uidBeforeSave,
-            returnLocation: '/baux',
-          }),
-        );
-      }
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
+    }
+  }
+
+  async function createQuickTenant(e: React.FormEvent) {
+    e.preventDefault();
+    setQuickTenantErr(null);
+    if (quickTenantBusy) return;
+    const normalizedName = quickTenantName.trim();
+    if (normalizedName.length < 3) {
+      setQuickTenantErr('Indiquez le nom complet du locataire.');
+      return;
+    }
+    const { firstName, lastName } = splitFullName(normalizedName);
+    setQuickTenantBusy(true);
+    try {
+      const created = await api<{ id: string; firstName: string; lastName: string }>('/tenants', {
+        method: 'POST',
+        json: {
+          firstName,
+          lastName,
+          email: quickTenantEmail.trim() || undefined,
+          phone: quickTenantPhone.trim() || undefined,
+        },
+      });
+      const nextTenants = [...tenants, created].sort((a, b) =>
+        `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'fr', { sensitivity: 'base' }),
+      );
+      setTenants(nextTenants);
+      setTenantId(created.id);
+      setQuickTenantName('');
+      setQuickTenantPhone('');
+      setQuickTenantEmail('');
+      setQuickTenantOpen(false);
+    } catch (e2) {
+      setQuickTenantErr(e2 instanceof Error ? e2.message : 'Erreur');
+    } finally {
+      setQuickTenantBusy(false);
     }
   }
 
@@ -671,6 +753,7 @@ export function LeasesPage() {
                 <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
                   <SmartLink
                     to={`/locations/${leaseIdFocus}`}
+                    state={locationSheetState}
                     returnFocusId={leaseIdFocus}
                     className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                   >
@@ -695,6 +778,16 @@ export function LeasesPage() {
           </Button>
         </div>
       </header>
+
+      <OdooActionBar
+        left={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
+            <span className="font-semibold">Vue</span>
+            <span>{leasesForTable.length} bail(s)</span>
+            <span>· {filterSummaryShort}</span>
+          </div>
+        }
+      />
 
       <div ref={addLeaseFormRef} id="nouveau-bail" className="scroll-mt-24">
         <Card className="!p-0 overflow-hidden shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
@@ -836,22 +929,39 @@ export function LeasesPage() {
           ) : null}
           <div className="sm:col-span-2">
             <Label>Locataire</Label>
-            <Select value={tenantId} onChange={(e) => setTenantId(e.target.value)} required>
+            <Select
+              value={tenantId}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next === '__create_new_tenant__') {
+                  setQuickTenantErr(null);
+                  setQuickTenantOpen(true);
+                  return;
+                }
+                setTenantId(next);
+              }}
+              required
+            >
               <option value="">Choisir…</option>
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.firstName} {t.lastName}
                 </option>
               ))}
+              <option value="__create_new_tenant__">+ Nouveau locataire…</option>
             </Select>
             <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400">
-              <SmartLink
-                to="/locataires?returnLocation=%2Fbaux#nouveau-locataire"
+              <button
+                type="button"
                 className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                onClick={() => {
+                  setQuickTenantErr(null);
+                  setQuickTenantOpen(true);
+                }}
               >
-                Nouveau locataire…
-              </SmartLink>{' '}
-              (retour automatique sur les baux après enregistrement)
+                Nouveau locataire rapide…
+              </button>{' '}
+              (création sans quitter cette page)
             </p>
           </div>
           <div>
@@ -1353,6 +1463,69 @@ export function LeasesPage() {
           </Card>
         </section>
       </div>
+      {quickTenantOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-xl rounded-xl border border-slate-300/90 bg-white shadow-2xl dark:border-slate-600 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200/90 px-5 py-4 dark:border-slate-700">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Nouveau locataire</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Création rapide depuis la fiche bail.</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="min-h-0 px-2 py-1 text-xs"
+                onClick={() => {
+                  if (quickTenantBusy) return;
+                  setQuickTenantOpen(false);
+                  setQuickTenantErr(null);
+                }}
+              >
+                Fermer
+              </Button>
+            </div>
+            <form onSubmit={(e) => void createQuickTenant(e)} className="grid gap-3 px-5 py-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label>Nom complet</Label>
+                <Input
+                  value={quickTenantName}
+                  onChange={(e) => setQuickTenantName(e.target.value)}
+                  placeholder="Ex. Amadou Koné"
+                  autoComplete="name"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Label>Téléphone (optionnel)</Label>
+                <Input value={quickTenantPhone} onChange={(e) => setQuickTenantPhone(e.target.value)} placeholder="+225 07 …" />
+              </div>
+              <div>
+                <Label>E-mail (optionnel)</Label>
+                <Input type="email" value={quickTenantEmail} onChange={(e) => setQuickTenantEmail(e.target.value)} />
+              </div>
+              {quickTenantErr ? <p className="text-sm text-red-600 sm:col-span-2">{quickTenantErr}</p> : null}
+              <div className="sm:col-span-2 flex flex-wrap justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="py-2 text-sm"
+                  onClick={() => {
+                    if (quickTenantBusy) return;
+                    setQuickTenantOpen(false);
+                    setQuickTenantErr(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit" className="py-2 text-sm" disabled={quickTenantBusy}>
+                  {quickTenantBusy ? 'Enregistrement…' : 'Créer et sélectionner'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

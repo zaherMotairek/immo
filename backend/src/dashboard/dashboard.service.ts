@@ -107,6 +107,9 @@ export class DashboardService {
         }),
       ]);
 
+    const paymentIdsForBadges = [...new Set([...overduePayments.map((p) => p.id), ...upcomingPending.map((p) => p.id)])];
+    const collectionSummaries = await this.payments.getCollectionTaskSummaries(paymentIdsForBadges, organizationId);
+
     const collectedThisMonth = paymentsThisMonth.reduce((s, p) => {
       const enc = p.amountPaid?.toNumber() ?? (p.status === PaymentStatus.PAID ? p.amountDue.toNumber() : 0);
       return s + enc;
@@ -140,6 +143,7 @@ export class DashboardService {
       building?: string;
       commune?: string;
       city?: string;
+      collectionTask: { status: string; collectorName: string | null } | null;
     }> = [];
 
     let upcomingCollectionsCount = 0;
@@ -170,6 +174,7 @@ export class DashboardService {
         building: p.lease.unit?.building?.name,
         commune: p.lease.unit?.building?.commune,
         city: p.lease.unit?.building?.city,
+        collectionTask: collectionSummaries.get(p.id) ?? null,
       });
     }
 
@@ -192,6 +197,7 @@ export class DashboardService {
         items: upcomingItems.map((row) => ({
           ...row,
           dueDate: row.dueDate instanceof Date ? row.dueDate.toISOString() : String(row.dueDate),
+          collectionTask: row.collectionTask ?? null,
         })),
       },
       alerts: overduePayments.map((p) => {
@@ -219,6 +225,7 @@ export class DashboardService {
           building: p.lease.unit?.building?.name,
           commune: p.lease.unit?.building?.commune,
           city: p.lease.unit?.building?.city,
+          collectionTask: collectionSummaries.get(p.id) ?? null,
         };
       }),
     };

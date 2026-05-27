@@ -43,6 +43,11 @@ export function AdminClientsPage() {
   const [editSuspended, setEditSuspended] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteSaving, setInviteSaving] = useState(false);
+  const [inviteErr, setInviteErr] = useState<string | null>(null);
+  const [inviteOk, setInviteOk] = useState<string | null>(null);
 
   const loadOrganizations = useCallback(async () => {
     setListErr(null);
@@ -67,11 +72,49 @@ export function AdminClientsPage() {
     setEditPaidUntil(o.platformAccessPaidUntil ?? '');
     setEditSuspended(o.platformAccessSuspended);
     setEditErr(null);
+    setInviteEmail('');
+    setInviteName('');
+    setInviteErr(null);
+    setInviteOk(null);
   }
 
   function closeEdit() {
     setEditOrg(null);
     setEditErr(null);
+    setInviteErr(null);
+    setInviteOk(null);
+  }
+
+  async function submitInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editOrg) return;
+    setInviteErr(null);
+    setInviteOk(null);
+    setInviteSaving(true);
+    try {
+      const res = await api<{
+        email: string;
+        devResetUrl?: string;
+      }>(`/admin/organizations/${editOrg.id}/users/invite`, {
+        method: 'POST',
+        json: {
+          email: inviteEmail.trim(),
+          name: inviteName.trim() || undefined,
+        },
+      });
+      setInviteOk(
+        res.devResetUrl
+          ? `Invitation créée pour ${res.email}. Lien (dev): ${res.devResetUrl}`
+          : `Invitation créée pour ${res.email}. E-mail de définition du mot de passe envoyé.`,
+      );
+      setInviteEmail('');
+      setInviteName('');
+      await loadOrganizations();
+    } catch (e2) {
+      setInviteErr(e2 instanceof Error ? e2.message : 'Invitation impossible');
+    } finally {
+      setInviteSaving(false);
+    }
   }
 
   async function saveEdit(e: React.FormEvent) {
@@ -281,6 +324,45 @@ export function AdminClientsPage() {
               </Button>
             </div>
           </form>
+          <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Inviter un utilisateur</h4>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              Le nouvel utilisateur reçoit un lien pour définir son mot de passe et accéder uniquement à cette organisation.
+            </p>
+            <form onSubmit={submitInvite} className="mt-3 space-y-3">
+              <div>
+                <Label htmlFor="invite-email">E-mail</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="invite-name">Nom (optionnel)</Label>
+                <Input
+                  id="invite-name"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                />
+              </div>
+              {inviteErr ? (
+                <p className="text-sm font-medium text-red-600 dark:text-red-400" role="alert">
+                  {inviteErr}
+                </p>
+              ) : null}
+              {inviteOk ? (
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300" role="status">
+                  {inviteOk}
+                </p>
+              ) : null}
+              <Button type="submit" disabled={inviteSaving}>
+                {inviteSaving ? 'Invitation…' : 'Inviter utilisateur'}
+              </Button>
+            </form>
+          </div>
         </Card>
       ) : null}
 

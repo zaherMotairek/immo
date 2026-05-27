@@ -9,6 +9,7 @@ import { fcfa } from '@/lib/format';
 import { PageDetailBackLink, PageDetailHero } from '@/components/PageDetailHero';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { SidebarNavIcon } from '@/components/SidebarNavIcons';
+import { OdooNotebook } from '@/components/OdooKit';
 import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
 import {
   BUILDING_STRUCTURE_OPTIONS,
@@ -68,6 +69,12 @@ type Building = {
   locauxSlotCount?: number | null;
   terrainLotCount?: number | null;
   units: Unit[];
+};
+
+type BulkUnitRow = {
+  kind: string;
+  floor: string;
+  slot: string;
 };
 
 const ORG_SECTION_HINT =
@@ -264,6 +271,10 @@ export function BuildingDetailPage() {
   const [kind, setKind] = useState('APARTMENT');
   const [description, setDescription] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [addBusy, setAddBusy] = useState(false);
+  const [autoGenBusy, setAutoGenBusy] = useState(false);
+  const [bulkLabelPrefix, setBulkLabelPrefix] = useState('');
+  const [bulkRows, setBulkRows] = useState<BulkUnitRow[]>([{ kind: 'APARTMENT', floor: '', slot: '' }]);
   const [structureKindDraft, setStructureKindDraft] = useState<BuildingStructureValue>('MONO_LOT');
   const [floorCountDraft, setFloorCountDraft] = useState('');
   const [hasRezDeChausseeDraft, setHasRezDeChausseeDraft] = useState(true);
@@ -281,10 +292,14 @@ export function BuildingDetailPage() {
   const [unitListSearch, setUnitListSearch] = useState('');
   const [unitSortKey, setUnitSortKey] = useState<UnitTableSortKey>('floor');
   const [unitSortDir, setUnitSortDir] = useState<TableSortDir>('asc');
+  const [unitDrafts, setUnitDrafts] = useState<Record<string, { surfaceM2: string; rooms: string }>>({});
   const [addUnitFormOpen, setAddUnitFormOpen] = useState(false);
+  const [organizationOpen, setOrganizationOpen] = useState(true);
+  const [buildingTab, setBuildingTab] = useState('organisation');
   const addUnitFormRef = useRef<HTMLDivElement | null>(null);
 
   function openAddUnitForm() {
+    setBuildingTab('nouvelle-unite');
     setAddUnitFormOpen(true);
     window.requestAnimationFrame(() => {
       addUnitFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -336,7 +351,7 @@ export function BuildingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, b?.id, b?.structureKind, b?.locauxSlotCount, load]);
+  }, [id, b, load]);
 
   const immeubleLocked = b?.structureKind === 'IMMEUBLE' || b?.structureKind === 'TERRAIN_LOTS';
 
@@ -360,6 +375,7 @@ export function BuildingDetailPage() {
 
   const terrainLotsFull =
     terrainPlanActive && b!.terrainLotCount != null && b!.units.length >= b!.terrainLotCount;
+  const tableOnlyEligible = terrainPlanActive || immeubleSlotFlowActive;
 
   const terrainLotRecap = useMemo(() => {
     if (!b || b.structureKind !== 'TERRAIN_LOTS' || b.terrainLotCount == null || b.terrainLotCount <= 0) {
@@ -482,6 +498,72 @@ export function BuildingDetailPage() {
       : kind === 'WAREHOUSE' || kind === 'COMMERCIAL'
         ? immeubleFloorsEntrepotCommerce
         : immeubleFloorsWhComm;
+
+  function floorsForBulkKind(rowKind: string): number[] {
+    if (rowKind === 'APARTMENT') return availableApartmentFloors;
+    if (rowKind === 'WAREHOUSE' || rowKind === 'COMMERCIAL') return immeubleFloorsEntrepotCommerce;
+    return immeubleFloorsWhComm;
+  }
+
+  function floorOptionsForBulkRow(row: BulkUnitRow, rowIndex: number): number[] {
+    const base = floorsForBulkKind(row.kind);
+    if (!immeubleOnePerFloorLayout || row.kind !== 'APARTMENT') return base;
+    const takenByRows = new Set<number>();
+    bulkRows.forEach((r, idx) => {
+      if (idx === rowIndex || r.kind !== 'APARTMENT') return;
+      const f = Number(r.floor);
+      if (Number.isFinite(f)) takenByRows.add(f);
+    });
+    return base.filter((f) => !takenByRows.has(f));
+  }
+
+  function slotOptionsForBulkRow(row: BulkUnitRow, rowIndex: number): number[] {
+    if (!b) return [];
+    const selectedInOtherRows = new Set<number>();
+    bulkRows.forEach((r, idx) => {
+      if (idx === rowIndex) return;
+      const n = Number(r.slot);
+      if (!Number.isInteger(n) || n < 1) return;
+      if (terrainPlanActive) {
+        selectedInOtherRows.add(n);
+        return;
+      }
+      if (row.kind === 'APARTMENT') {
+        if (r.kind !== 'APARTMENT') return;
+        if (immeubleGridLayout(b)) {
+          const rf = Number(r.floor);
+          const rowF = Number(row.floor);
+          if (!Number.isFinite(rf) || !Number.isFinite(rowF) || rf !== rowF) return;
+        }
+        selectedInOtherRows.add(n);
+        return;
+      }
+      if ((row.kind === 'WAREHOUSE' || row.kind === 'COMMERCIAL') && (r.kind === 'WAREHOUSE' || r.kind === 'COMMERCIAL')) {
+        selectedInOtherRows.add(n);
+      }
+    });
+
+    if (terrainPlanActive) {
+      const max = b.terrainLotCount ?? 0;
+      return Array.from({ length: max }, (_, i) => i + 1).filter((n) => !usedApartmentSlots.has(n) && !selectedInOtherRows.has(n));
+    }
+
+    if (row.kind === 'APARTMENT') {
+      if (immeubleGridLayout(b)) {
+        const floorNum = Number(row.floor);
+        if (!Number.isFinite(floorNum)) return [];
+        const cap = apartmentCapacityOnFloor(b, floorNum);
+        const used = usedApartmentSlotsByFloor.get(floorNum) ?? new Set<number>();
+        return Array.from({ length: cap }, (_, i) => i + 1).filter((n) => !used.has(n) && !selectedInOtherRows.has(n));
+      }
+      return Array.from({ length: b.apartmentCount ?? 0 }, (_, i) => i + 1).filter((n) => !usedApartmentSlots.has(n) && !selectedInOtherRows.has(n));
+    }
+
+    if (row.kind === 'WAREHOUSE' || row.kind === 'COMMERCIAL') {
+      return Array.from({ length: locauxSlotOptionsCount }, (_, i) => i + 1).filter((n) => !usedLocauxSlots.has(n) && !selectedInOtherRows.has(n));
+    }
+    return [];
+  }
 
   const buildingStats = useMemo(() => {
     if (!b?.units) return null;
@@ -617,6 +699,23 @@ export function BuildingDetailPage() {
     });
   }, [filteredUnits, unitListSearch]);
 
+  useEffect(() => {
+    if (!b?.units?.length) {
+      setUnitDrafts({});
+      return;
+    }
+    setUnitDrafts((prev) => {
+      const next: Record<string, { surfaceM2: string; rooms: string }> = {};
+      for (const u of b.units) {
+        next[u.id] = prev[u.id] ?? {
+          surfaceM2: u.surfaceM2 != null ? String(u.surfaceM2) : '',
+          rooms: u.rooms != null ? String(u.rooms) : '',
+        };
+      }
+      return next;
+    });
+  }, [b?.units]);
+
   const displayUnits = useMemo(() => {
     const copy = [...tableUnits];
     copy.sort((a, b) => compareUnitTableRows(a, b, unitSortKey, unitSortDir));
@@ -650,6 +749,7 @@ export function BuildingDetailPage() {
 
   useEffect(() => {
     if (!focusUnitId) return;
+    setBuildingTab('unites');
     setUnitListFilter('all');
     setUnitListSearch('');
   }, [focusUnitId]);
@@ -714,6 +814,7 @@ export function BuildingDetailPage() {
   useEffect(() => {
     if (addUnitFormOpen && terrainPlanActive) {
       setKind('LAND');
+      setBulkRows((rows) => rows.map((r) => ({ ...r, kind: 'LAND' })));
     }
   }, [addUnitFormOpen, terrainPlanActive]);
 
@@ -728,14 +829,14 @@ export function BuildingDetailPage() {
           : new Set(['APARTMENT', 'WAREHOUSE', 'COMMERCIAL']);
       if (!allowed.has(kind)) setKind('APARTMENT');
     }
-  }, [b?.structureKind, b?.id, b?.rezApartmentCount, b?.hasRezDeChaussee, kind, immeubleEtage]);
+  }, [b, kind, immeubleEtage]);
 
   useEffect(() => {
     if (!b || b.structureKind !== 'IMMEUBLE') return;
     if ((kind === 'WAREHOUSE' || kind === 'COMMERCIAL') && b.hasRezDeChaussee !== false) {
       setImmeubleEtage('0');
     }
-  }, [kind, b?.structureKind, b?.hasRezDeChaussee, b?.id]);
+  }, [kind, b]);
 
   async function addUnit(e: React.FormEvent) {
     e.preventDefault();
@@ -838,6 +939,138 @@ export function BuildingDetailPage() {
     }
   }
 
+  async function addUnitsBatch() {
+    if (!id || !b) return;
+    setErr(null);
+    const rows = bulkRows.filter((r) => r.slot.trim() !== '');
+    if (rows.length === 0) {
+      setErr('Ajoutez au moins une ligne avec un numéro.');
+      return;
+    }
+    if (rows.some((r) => !Number.isInteger(Number(r.slot)) || Number(r.slot) < 1)) {
+      setErr('Chaque numéro doit être un entier >= 1.');
+      return;
+    }
+    if (immeubleFloorPickerActive && rows.some((r) => (r.kind === 'APARTMENT' || r.kind === 'WAREHOUSE' || r.kind === 'COMMERCIAL') && !r.floor)) {
+      setErr('Chaque ligne doit avoir un étage sélectionné.');
+      return;
+    }
+    const keySet = new Set<string>();
+    for (const r of rows) {
+      const key = `${r.kind}|${r.floor}|${r.slot}`;
+      if (keySet.has(key)) {
+        setErr('Le tableau contient des doublons.');
+        return;
+      }
+      keySet.add(key);
+    }
+    setAddBusy(true);
+    try {
+      for (const r of rows) {
+        const slot = Number(r.slot);
+        const jsonBody: Record<string, unknown> = {
+          label: `${bulkLabelPrefix.trim() || 'Unité'} ${slot}`,
+          surfaceM2: surfaceM2 ? Number(surfaceM2) : undefined,
+          rooms: rooms ? Number(rooms) : undefined,
+          kind: r.kind,
+          description: description.trim() || undefined,
+        };
+        if (terrainPlanActive) {
+          jsonBody.apartmentSlot = slot;
+        } else if (immeubleFloorPickerActive) {
+          const fl = Number(r.floor);
+          if (!Number.isFinite(fl)) {
+            throw new Error('Chaque ligne doit avoir un étage.');
+          }
+          jsonBody.floor = fl;
+          if (r.kind === 'APARTMENT') jsonBody.apartmentSlot = slot;
+          if (r.kind === 'WAREHOUSE' || r.kind === 'COMMERCIAL') jsonBody.locauxSlot = slot;
+        } else if (floor) {
+          jsonBody.floor = Number(floor);
+        }
+        await api(`/buildings/${id}/units`, {
+          method: 'POST',
+          json: jsonBody,
+        });
+      }
+      setBulkRows([{ kind: terrainPlanActive ? 'LAND' : 'APARTMENT', floor: '', slot: '' }]);
+      setBulkLabelPrefix('');
+      setDescription('');
+      setSurfaceM2('');
+      setRooms('');
+      await load();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : 'Erreur');
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
+  const canAutoGenerateUnits =
+    b != null &&
+    ((b.structureKind === 'IMMEUBLE' && immeubleGridLayout(b)) ||
+      (b.structureKind === 'TERRAIN_LOTS' && (b.terrainLotCount ?? 0) > 0));
+
+  async function autoGenerateUnitsFromStructure() {
+    if (!id || !b) return;
+    if (!canAutoGenerateUnits) {
+      alert('Génération auto disponible pour immeuble en grille ou terrain multi-lots.');
+      return;
+    }
+    const payloads: Array<Record<string, unknown>> = [];
+
+    if (b.structureKind === 'IMMEUBLE' && immeubleGridLayout(b)) {
+      const floors = b.hasRezDeChaussee === false ? Array.from({ length: b.floorCount ?? 0 }, (_, i) => i + 1) : [0, ...Array.from({ length: b.floorCount ?? 0 }, (_, i) => i + 1)];
+      for (const f of floors) {
+        const cap = apartmentCapacityOnFloor(b, f);
+        if (!Number.isFinite(cap) || cap <= 0) continue;
+        const used = usedApartmentSlotsByFloor.get(f) ?? new Set<number>();
+        for (let slot = 1; slot <= cap; slot += 1) {
+          if (used.has(slot)) continue;
+          payloads.push({
+            label: f === 0 ? `Appartement RDC-${slot}` : `Appartement ${f}-${slot}`,
+            floor: f,
+            kind: 'APARTMENT',
+            apartmentSlot: slot,
+          });
+        }
+      }
+    } else if (b.structureKind === 'TERRAIN_LOTS' && (b.terrainLotCount ?? 0) > 0) {
+      const usedTerrainSlots = new Set<number>();
+      for (const u of b.units ?? []) {
+        if (u.apartmentSlot != null) usedTerrainSlots.add(u.apartmentSlot);
+      }
+      for (let slot = 1; slot <= (b.terrainLotCount ?? 0); slot += 1) {
+        if (usedTerrainSlots.has(slot)) continue;
+        payloads.push({
+          label: `Unité ${slot}`,
+          kind: 'LAND',
+          apartmentSlot: slot,
+        });
+      }
+    }
+
+    if (payloads.length === 0) {
+      alert('Aucune unité manquante à générer.');
+      return;
+    }
+    const ok = window.confirm(`Créer automatiquement ${payloads.length} unité(s) manquante(s) ?`);
+    if (!ok) return;
+
+    setAutoGenBusy(true);
+    setErr(null);
+    try {
+      for (const json of payloads) {
+        await api(`/buildings/${id}/units`, { method: 'POST', json });
+      }
+      await load();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : 'Génération automatique impossible.');
+    } finally {
+      setAutoGenBusy(false);
+    }
+  }
+
   async function removeUnit(unitId: string) {
     if (!confirm('Supprimer cette unité ? Les baux et loyers liés seront aussi supprimés.')) return;
     try {
@@ -851,6 +1084,35 @@ export function BuildingDetailPage() {
   async function updateUnitKind(unitId: string, newKind: string) {
     try {
       await api(`/units/${unitId}`, { method: 'PATCH', json: { kind: newKind } });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Modification impossible.');
+    }
+  }
+
+  async function updateUnitMetrics(unit: Unit) {
+    const draft = unitDrafts[unit.id] ?? { surfaceM2: '', rooms: '' };
+    const curSurface = unit.surfaceM2 != null ? String(unit.surfaceM2) : '';
+    const curRooms = unit.rooms != null ? String(unit.rooms) : '';
+    if (draft.surfaceM2.trim() === curSurface.trim() && draft.rooms.trim() === curRooms.trim()) return;
+    const surfaceVal = draft.surfaceM2.trim();
+    const roomsVal = draft.rooms.trim();
+    if (surfaceVal && (!Number.isFinite(Number(surfaceVal)) || Number(surfaceVal) < 0)) {
+      alert('Surface invalide.');
+      return;
+    }
+    if (roomsVal && (!Number.isInteger(Number(roomsVal)) || Number(roomsVal) < 0)) {
+      alert('Nombre de pièces invalide.');
+      return;
+    }
+    try {
+      await api(`/units/${unit.id}`, {
+        method: 'PATCH',
+        json: {
+          surfaceM2: surfaceVal ? Number(surfaceVal) : null,
+          rooms: roomsVal ? Number(roomsVal) : null,
+        },
+      });
       load();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Modification impossible.');
@@ -1026,6 +1288,8 @@ export function BuildingDetailPage() {
     setRooms('');
     setKind('APARTMENT');
     setDescription('');
+    setBulkLabelPrefix('');
+    setBulkRows([{ kind: terrainPlanActive ? 'LAND' : 'APARTMENT', floor: '', slot: '' }]);
     setErr(null);
   }
 
@@ -1157,6 +1421,18 @@ export function BuildingDetailPage() {
               </span>
               Ajouter une unité
             </Button>
+            {canAutoGenerateUnits ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="py-2 text-sm font-semibold sm:self-auto"
+                disabled={autoGenBusy}
+                onClick={() => void autoGenerateUnitsFromStructure()}
+                title="Créer automatiquement les unités manquantes selon l’organisation du bien"
+              >
+                {autoGenBusy ? 'Génération…' : 'Générer unités auto'}
+              </Button>
+            ) : null}
             <Button variant="danger" className="py-2 text-sm sm:self-auto" onClick={removeBuilding}>
               Supprimer le bien
             </Button>
@@ -1323,43 +1599,34 @@ export function BuildingDetailPage() {
         </div>
       ) : null}
 
-      <nav
-        aria-label="Sections de la fiche"
-        className="flex flex-wrap gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50"
-      >
-        <a
-          href="#fiche-organisation"
-          className="rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:text-brand-700 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:text-brand-400"
-        >
-          Organisation
-        </a>
-        <a
-          href="#fiche-nouvelle-unite"
-          className="rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:text-brand-700 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:text-brand-400"
-          onClick={(e) => {
-            e.preventDefault();
-            openAddUnitForm();
-          }}
-        >
-          Nouvelle unité
-        </a>
-        <a
-          href="#fiche-unites"
-          className="rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/5 transition hover:text-brand-700 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:text-brand-400"
-        >
-          Liste des unités
-        </a>
-      </nav>
-
-      <Card id="fiche-organisation" className="scroll-mt-24">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Organisation du bien</h2>
-          <HelpHint title={ORG_SECTION_HINT} className="align-middle" />
+      <OdooNotebook
+        activeTabId={buildingTab}
+        onTabChange={setBuildingTab}
+        tabs={[
+          {
+            id: 'organisation',
+            label: 'Organisation',
+            content: (
+      <Card id="fiche-organisation" className="scroll-mt-24 !border-0 !shadow-none">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Organisation du bien</h2>
+            <HelpHint title={ORG_SECTION_HINT} className="align-middle" />
+          </div>
+          <button
+            type="button"
+            onClick={() => setOrganizationOpen((v) => !v)}
+            aria-expanded={organizationOpen}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-300/90 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            {organizationOpen ? 'Masquer' : 'Afficher'}
+          </button>
         </div>
-        <form
-          onSubmit={saveBuildingProfile}
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
-        >
+        {organizationOpen ? (
+          <form
+            onSubmit={saveBuildingProfile}
+            className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
+          >
           <div className="min-w-[min(100%,20rem)] flex-1">
             <div className="mb-1 flex flex-wrap items-center gap-1.5">
               <Label htmlFor="building-structure-kind" className="mb-0">
@@ -1555,10 +1822,16 @@ export function BuildingDetailPage() {
               Annuler
             </Button>
           </div>
-        </form>
+          </form>
+        ) : null}
         {structureErr && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{structureErr}</p>}
       </Card>
-
+            ),
+          },
+          {
+            id: 'nouvelle-unite',
+            label: 'Nouvelle unité',
+            content: (
       <div ref={addUnitFormRef} id="fiche-nouvelle-unite" className="scroll-mt-24">
         <Card className="!p-0 overflow-hidden">
           <button
@@ -1615,6 +1888,133 @@ export function BuildingDetailPage() {
               ) : (
                 <div className="rounded-xl border border-slate-200/75 bg-slate-50/70 p-4 shadow-inner shadow-slate-900/[0.02] dark:border-slate-600/70 dark:bg-slate-800/35 dark:shadow-none sm:p-5">
               <form onSubmit={addUnit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {tableOnlyEligible ? (
+                  <div className="sm:col-span-full space-y-3 rounded-xl border border-slate-200/80 bg-white/80 p-4 dark:border-slate-600 dark:bg-slate-900/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Tableau d’ajout des unités</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Ajoutez autant de lignes que nécessaire puis enregistrez tout.</p>
+                    </div>
+                    <div className="max-w-md">
+                      <Label htmlFor="bulk-prefix">Préfixe libellé (optionnel)</Label>
+                      <Input
+                        id="bulk-prefix"
+                        value={bulkLabelPrefix}
+                        onChange={(e) => setBulkLabelPrefix(e.target.value)}
+                        placeholder="Ex. Lot, Appartement, Local…"
+                      />
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-200/90 dark:border-slate-600">
+                      <table className="w-full min-w-[42rem] text-sm">
+                        <thead className="bg-slate-100/90 dark:bg-slate-800/80">
+                          <tr>
+                            <th className="px-3 py-2 text-left">#</th>
+                            <th className="px-3 py-2 text-left">Type</th>
+                            <th className="px-3 py-2 text-left">Étage</th>
+                            <th className="px-3 py-2 text-left">{terrainPlanActive ? 'N° lot' : 'N°'}</th>
+                            <th className="px-3 py-2 text-left">Aperçu</th>
+                            <th className="px-3 py-2 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bulkRows.map((row, idx) => {
+                            const floorOptions = floorOptionsForBulkRow(row, idx);
+                            const slotOptions = slotOptionsForBulkRow(row, idx);
+                            return (
+                              <tr key={`bulk-row-${idx}`} className="border-t border-slate-200/80 dark:border-slate-700/80">
+                                <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{idx + 1}</td>
+                                <td className="px-3 py-2">
+                                  <Select
+                                    value={row.kind}
+                                    onChange={(e) =>
+                                      setBulkRows((items) =>
+                                        items.map((x, i) => (i === idx ? { ...x, kind: e.target.value, floor: '', slot: '' } : x)),
+                                      )
+                                    }
+                                  >
+                                    {(b.structureKind === 'IMMEUBLE'
+                                      ? IMMEUBLE_NEW_UNIT_KIND_OPTIONS
+                                      : UNIT_KIND_OPTIONS
+                                    ).map((o) => (
+                                      <option key={o.value} value={o.value}>
+                                        {o.label}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                </td>
+                                <td className="px-3 py-2">
+                                  {immeubleFloorPickerActive ? (
+                                    <Select
+                                      value={row.floor}
+                                      onChange={(e) =>
+                                        setBulkRows((items) => items.map((x, i) => (i === idx ? { ...x, floor: e.target.value } : x)))
+                                      }
+                                    >
+                                      <option value="">Choisir…</option>
+                                      {floorOptions.map((n) => (
+                                        <option key={n} value={String(n)}>
+                                          {n === 0 ? 'RDC' : `Étage ${n}`}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Select
+                                    value={row.slot}
+                                    onChange={(e) =>
+                                      setBulkRows((items) => items.map((x, i) => (i === idx ? { ...x, slot: e.target.value } : x)))
+                                    }
+                                  >
+                                    <option value="">Choisir…</option>
+                                    {slotOptions.map((n) => (
+                                      <option key={n} value={String(n)}>
+                                        {terrainPlanActive ? `Lot n° ${n}` : row.kind === 'APARTMENT' ? `Logement n° ${n}` : `Local n° ${n}`}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  {slotOptions.length === 0 ? (
+                                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Aucun numéro disponible.</p>
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                                  {(bulkLabelPrefix.trim() || 'Unité')}{row.slot ? ` ${row.slot}` : ' …'}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="py-1.5 text-xs"
+                                    disabled={bulkRows.length <= 1}
+                                    onClick={() => setBulkRows((items) => items.filter((_, i) => i !== idx))}
+                                  >
+                                    Retirer
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="py-2 text-xs"
+                        onClick={() => setBulkRows((items) => [...items, { kind: terrainPlanActive ? 'LAND' : kind, floor: '', slot: '' }])}
+                      >
+                        + Ajouter une ligne
+                      </Button>
+                      <Button type="button" disabled={addBusy} onClick={() => void addUnitsBatch()}>
+                        {addBusy ? 'Enregistrement…' : 'Enregistrer tout'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {!tableOnlyEligible ? (
+                <>
                 <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-slate-200/90 bg-white/70 p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/50">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1937,9 +2337,11 @@ export function BuildingDetailPage() {
                     </div>
                   </div>
                 ) : null}
+                </>
+                ) : null}
                 {err && <p className="text-sm text-red-600 dark:text-red-400 sm:col-span-full">{err}</p>}
                 <div className="sm:col-span-full flex flex-wrap items-center gap-3">
-                  <Button type="submit">Ajouter l&apos;unité</Button>
+                  {!tableOnlyEligible ? <Button type="submit">Ajouter l&apos;unité</Button> : null}
                   <Button type="button" variant="secondary" onClick={resetAddUnitForm}>
                     Annuler
                   </Button>
@@ -1955,10 +2357,15 @@ export function BuildingDetailPage() {
           ) : null}
         </Card>
       </div>
-
+            ),
+          },
+          {
+            id: 'unites',
+            label: 'Unités',
+            content: (
       <Card
         id="fiche-unites"
-        className="scroll-mt-24 overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35"
+        className="scroll-mt-24 overflow-hidden !border-0 !p-0 !shadow-none"
       >
         <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:px-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2150,10 +2557,38 @@ export function BuildingDetailPage() {
                       </td>
                       <td className={`whitespace-nowrap text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>{fl ?? '—'}</td>
                       <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
-                        {u.surfaceM2 != null ? `${Number(u.surfaceM2)} m²` : '—'}
+                        <Input
+                          value={unitDrafts[u.id]?.surfaceM2 ?? ''}
+                          onChange={(e) =>
+                            setUnitDrafts((prev) => ({
+                              ...prev,
+                              [u.id]: { surfaceM2: e.target.value, rooms: prev[u.id]?.rooms ?? (u.rooms != null ? String(u.rooms) : '') },
+                            }))
+                          }
+                          onBlur={() => void updateUnitMetrics(u)}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="max-w-[7rem] py-1.5 text-xs"
+                          placeholder="—"
+                        />
                       </td>
                       <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
-                        {u.rooms != null ? u.rooms : '—'}
+                        <Input
+                          value={unitDrafts[u.id]?.rooms ?? ''}
+                          onChange={(e) =>
+                            setUnitDrafts((prev) => ({
+                              ...prev,
+                              [u.id]: { surfaceM2: prev[u.id]?.surfaceM2 ?? (u.surfaceM2 != null ? String(u.surfaceM2) : ''), rooms: e.target.value },
+                            }))
+                          }
+                          onBlur={() => void updateUnitMetrics(u)}
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="max-w-[6rem] py-1.5 text-xs"
+                          placeholder="—"
+                        />
                       </td>
                       <td className={`text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
                         {tenant ? (
@@ -2184,7 +2619,7 @@ export function BuildingDetailPage() {
                             <FicheLocationLink leaseId={lease0.id} />
                           ) : (
                             <SmartLink
-                              to={`/baux?buildingId=${encodeURIComponent(b.id)}&unitId=${encodeURIComponent(u.id)}#nouveau-bail`}
+                              to={`/baux?buildingId=${encodeURIComponent(b.id)}&unitId=${encodeURIComponent(u.id)}&hintUnitLabel=${encodeURIComponent(u.label)}&returnLocation=${encodeURIComponent(`/biens/${b.id}`)}#nouveau-bail`}
                               className="inline-flex items-center justify-center rounded-lg border border-slate-300/90 bg-slate-100/85 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
                               title="Ouvrir la création de bail avec ce bien et cette unité déjà sélectionnés"
                             >
@@ -2207,13 +2642,22 @@ export function BuildingDetailPage() {
         {b.units.length === 0 && (
           <div className="border-t border-slate-200/80 px-4 py-12 text-center dark:border-slate-700">
             <p className="text-sm text-slate-500 dark:text-slate-400">Aucune unité pour ce bien.</p>
-            <button
-              type="button"
-              className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
-              onClick={openAddUnitForm}
-            >
-              Ajouter une unité
-            </button>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <Button type="button" variant="secondary" className="py-2 text-sm" onClick={openAddUnitForm}>
+                Ajouter une unité
+              </Button>
+              {canAutoGenerateUnits ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="py-2 text-sm"
+                  disabled={autoGenBusy}
+                  onClick={() => void autoGenerateUnitsFromStructure()}
+                >
+                  {autoGenBusy ? 'Génération…' : 'Générer unités auto'}
+                </Button>
+              ) : null}
+            </div>
           </div>
         )}
         {b.units.length > 0 && filteredUnits.length === 0 && (
@@ -2230,6 +2674,10 @@ export function BuildingDetailPage() {
           </div>
         )}
       </Card>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

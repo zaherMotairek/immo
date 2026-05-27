@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- provider + hooks dans un seul fichier (pattern stable). */
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 

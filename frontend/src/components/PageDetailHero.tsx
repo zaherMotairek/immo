@@ -24,6 +24,8 @@ type PageDetailHeroProps = {
   breadcrumbTitle?: string;
   headerEnd?: ReactNode;
   children: ReactNode;
+  /** Panneau latéral : masque le fil d’Ariane (le bandeau Fermer est dans la coquille). */
+  omitTopNav?: boolean;
 };
 
 /** En-tête détail : fil d’Ariane + zone titre (même pattern que la fiche bien). */
@@ -34,9 +36,11 @@ export function PageDetailHero({
   breadcrumbTitle,
   headerEnd,
   children,
+  omitTopNav = false,
 }: PageDetailHeroProps) {
   return (
     <Card className="overflow-hidden p-0 sm:p-0">
+      {!omitTopNav ? (
       <div className="flex flex-col gap-3 border-b border-slate-200/80 bg-slate-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <nav aria-label="Fil d'Ariane" className="min-w-0">
           <ol className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -59,6 +63,9 @@ export function PageDetailHero({
         </nav>
         {headerEnd ? <div className="shrink-0 sm:ml-2">{headerEnd}</div> : null}
       </div>
+      ) : headerEnd ? (
+        <div className="flex justify-end border-b border-slate-200/80 bg-slate-50/50 px-4 py-3 sm:px-5">{headerEnd}</div>
+      ) : null}
       <div className="space-y-3 px-4 py-4 sm:px-5 sm:py-5">{children}</div>
     </Card>
   );

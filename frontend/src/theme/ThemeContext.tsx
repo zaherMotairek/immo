@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- provider + hook dans un seul fichier. */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { applyTheme, getStoredTheme, persistTheme, toggleTheme, type ThemeMode } from '@/theme';
 

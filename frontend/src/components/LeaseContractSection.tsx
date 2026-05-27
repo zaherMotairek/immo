@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LeaseContractMeta } from '@/lib/api';
 import {
   deleteLeaseContract,
@@ -31,18 +31,18 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
   const [busy, setBusy] = useState(false);
   const [contracts, setContracts] = useState<LeaseContractMeta[]>([]);
 
-  async function loadContracts() {
+  const loadContracts = useCallback(async () => {
     try {
       const list = await listLeaseContracts(leaseId);
       setContracts(list.slice().reverse());
     } catch {
       setContracts(contract ? [contract] : []);
     }
-  }
+  }, [leaseId, contract]);
 
   useEffect(() => {
     void loadContracts();
-  }, [leaseId]);
+  }, [loadContracts]);
 
   async function onFile(file: File | undefined) {
     if (!file) return;

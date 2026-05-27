@@ -10,6 +10,7 @@ import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select, StatTile
 import { chargeCategoryLabel, chargeCategoryOptions } from '@/lib/chargeCategories';
 import { listBlockRowClass } from '@/lib/listTableStyles';
 import { unitKindLabel } from '@/lib/unitKind';
+import { OdooActionBar } from '@/components/OdooKit';
 
 type ChargeRow = {
   id: string;
@@ -297,6 +298,16 @@ export function ChargesPage() {
           </div>
         </div>
       </div>
+
+      <OdooActionBar
+        left={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
+            <span className="font-semibold">Période</span>
+            <span>{periodeLibelle}</span>
+            <span>· {rows.length} charge(s)</span>
+          </div>
+        }
+      />
 
       <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         Synthèse et liste : <strong className="text-slate-800 dark:text-slate-200">{periodeLibelle}</strong>

@@ -73,12 +73,12 @@ export class TenantsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('Fichier manquant (formulaire : champ « file »).');
-    return this.tenants.saveIdDocument(id, user.organizationId, file);
+    return this.tenants.saveIdDocument(id, user.organizationId, file, user);
   }
 
   @Delete(':id/id-document')
   deleteIdDocument(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
-    return this.tenants.removeIdDocument(id, user.organizationId);
+    return this.tenants.removeIdDocument(id, user.organizationId, user);
   }
 
   @Delete(':id/id-documents/:fileKey')
@@ -87,7 +87,7 @@ export class TenantsController {
     @Param('id') id: string,
     @Param('fileKey') fileKey: string,
   ) {
-    return this.tenants.removeIdDocumentByKey(id, user.organizationId, fileKey);
+    return this.tenants.removeIdDocumentByKey(id, user.organizationId, fileKey, user);
   }
 
   @Get(':id')
@@ -102,7 +102,7 @@ export class TenantsController {
 
   @Patch(':id')
   update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
-    return this.tenants.update(id, user.organizationId, dto);
+    return this.tenants.update(id, user.organizationId, dto, user);
   }
 
   @Delete(':id')

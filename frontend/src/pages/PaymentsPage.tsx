@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa, formatDateFr } from '@/lib/format';
-import { isOverduePayment, monthGroupKey, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
+import {
+  collectionCollectBadge,
+  isOverduePayment,
+  monthGroupKey,
+  paymentRemaining,
+  type PaymentRow,
+} from '@/lib/paymentRow';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
-import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
-import { FicheLocationLink } from '@/components/FicheLocationLink';
-import { PaymentLineActions } from '@/components/PaymentLineActions';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -23,6 +25,7 @@ import { SortableTh } from '@/components/SortableTh';
 import type { TableSortDir } from '@/lib/tableSort';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import { collectionMethodLabel, COLLECTION_METHOD_OPTIONS } from '@/lib/collectionMethodUi';
+import { OdooActionBar } from '@/components/OdooKit';
 
 type PaymentSortKey = 'tenant' | 'place' | 'amount' | 'schedule' | 'status' | 'lease';
 
@@ -104,6 +107,8 @@ function IconLayoutList({ className = '' }: { className?: string }) {
 
 export function PaymentsPage() {
   useRegisterRootSectionFallback();
+  const routerLocation = useLocation();
+  const locationSheetState = useMemo(() => ({ backgroundLocation: routerLocation }), [routerLocation]);
   const [params, setParams] = useSearchParams();
   const overdueOnly = params.get('overdue') === '1' || params.get('overdue') === 'true';
   const leaseIdFilter = params.get('leaseId')?.trim() || '';
@@ -164,7 +169,6 @@ export function PaymentsPage() {
 
   const [rows, setRows] = useState<PaymentRow[]>([]);
   const [paymentsReady, setPaymentsReady] = useState(false);
-  const [sendingId, setSendingId] = useState<string | null>(null);
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [partialFor, setPartialFor] = useState<PaymentRow | null>(null);
@@ -307,21 +311,20 @@ export function PaymentsPage() {
     const p = rows.find((r) => r.id === pending.paymentId);
     if (p) {
       const mk = monthGroupKey(p);
-      flushSync(() => {
-        setCollapsedMonthKeys((prev) => {
-          if (!prev.has(mk)) return prev;
-          const next = new Set(prev);
-          next.delete(mk);
-          return next;
-        });
+      setCollapsedMonthKeys((prev) => {
+        if (!prev.has(mk)) return prev;
+        const next = new Set(prev);
+        next.delete(mk);
+        return next;
       });
     }
 
     const run = () => applyPaymentRowScrollRestore(pending);
-    run();
     requestAnimationFrame(() => {
-      run();
-      window.setTimeout(run, 0);
+      requestAnimationFrame(() => {
+        run();
+        window.setTimeout(run, 0);
+      });
     });
   }, [rows, paymentsReady]);
 
@@ -440,15 +443,6 @@ export function PaymentsPage() {
     setCollapsedMonthKeys(new Set(keys));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- volontaire : éviter reset au refresh des lignes
   }, [monthKeysSig, focusPaymentId]);
-
-  useEffect(() => {
-    if (!zoomPaymentId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setZoomPaymentId(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [zoomPaymentId]);
 
   useEffect(() => {
     if (!partialFor || partialSubmitting) return;
@@ -594,28 +588,6 @@ export function PaymentsPage() {
     );
   }
 
-  async function markPaid(p: PaymentRow) {
-    const y = window.scrollY;
-    await api(`/payments/${p.id}`, {
-      method: 'PATCH',
-      json: {
-        status: 'PAID',
-        amountPaid: Number(p.amountDue),
-        paidAt: new Date().toISOString().slice(0, 10),
-      },
-    });
-    scheduleScrollRestoreBeforeLoad(p.id, y);
-    load();
-  }
-
-  function openPartialModal(p: PaymentRow) {
-    const remaining = paymentRemaining(p);
-    if (remaining <= 0) return;
-    setPartialFor(p);
-    setPartialAmount(String(Math.max(1, Math.round(remaining))));
-    setPartialErr('');
-  }
-
   async function submitPartial() {
     if (!partialFor) return;
     const remaining = paymentRemaining(partialFor);
@@ -646,23 +618,6 @@ export function PaymentsPage() {
       setPartialErr(e instanceof Error ? e.message : 'Enregistrement impossible.');
     } finally {
       setPartialSubmitting(false);
-    }
-  }
-
-  async function sendReminderEmail(p: PaymentRow) {
-    setSendingId(p.id);
-    try {
-      const res = await api<{ ok: boolean; message?: string }>(`/payments/${p.id}/send-reminder`, {
-        method: 'POST',
-      });
-      alert(res.message ?? 'Relance envoyée.');
-      const y = window.scrollY;
-      scheduleScrollRestoreBeforeLoad(p.id, y);
-      load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible.');
-    } finally {
-      setSendingId(null);
     }
   }
 
@@ -747,7 +702,7 @@ export function PaymentsPage() {
             <AppPageTitle
               iconTo="/paiements"
               title="Paiements"
-              hintTitle="Échéances de loyer uniquement (hors dépôt de garantie). Caution : fiche location. Relances e-mail et WhatsApp."
+              hintTitle="Cliquez une ligne pour le détail (bien, mode d’encaissement, fiche bail, actions). La liste ne montre que l’essentiel."
               titleExtra={
                 <div className="flex flex-wrap items-center gap-2">
                   <StatTile className="shrink-0" label="Total" value={String(visibleRows.length)} />
@@ -797,6 +752,7 @@ export function PaymentsPage() {
                 <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
                   <SmartLink
                     to={`/locations/${leaseIdFilter}`}
+                    state={locationSheetState}
                     className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                   >
                     ← Fiche location de ce bail
@@ -814,6 +770,30 @@ export function PaymentsPage() {
           </div>
         </div>
       </header>
+
+      <OdooActionBar
+        left={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-xs font-semibold text-[var(--color-muted)]">Filtres</span>
+            <span className="text-xs text-[var(--color-muted)]">Année: {yearFilter === 'all' ? 'Toutes' : yearFilter}</span>
+            <span className="text-xs text-[var(--color-muted)]">Mois: {monthFilter === 'all' ? 'Tous' : monthFilter}</span>
+            {overdueOnly ? <span className="text-xs font-semibold text-red-700 dark:text-red-300">Impayés</span> : null}
+          </div>
+        }
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="py-2 text-xs"
+              onClick={() => setZoomPaymentId(null)}
+              disabled={!zoomPaymentId}
+            >
+              Fermer panneau
+            </Button>
+          </div>
+        }
+      />
 
       <Card className="overflow-hidden !p-0 shadow-[0_1px_3px_rgb(0_0_0/0.06),0_8px_24px_rgb(0_0_0/0.06)] ring-1 ring-slate-900/[0.04] dark:shadow-[0_1px_3px_rgb(0_0_0/0.2)] dark:ring-slate-600/40">
         <div className="flex flex-col gap-1 border-b border-slate-200/90 bg-gradient-to-r from-slate-50/98 via-white to-slate-50/95 px-2 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:px-3 sm:py-2 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900/98 dark:to-slate-900/95">
@@ -1324,7 +1304,7 @@ export function PaymentsPage() {
                 </div>
               </div>
               <div id={`payments-month-body-${key}`} className="overflow-x-auto bg-white dark:bg-slate-950/30" hidden={monthCollapsed}>
-                <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[640px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                       <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-center sm:px-5">
@@ -1344,7 +1324,7 @@ export function PaymentsPage() {
                         thClassName="px-4 py-2.5 sm:px-5"
                       />
                       <SortableTh
-                        label="Bien / unité"
+                        label="Lieu"
                         columnKey="place"
                         activeKey={paySortKey}
                         dir={paySortDir}
@@ -1361,7 +1341,7 @@ export function PaymentsPage() {
                         thClassName="px-4 py-2.5 sm:px-5"
                       />
                       <SortableTh
-                        label="Période & échéance"
+                        label="Période · échéance"
                         columnKey="schedule"
                         activeKey={paySortKey}
                         dir={paySortDir}
@@ -1376,20 +1356,10 @@ export function PaymentsPage() {
                         onSort={togglePaySort}
                         thClassName="px-4 py-2.5 sm:px-5"
                       />
-                      <th className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Mode / Réf.
-                      </th>
-                      <SortableTh
-                        label="Fiche location"
-                        columnKey="lease"
-                        activeKey={paySortKey}
-                        dir={paySortDir}
-                        onSort={togglePaySort}
-                        thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                      <th
+                        className="w-[1%] whitespace-nowrap px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-3 dark:text-slate-400"
+                        aria-label="Détail"
                       />
-                      <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-5 dark:text-slate-400">
-                        Actions
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1397,9 +1367,18 @@ export function PaymentsPage() {
                       <tr
                         key={p.id}
                         id={`payment-${p.id}`}
-                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${paymentRowFlash(flashPaymentRowId === p.id)}`}
+                        onClick={(e) => {
+                          const t = e.target as HTMLElement;
+                          if (t.closest('a, button, input, textarea, select, label')) return;
+                          setZoomPaymentId(p.id);
+                        }}
+                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${paymentRowFlash(flashPaymentRowId === p.id)} ${
+                          zoomPaymentId === p.id
+                            ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
+                            : 'cursor-pointer'
+                        }`}
                       >
-                        <td className={`text-center ${listTableCellClass}`}>
+                        <td className={`text-center ${listTableCellClass}`} onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedPaymentIds.includes(p.id)}
@@ -1412,6 +1391,7 @@ export function PaymentsPage() {
                             <SmartLink
                               to={`/locataires?edit=${encodeURIComponent(p.lease.tenant.id)}`}
                               returnFocusId={p.id}
+                              onClick={(e) => e.stopPropagation()}
                               className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
                             >
                               {p.lease.tenant.firstName} {p.lease.tenant.lastName}
@@ -1422,91 +1402,51 @@ export function PaymentsPage() {
                             </span>
                           )}
                         </td>
-                        <td className={`max-w-[24rem] ${listTableCellClass} text-slate-800 dark:text-slate-200`}>
-                          <BuildingUnitStack
-                            buildingName={p.lease.unit.building.name}
-                            buildingSubline={
-                              <>
-                                {p.lease.unit.building.commune}, {p.lease.unit.building.city}
-                              </>
-                            }
-                            unitKindLabel={unitKindLabel(p.lease.unit.kind)}
-                            unitLabel={p.lease.unit.label}
-                          />
+                        <td
+                          className={`max-w-[14rem] truncate ${listTableCellClass} text-slate-800 dark:text-slate-200`}
+                          title={`${p.lease.unit.building.name} — ${unitKindLabel(p.lease.unit.kind)} ${p.lease.unit.label} · ${p.lease.unit.building.commune}`}
+                        >
+                          <span className="font-medium text-slate-900 dark:text-slate-100">{p.lease.unit.building.name}</span>
+                          <span className="text-slate-400 dark:text-slate-500"> · </span>
+                          <span className="text-xs text-slate-700 dark:text-slate-300">{p.lease.unit.label}</span>
                         </td>
                         <td className={`whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200 ${listTableCellClass}`}>
                           <span className="font-semibold">{fcfa(Number(p.amountDue))}</span>
                           {(p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0 ? (
-                            <span className="mt-1 block text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                              Encaissé {fcfa(Number(p.amountPaid))} · Reste {fcfa(paymentRemaining(p))}
+                            <span className="mt-0.5 block text-[11px] font-medium tabular-nums text-emerald-800 dark:text-emerald-300">
+                              Reste {fcfa(paymentRemaining(p))}
                             </span>
                           ) : null}
                         </td>
                         <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
-                          <p className="text-sm">Échéance {formatDateFr(p.dueDate)}</p>
-                          {p.status === 'PAID' && p.paidAt ? (
-                            <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">Payé le {formatDateFr(p.paidAt)}</p>
-                          ) : null}
+                          <p className="text-xs font-semibold">
+                            {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateFr(p.dueDate)}</p>
                         </td>
                         <td className={listTableCellClass}>
-                          <span
-                            className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(p.status)}`}
-                          >
-                            {statusLabel(p.status)}
-                          </span>
-                        </td>
-                        <td className={`whitespace-nowrap ${listTableCellClass}`}>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{collectionMethodLabel(p.collectionMethod)}</p>
-                          {p.collectionReference ? (
-                            <p className="mt-0.5 max-w-[13rem] truncate text-xs text-slate-500 dark:text-slate-400" title={p.collectionReference}>
-                              {p.collectionReference}
-                            </p>
-                          ) : (
-                            <p className="mt-0.5 text-xs text-slate-400">—</p>
-                          )}
-                        </td>
-                        <td className={`whitespace-nowrap ${listTableCellClass}`}>
-                          {p.leaseId ? <FicheLocationLink leaseId={p.leaseId} returnFocusRowId={p.id} /> : <span className="text-xs text-slate-400">—</span>}
-                        </td>
-                        <td className={`text-right align-top ${listTableCellClass}`}>
-                          <details className="ml-auto inline-block min-w-[8.5rem] max-w-[15rem] rounded-lg border border-slate-200 bg-slate-50/80 text-left dark:border-slate-600 dark:bg-slate-800/50">
-                            <summary className="cursor-pointer list-none px-2.5 py-1.5 text-xs font-medium text-slate-700 marker:hidden [&::-webkit-details-marker]:hidden dark:text-slate-200">
-                              Actions
-                            </summary>
-                            <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-600">
-                              <div className="flex flex-row flex-wrap items-center justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  title="Vue agrandie — détail de l’échéance"
-                                  aria-label={`Agrandir l'échéance de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
-                                  onClick={() => setZoomPaymentId(p.id)}
-                                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-500/40 bg-brand-50/90 px-3 py-2 text-xs font-semibold text-brand-800 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/45"
+                          <div className="flex flex-col items-start gap-1">
+                            <span
+                              className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(p.status)}`}
+                            >
+                              {statusLabel(p.status)}
+                            </span>
+                            {(() => {
+                              const b = collectionCollectBadge(p.collectionTask);
+                              return b ? (
+                                <span
+                                  className={`inline-block max-w-full rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case leading-tight ${b.className}`}
                                 >
-                                  <svg
-                                    className="size-4 shrink-0"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    aria-hidden
-                                  >
-                                    <circle cx="11" cy="11" r="8" />
-                                    <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                  Vue agrandie
-                                </button>
-                                <PaymentLineActions
-                                  p={p}
-                                  zoomed={false}
-                                  stacked
-                                  sendingId={sendingId}
-                                  onSendReminder={sendReminderEmail}
-                                  onOpenPartial={openPartialModal}
-                                  onMarkPaid={markPaid}
-                                />
-                              </div>
-                            </div>
-                          </details>
+                                  {b.label}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        </td>
+                        <td className={`w-10 text-center align-middle ${listTableCellClass} text-neutral-400 dark:text-zinc-500`} aria-hidden>
+                          <svg className="mx-auto size-5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                            <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         </td>
                       </tr>
                     ))}

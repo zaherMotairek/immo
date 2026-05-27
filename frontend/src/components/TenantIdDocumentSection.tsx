@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TenantIdDocumentMeta } from '@/lib/api';
 import {
   deleteTenantIdDocument,
@@ -30,18 +30,18 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
   const [busy, setBusy] = useState(false);
   const [documents, setDocuments] = useState<TenantIdDocumentMeta[]>([]);
 
-  async function loadDocuments() {
+  const loadDocuments = useCallback(async () => {
     try {
       const list = await listTenantIdDocuments(tenantId);
       setDocuments(list.slice().reverse());
     } catch {
       setDocuments(idDocument ? [idDocument] : []);
     }
-  }
+  }, [tenantId, idDocument]);
 
   useEffect(() => {
     void loadDocuments();
-  }, [tenantId]);
+  }, [loadDocuments]);
 
   async function onFile(file: File | undefined) {
     if (!file) return;

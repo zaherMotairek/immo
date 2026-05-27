@@ -1,13 +1,21 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { CreateClientDto } from './dto/create-client.dto';
+import { InviteOrganizationUserDto } from './dto/invite-organization-user.dto';
 import { UpdateOrganizationBillingDto } from './dto/update-organization-billing.dto';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
+  ) {}
 
   /** Liste des organisations (clients) pour le back-office plateforme. */
   async listOrganizations() {
@@ -134,5 +142,61 @@ export class AdminService {
       }
       throw e;
     }
+  }
+
+  /** Invite un utilisateur existant au sens business (nouveau compte USER) dans une organisation cliente. */
+  async inviteOrganizationUser(organizationId: string, dto: InviteOrganizationUserDto) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, name: true },
+    });
+    if (!org) throw new NotFoundException('Organisation introuvable.');
+
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException('Un compte existe déjà avec cet e-mail.');
+    }
+
+    const tempPassword = randomBytes(18).toString('base64url');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    const resetToken = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          name: dto.name?.trim() || null,
+          organizationId,
+          role: 'USER',
+        },
+        select: { id: true, email: true, name: true },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { userId: created.id } });
+      await tx.passwordResetToken.create({
+        data: { userId: created.id, token: resetToken, expiresAt },
+      });
+      return created;
+    });
+
+    const base = (this.config.get<string>('PUBLIC_APP_URL') ?? 'http://localhost:5173').replace(/\/$/, '');
+    const resetUrl = `${base}/reinitialiser-mot-de-passe?token=${encodeURIComponent(resetToken)}`;
+    const mailResult = await this.mail.sendPasswordResetEmail(user.email, resetUrl);
+
+    return {
+      ok: true,
+      organizationId: org.id,
+      organizationName: org.name,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      resetMailSimulated: mailResult.simulated,
+      devResetUrl: process.env.NODE_ENV !== 'production' && mailResult.simulated ? resetUrl : undefined,
+    };
   }
 }

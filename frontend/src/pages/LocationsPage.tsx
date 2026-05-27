@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
@@ -91,7 +92,7 @@ function compareLocationRows(a: OverviewRow, b: OverviewRow, key: LocationSortKe
 const locationSortThBase =
   'min-w-0 whitespace-normal px-2 py-2.5 leading-tight sm:whitespace-nowrap sm:px-4 sm:py-2.5 lg:px-5';
 
-/** Barre de recherche partagée : filtre les cartes et le tableau (même état). */
+/** Barre de recherche de la liste principale des locations. */
 function LocationsSearchField({
   id,
   value,
@@ -120,7 +121,7 @@ function LocationsSearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder="Locataire, bien, unité, ville, statut…"
         className="w-full rounded-xl border-slate-200 py-2.5 !pl-11 pr-10 text-sm shadow-sm dark:border-slate-600"
-        aria-label="Filtrer les locations — cartes et tableau"
+        aria-label="Filtrer la liste des locations"
         autoComplete="off"
       />
       {/* Espace fixe à droite : le bouton reste dans le flux visuel (invisible si vide) pour éviter tout saut de mise en page */}
@@ -141,23 +142,6 @@ function LocationsSearchField({
   );
 }
 
-function LeaseCardIcon({ active }: { active: boolean }) {
-  return (
-    <div
-      className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${
-        active
-          ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300'
-          : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-      }`}
-    >
-      <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
-
 function rowFlashClass(active: boolean) {
   return active
     ? 'ring-2 ring-inset ring-brand-500/90 bg-brand-50/90 shadow-[0_0_0_1px_rgba(59,130,246,0.35)] dark:bg-brand-950/45 dark:ring-brand-400/80'
@@ -166,6 +150,8 @@ function rowFlashClass(active: boolean) {
 
 export function LocationsPage() {
   useRegisterRootSectionFallback();
+  const routerLocation = useLocation();
+  const locationSheetState = useMemo(() => ({ backgroundLocation: routerLocation }), [routerLocation]);
   const [rows, setRows] = useState<OverviewRow[]>([]);
   const [listFetched, setListFetched] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -237,8 +223,8 @@ export function LocationsPage() {
   }
 
   return (
-    <div id="locations-page-root" className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div id="locations-page-root" className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <AppPageTitle
           className="max-w-3xl"
           iconTo="/locations"
@@ -264,7 +250,7 @@ export function LocationsPage() {
       </div>
 
       {rows.length > 0 ? (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label htmlFor="locations-search-main" className="text-xs font-medium text-slate-600 dark:text-slate-400">
             Recherche
           </Label>
@@ -274,103 +260,23 @@ export function LocationsPage() {
             onChange={setListSearchPreserveScroll}
             wrapperClassName="max-w-md"
           />
-          <p className="min-h-[2.75rem] text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-            Filtre les cartes ci-dessous et le tableau : même texte, tri indépendant sur les colonnes du tableau.
+          <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+            Filtre la liste ci-dessous. Tri : cliquez sur les en-têtes de colonnes.
           </p>
         </div>
       ) : null}
 
       {filteredRows.length > 0 ? (
         <>
-          <ul className="grid list-none gap-4 sm:grid-cols-2">
-            {filteredRows.map((r) => (
-              <li key={r.leaseId} className={`scroll-mt-28 ${rowFlashClass(flashLeaseId === r.leaseId)}`}>
-                <div
-                  className={`flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/95 to-slate-100/40 shadow-sm transition hover:border-brand-400/55 hover:shadow-md dark:border-slate-700 dark:from-slate-900/80 dark:to-slate-900/40 dark:hover:border-brand-500/45 ${
-                    !r.active ? 'opacity-75' : ''
-                  }`}
-                >
-                  <div className="flex flex-1 flex-col p-4">
-                    <div className="flex gap-3">
-                      <LeaseCardIcon active={r.active} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              {r.localizationLine}
-                            </p>
-                            <SmartLink
-                              to={hrefBiensUnit(r.buildingId, r.unitId, r.unitLabel, `/locations/${r.leaseId}`)}
-                              returnFocusId={r.leaseId}
-                              className="group mt-1 block text-base font-semibold leading-snug text-slate-900 no-underline hover:text-brand-700 dark:text-slate-100 dark:hover:text-brand-400 sm:text-lg"
-                            >
-                              {r.buildingName} — {r.unitLabel}
-                            </SmartLink>
-                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{unitKindLabel(r.unitKind)}</p>
-                          </div>
-                          <span className={`shrink-0 rounded-lg px-2 py-1 text-xs font-medium ${statusClass(r.currentMonthStatusFr)}`}>
-                            {r.currentMonthStatusFr}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 border-t border-slate-200/60 pt-3 dark:border-slate-700">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Locataire</p>
-                      <SmartLink
-                        to={`/locataires?edit=${encodeURIComponent(r.tenantId)}`}
-                        className="mt-1 block text-lg font-semibold text-slate-900 no-underline hover:text-brand-700 dark:text-slate-100 dark:hover:text-brand-400"
-                      >
-                        {r.tenantFullName}
-                      </SmartLink>
-                      <SmartLink
-                        to={`/locations/${r.leaseId}`}
-                        returnFocusId={r.leaseId}
-                        className="mt-3 block rounded-lg bg-slate-50/90 px-3 py-2 text-sm no-underline transition hover:bg-slate-100/90 dark:bg-slate-800/50 dark:hover:bg-slate-800/80"
-                      >
-                        <p>
-                          <span className="font-medium text-slate-500 dark:text-slate-400">Loyer mensuel :</span>{' '}
-                          <span className="text-base font-bold text-slate-900 dark:text-slate-100">{fcfa(r.monthlyRent)}</span>
-                        </p>
-                        <p className="mt-1 text-slate-600 dark:text-slate-400">
-                          <span className="font-medium text-slate-500 dark:text-slate-400">Jour d’échéance :</span> le {r.rentDueDay}{' '}
-                          de chaque mois
-                        </p>
-                      </SmartLink>
-                    </div>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200/60 bg-slate-100/40 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50">
-                    <SmartLink
-                      to={`/locations/${r.leaseId}`}
-                      returnFocusId={r.leaseId}
-                      className="text-xs font-medium text-brand-600 transition hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300"
-                    >
-                      Ouvrir la fiche
-                      <span className="inline-block transition hover:translate-x-0.5" aria-hidden>
-                        →
-                      </span>
-                    </SmartLink>
-                    <button
-                      type="button"
-                      className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/50"
-                      onClick={() => void requestDeleteLocation(r)}
-                    >
-                      Supprimer…
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-
           <Card className="!overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
             <div className="border-b border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/80 sm:px-5">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Vue tableau (aperçu)</h2>
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Liste des locations</h2>
                     <p className="mt-0.5 min-h-[2.5rem] text-xs leading-snug text-slate-600 dark:text-slate-400">
-                      Même filtre que la barre du haut : saisissez aussi ici si vous êtes en bas de page. Tri : cliquez sur les
-                      en-têtes (↑ croissant, ↓ décroissant, reclic pour inverser).
+                      Vue unique en tableau, plus dense et professionnelle. Tri : cliquez sur les en-têtes
+                      (↑ croissant, ↓ décroissant, reclic pour inverser).
                     </p>
                     <p className="mt-2 min-h-[1.25rem] text-xs font-medium tabular-nums text-slate-700 dark:text-slate-300">
                       <span className="inline-block min-w-[8rem]">
@@ -385,11 +291,11 @@ export function LocationsPage() {
                       ) : null}
                     </p>
                   </div>
-                  <HelpHint title="Cette vue dense convient aux longues listes ; les cartes restent utiles pour un aperçu visuel rapide. Recherche et tri s’appliquent à la même liste filtrée." />
+                  <HelpHint title="Recherche et tri s’appliquent à toute la liste affichée." />
                 </div>
                 <div className="max-w-lg space-y-1.5">
                   <Label htmlFor="locations-search-table" className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                    Recherche (identique au champ du haut)
+                    Recherche (même filtre)
                   </Label>
                   <LocationsSearchField
                     id="locations-search-table"
@@ -522,6 +428,7 @@ export function LocationsPage() {
                         <div className="flex flex-col items-end gap-1 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-1.5">
                           <SmartLink
                             to={`/locations/${r.leaseId}`}
+                            state={locationSheetState}
                             returnFocusId={r.leaseId}
                             className="inline-block rounded-md px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
                           >

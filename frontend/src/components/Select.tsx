@@ -63,14 +63,43 @@ function collectOptions(children: ReactNode): Collected[] {
   return out;
 }
 
-export const Select = forwardRef<HTMLButtonElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(
-  props,
-  ref,
-) {
-  const {
-    className = '',
+type SelectCustomDropdownProps = {
+  options: Collected[];
+  strValue: string;
+  className: string;
+  children: ReactNode;
+  onChange?: SelectHTMLAttributes<HTMLSelectElement>['onChange'];
+  disabled?: boolean;
+  required?: boolean;
+  id?: string;
+  name?: string;
+  autoFocus?: boolean;
+  form?: string;
+  ariaInvalid?: SelectHTMLAttributes<HTMLSelectElement>['aria-invalid'];
+  /** Attributs restants pour le `<select>` sr-only (sans ceux déjà passés explicitement). */
+  selectRest: Omit<
+    SelectHTMLAttributes<HTMLSelectElement>,
+    | 'className'
+    | 'children'
+    | 'value'
+    | 'onChange'
+    | 'required'
+    | 'disabled'
+    | 'form'
+    | 'name'
+    | 'autoFocus'
+    | 'id'
+    | 'aria-invalid'
+  >;
+};
+
+/** Liste déroulante custom : hooks isolés (règles des hooks React). */
+const SelectCustomDropdown = forwardRef<HTMLButtonElement, SelectCustomDropdownProps>(function SelectCustomDropdown(
+  {
+    options,
+    strValue,
+    className,
     children,
-    value,
     onChange,
     disabled,
     required,
@@ -78,23 +107,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectHTMLAttributes<HTMLSel
     name,
     autoFocus,
     form,
-    multiple,
-    'aria-invalid': ariaInvalid,
-    ...rest
-  } = props;
-
-  const options = useMemo(() => collectOptions(children), [children]);
-
-  if (multiple) {
-    return <select className={`${selectNativeFallbackClass} ${className}`} {...props} />;
-  }
-
-  if (options.length === 0) {
-    return <select className={`${selectNativeFallbackClass} ${className}`} {...props} />;
-  }
-
-  const strValue = value === undefined || value === null ? '' : String(value);
-
+    ariaInvalid,
+    selectRest,
+  },
+  ref,
+) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -225,7 +242,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectHTMLAttributes<HTMLSel
         className="sr-only"
         tabIndex={-1}
         aria-hidden
-        {...rest}
+        {...selectRest}
       >
         {children}
       </select>
@@ -285,45 +302,46 @@ export const Select = forwardRef<HTMLButtonElement, SelectHTMLAttributes<HTMLSel
                   ref={listRef}
                   id={listId}
                   role="listbox"
-                  className="max-h-[min(18rem,50vh)] overflow-y-auto overscroll-contain py-1.5"
+                  className="overflow-y-auto overscroll-contain py-1.5"
+                  style={{ maxHeight: panelBox.maxHeight ? `${panelBox.maxHeight}px` : 'min(18rem, 50vh)' }}
                 >
-                {options.map((opt, idx) => {
-                  const selected = opt.value === strValue;
-                  const highlighted = idx === activeIdx;
-                  return (
-                    <li
-                      key={`${opt.value}-${idx}`}
-                      ref={(el) => {
-                        rowRefs.current[idx] = el;
-                      }}
-                      role="option"
-                      aria-selected={selected}
-                      id={id ? `${id}-opt-${idx}` : undefined}
-                      className={`relative mx-1.5 cursor-pointer rounded-xl px-3 py-2.5 text-left text-sm transition-colors duration-100 ${
-                        opt.disabled
-                          ? 'cursor-not-allowed opacity-50'
-                          : highlighted
-                            ? 'bg-brand-600 text-white shadow-md ring-1 ring-brand-700/20 dark:bg-brand-500 dark:ring-white/10'
-                            : selected
-                              ? 'bg-brand-50/95 font-semibold text-brand-900 dark:bg-brand-950/55 dark:text-brand-100'
-                              : 'text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/90'
-                      } ${!highlighted && !selected && !opt.disabled ? 'border border-transparent' : ''}`}
-                      onMouseEnter={() => !opt.disabled && setActiveIdx(idx)}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        if (!opt.disabled) pick(opt.value);
-                      }}
-                    >
-                      {!highlighted && selected && !opt.disabled ? (
-                        <span
-                          className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r bg-brand-500 dark:bg-brand-400"
-                          aria-hidden
-                        />
-                      ) : null}
-                      <span className={`block pl-0.5 leading-snug ${highlighted ? 'text-white' : ''}`}>{opt.label}</span>
-                    </li>
-                  );
-                })}
+                  {options.map((opt, idx) => {
+                    const selected = opt.value === strValue;
+                    const highlighted = idx === activeIdx;
+                    return (
+                      <li
+                        key={`${opt.value}-${idx}`}
+                        ref={(el) => {
+                          rowRefs.current[idx] = el;
+                        }}
+                        role="option"
+                        aria-selected={selected}
+                        id={id ? `${id}-opt-${idx}` : undefined}
+                        className={`relative mx-1.5 cursor-pointer rounded-xl px-3 py-2.5 text-left text-sm transition-colors duration-100 ${
+                          opt.disabled
+                            ? 'cursor-not-allowed opacity-50'
+                            : highlighted
+                              ? 'bg-brand-600 text-white shadow-md ring-1 ring-brand-700/20 dark:bg-brand-500 dark:ring-white/10'
+                              : selected
+                                ? 'bg-brand-50/95 font-semibold text-brand-900 dark:bg-brand-950/55 dark:text-brand-100'
+                                : 'text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/90'
+                        } ${!highlighted && !selected && !opt.disabled ? 'border border-transparent' : ''}`}
+                        onMouseEnter={() => !opt.disabled && setActiveIdx(idx)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          if (!opt.disabled) pick(opt.value);
+                        }}
+                      >
+                        {!highlighted && selected && !opt.disabled ? (
+                          <span
+                            className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r bg-brand-500 dark:bg-brand-400"
+                            aria-hidden
+                          />
+                        ) : null}
+                        <span className={`block pl-0.5 leading-snug ${highlighted ? 'text-white' : ''}`}>{opt.label}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>,
@@ -331,5 +349,54 @@ export const Select = forwardRef<HTMLButtonElement, SelectHTMLAttributes<HTMLSel
           )
         : null}
     </div>
+  );
+});
+
+export const Select = forwardRef<HTMLButtonElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(props, ref) {
+  const {
+    className = '',
+    children,
+    value,
+    onChange,
+    disabled,
+    required,
+    id,
+    name,
+    autoFocus,
+    form,
+    multiple,
+    'aria-invalid': ariaInvalid,
+    ...rest
+  } = props;
+
+  const options = useMemo(() => collectOptions(children), [children]);
+
+  if (multiple) {
+    return <select className={`${selectNativeFallbackClass} ${className}`} {...props} />;
+  }
+
+  if (options.length === 0) {
+    return <select className={`${selectNativeFallbackClass} ${className}`} {...props} />;
+  }
+
+  const strValue = value === undefined || value === null ? '' : String(value);
+
+  return (
+    <SelectCustomDropdown
+      ref={ref}
+      options={options}
+      strValue={strValue}
+      className={className}
+      children={children}
+      onChange={onChange}
+      disabled={disabled}
+      required={required}
+      id={id}
+      name={name}
+      autoFocus={autoFocus}
+      form={form}
+      ariaInvalid={ariaInvalid}
+      selectRest={rest}
+    />
   );
 });

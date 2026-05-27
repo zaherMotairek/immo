@@ -1,24 +1,37 @@
 @import 'tailwindcss';
+@import './theme/odoo.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Tokens « Odoo-like » : noir élégant, zone de contenu claire, accents neutres */
 @theme {
-  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  /* Bleu légèrement plus sobre (contraste doux sur blanc) */
-  --color-brand-500: #3285f8;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  /* Fond app : gris-bleu plus marqué pour mieux séparer du blanc des cartes */
-  --color-app-bg: #dfe6ef;
-  --color-app-bg-deep: #cfd8e6;
-  --color-surface: #eef2f7;
-  --color-ink: #0c1222;
-  --color-muted: #475569;
-  /* Rayons cohérents (cartes, champs) */
-  --radius-card: 1.125rem;
-  --radius-input: 0.875rem;
+  --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #fafafa;
+  --color-brand-100: #f4f4f5;
+  --color-brand-200: #e4e4e7;
+  --color-brand-300: #d4d4d8;
+  --color-brand-400: #a1a1aa;
+  --color-brand-500: #71717a;
+  --color-brand-600: #18181b;
+  --color-brand-700: #09090b;
+  --color-brand-800: #050505;
+  --color-brand-900: #000000;
+  --color-brand-950: #000000;
+  --color-odoo-teal: #27272a;
+  --color-odoo-teal-light: #f4f4f5;
+  --color-app-bg: #f4f4f5;
+  --color-app-bg-deep: #ececee;
+  --color-surface: #ffffff;
+  --color-ink: #0a0a0a;
+  --color-muted: #52525b;
+  --odoo-border: #d4d4d8;
+  --odoo-border-subtle: #e4e4e7;
+  --odoo-sidebar-top: #121212;
+  --odoo-sidebar-bottom: #050505;
+  --odoo-table-head-bg: #f8f9fa;
+  --odoo-row-hover: #f5f5f5;
+  --radius-card: 0.25rem;
+  --radius-input: 0.25rem;
 }
 
 html {
@@ -39,15 +52,16 @@ html.dark {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Fond type Odoo : gris neutre plat (chargement + body) */
+body,
+.app-mesh-fullscreen {
+  background-color: var(--color-app-bg);
+  background-image: linear-gradient(180deg, var(--color-app-bg) 0%, var(--color-app-bg-deep) 100%);
+  background-attachment: fixed;
+}
+
 body {
   font-family: var(--font-sans);
-  background-color: var(--color-app-bg-deep);
-  /* Dégradés plus légers : moins de « bruit », meilleure lisibilité des cartes blanches */
-  background-image:
-    radial-gradient(95% 55% at 100% 0%, rgb(203 213 225 / 0.22) 0%, transparent 52%),
-    radial-gradient(80% 45% at 0% 100%, rgb(148 163 184 / 0.12) 0%, transparent 48%),
-    linear-gradient(168deg, var(--color-surface) 0%, var(--color-app-bg) 42%, var(--color-app-bg-deep) 100%);
-  background-attachment: fixed;
   color: var(--color-ink);
   min-height: 100dvh;
   line-height: 1.55;
@@ -55,21 +69,36 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html.dark {
+  --color-app-bg: #1a1a1c;
+  --color-app-bg-deep: #121214;
+  --color-surface: #242427;
+  --color-ink: #f4f4f5;
+  --color-muted: #d4d4d8;
+  --odoo-border: #52525b;
+  --odoo-border-subtle: #4b4b55;
+  --odoo-table-head-bg: #2d2d30;
+  --odoo-row-hover: #2a2a2e;
+  --odoo-sidebar-top: #0a0a0a;
+  --odoo-sidebar-bottom: #000000;
+}
+
+html.dark body,
+html.dark .app-mesh-fullscreen {
+  background-color: var(--color-app-bg);
+  background-image: linear-gradient(180deg, var(--color-app-bg) 0%, var(--color-app-bg-deep) 100%);
+}
+
 html.dark body {
-  background-color: #0b0c0f;
-  background-image:
-    radial-gradient(90% 50% at 100% 0%, rgb(51 65 85 / 0.35) 0%, transparent 45%),
-    linear-gradient(168deg, #12141a 0%, #0b0c0f 55%, #07080b 100%);
-  /* Texte principal un peu plus clair (lisibilité sur fond sombre) */
-  color: #f0f1f5;
+  color: #f4f4f5;
 }
 
 ::selection {
-  background-color: rgb(37 99 235 / 0.22);
+  background-color: rgb(24 24 27 / 0.22);
 }
 
 html.dark ::selection {
-  background-color: rgb(56 189 248 / 0.25);
+  background-color: rgb(255 255 255 / 0.18);
 }
 
 /* Page Locations : le filtre change la hauteur du document ; évite les sauts de scroll automatiques */
@@ -84,13 +113,24 @@ main a:focus-visible {
   border-radius: 0.125rem;
 }
 
+/* Panneau détail paiement : respect du mouvement réduit */
+@media (prefers-reduced-motion: reduce) {
+  .payment-detail-sheet {
+    transition-duration: 0.01ms !important;
+    transform: translate3d(0, 0, 0) !important;
+  }
+  .payment-detail-backdrop {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Mobile compact mode: densifier l'information sans toucher la logique métier. */
 @media (max-width: 640px) {
   main {
     font-size: 0.95rem;
   }
   main table {
-    font-size: 0.82rem;
+    font-size: 0.9rem;
   }
   main h1 {
     line-height: 1.15;
