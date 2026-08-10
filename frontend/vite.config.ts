@@ -14,7 +14,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.svg', 'sync-kiz.png'],
+      includeAssets: ['favicon.svg'],
       /**
        * Manifeste servi depuis `public/manifest.webmanifest` (dev + build) pour éviter une réponse HTML
        * (fallback SPA / SW) que le navigateur interprète comme JSON invalide.

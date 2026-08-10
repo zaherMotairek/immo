@@ -63,6 +63,60 @@ export function OdooFieldRow({
   );
 }
 
+export type OdooTabItem = {
+  id: string;
+  label: string;
+  count?: number;
+  disabled?: boolean;
+};
+
+export type OdooTabVariant = 'underline' | 'chip';
+
+export function OdooTabBar({
+  tabs,
+  activeId,
+  onChange,
+  right,
+  className = '',
+  variant = 'underline',
+  ariaLabel,
+}: {
+  tabs: OdooTabItem[];
+  activeId: string;
+  onChange: (id: string) => void;
+  right?: ReactNode;
+  className?: string;
+  variant?: OdooTabVariant;
+  ariaLabel?: string;
+}) {
+  if (!tabs.length) return null;
+
+  return (
+    <div className={`odoo-tab-bar odoo-tab-bar--${variant} ${className}`} role="tablist" aria-label={ariaLabel}>
+      <div className="odoo-tab-bar__scroll">
+        {tabs.map((t) => {
+          const isActive = t.id === activeId;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              disabled={t.disabled}
+              onClick={() => onChange(t.id)}
+              className={`odoo-tab odoo-tab--${variant} ${isActive ? 'odoo-tab--active' : ''}`}
+            >
+              <span>{t.label}</span>
+              {t.count !== undefined ? <span className="odoo-tab__count">{t.count}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {right ? <div className="odoo-tab-bar__right">{right}</div> : null}
+    </div>
+  );
+}
+
 export type OdooNotebookTab = { id: string; label: string; content: ReactNode };
 
 export function OdooNotebook({
@@ -98,28 +152,15 @@ export function OdooNotebook({
   if (!tabs.length) return null;
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] dark:border-zinc-600 dark:bg-zinc-900">
-      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-800/60">
-        {tabs.map((t) => {
-          const isActive = t.id === active;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => selectTab(t.id)}
-              className={`rounded-[var(--radius-input)] px-3 py-1.5 text-xs font-semibold transition ${
-                isActive
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-[var(--color-ink)] hover:bg-white/60 dark:text-zinc-100 dark:hover:bg-zinc-700/60'
-              }`}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-        <div className="ml-auto">{right}</div>
-      </div>
-      <div className="p-3">{activeTab?.content}</div>
+    <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] dark:border-zinc-600 dark:bg-zinc-900">
+      <OdooTabBar
+        tabs={tabs.map((t) => ({ id: t.id, label: t.label }))}
+        activeId={active}
+        onChange={selectTab}
+        right={right}
+        ariaLabel="Sections"
+      />
+      <div className="odoo-notebook-content p-4 sm:p-5">{activeTab?.content}</div>
     </div>
   );
 }
@@ -177,7 +218,7 @@ export type OdooViewMode = 'list' | 'kanban';
 
 export function OdooViewToggle({ value, onChange }: { value: OdooViewMode; onChange: (v: OdooViewMode) => void }) {
   return (
-    <div className="inline-flex rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] p-0.5 dark:border-zinc-600 dark:bg-zinc-800/60" role="group" aria-label="Mode d'affichage">
+    <div className="odoo-segmented" role="group" aria-label="Mode d'affichage">
       {(
         [
           { id: 'list' as const, label: 'Liste' },
@@ -189,11 +230,7 @@ export function OdooViewToggle({ value, onChange }: { value: OdooViewMode; onCha
           type="button"
           onClick={() => onChange(id)}
           aria-pressed={value === id}
-          className={`rounded-[var(--radius-input)] px-2.5 py-1 text-xs font-semibold transition ${
-            value === id
-              ? 'bg-brand-600 text-white shadow-sm'
-              : 'text-[var(--color-ink)] hover:bg-white/70 dark:text-zinc-100 dark:hover:bg-zinc-700/60'
-          }`}
+          className={`odoo-segmented__btn ${value === id ? 'odoo-segmented__btn--active' : ''}`}
         >
           {label}
         </button>

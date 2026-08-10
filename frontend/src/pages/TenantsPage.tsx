@@ -7,15 +7,17 @@ import { BuildingUnitStack } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
+import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
 import {
   listTableCellClass,
   listTableDataRowClass,
   listTableEditingFirstCellClass,
   listTableFirstCellClass,
   listTableRowEditingClass,
+  listTableRowOpenableClass,
+  onListRowDoubleClick,
 } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
@@ -368,21 +370,22 @@ export function TenantsPage() {
           </button>
         </p>
       ) : null}
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <AppPageTitle
-          className="max-w-3xl"
-          iconTo="/locataires"
-          title="Locataires"
-          hintTitle="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
-          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
-        />
-        <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
-          <span className="text-base leading-none" aria-hidden>
-            +
-          </span>
-          Ajouter un locataire
-        </Button>
-      </div>
+      <AppPageTitle
+        iconTo="/locataires"
+        title="Locataires"
+        hintTitle="Création et modification des coordonnées. Les baux lient un locataire à une unité depuis la page Baux."
+        actions={
+          <>
+            <PageHeaderKpi label="Total" value={String(rows.length)} />
+            <Button type="button" variant="secondary" className="gap-1.5 py-2 text-sm font-semibold" onClick={() => openAddTenantForm()}>
+              <span className="text-base leading-none" aria-hidden>
+                +
+              </span>
+              Ajouter un locataire
+            </Button>
+          </>
+        }
+      />
 
       <OdooActionBar
         left={
@@ -538,7 +541,7 @@ export function TenantsPage() {
 
         {rows.length > 0 && viewMode === 'list' ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
                 <SortableTh
@@ -561,17 +564,9 @@ export function TenantsPage() {
                   activeKey={tenantSortKey}
                   dir={tenantSortDir}
                   onSort={toggleTenantSort}
-                  thClassName="min-w-[12rem] whitespace-nowrap px-4 py-2.5 sm:px-5"
+                  thClassName="min-w-[10rem] whitespace-nowrap px-3 py-2 sm:px-3.5"
                 />
-                <SortableTh
-                  label="Fiche location"
-                  columnKey="lease"
-                  activeKey={tenantSortKey}
-                  dir={tenantSortDir}
-                  onSort={toggleTenantSort}
-                  thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
-                />
-                <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-right sm:px-5"> </th>
+                <th className="w-[1%] whitespace-nowrap px-3 py-2 text-right sm:px-3.5">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -585,8 +580,8 @@ export function TenantsPage() {
                       id={`tenant-row-${t.id}`}
                       className={`scroll-mt-28 ${listTableRowEditingClass} ${tenantRowFlash(flashTenantId === t.id)}`}
                     >
-                      <td colSpan={5} className={listTableEditingFirstCellClass}>
-                        <div className="space-y-3 rounded-xl border border-brand-200/90 bg-white/90 p-4 shadow-sm dark:border-brand-700/40 dark:bg-slate-900/80">
+                      <td colSpan={4} className={listTableEditingFirstCellClass}>
+                        <div className="space-y-3 rounded-lg border border-slate-200 bg-white/90 p-3 dark:border-slate-600 dark:bg-slate-900/80">
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div>
@@ -627,16 +622,16 @@ export function TenantsPage() {
                             <SmartLink
                               to={`/activite-loyers?scope=tenant&tenantId=${encodeURIComponent(t.id)}&year=${new Date().getFullYear()}`}
                               returnFocusId={t.id}
-                              className="text-xs font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                              className="text-xs font-medium text-slate-600 underline-offset-2 hover:underline dark:text-slate-300"
                             >
-                              Activité loyers sur l’année →
+                              Activité loyers sur l’année
                             </SmartLink>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Button type="button" className="py-2 text-xs" onClick={() => saveEdit(t.id)}>
+                            <Button type="button" className="py-1.5 text-xs" onClick={() => saveEdit(t.id)}>
                               Enregistrer
                             </Button>
-                            <Button type="button" variant="secondary" className="py-2 text-xs" onClick={cancelEdit}>
+                            <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={cancelEdit}>
                               Annuler
                             </Button>
                           </div>
@@ -649,37 +644,37 @@ export function TenantsPage() {
                   <tr
                     key={t.id}
                     id={`tenant-row-${t.id}`}
-                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${tenantRowFlash(flashTenantId === t.id)}`}
+                    title="Double-clic pour modifier"
+                    onDoubleClick={(e) => onListRowDoubleClick(e, () => beginEdit(t))}
+                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${tenantRowFlash(flashTenantId === t.id)}`}
                   >
                     <td className={listTableFirstCellClass}>
-                      <div className="flex items-start gap-3">
-                        <div className="min-w-0">
-                          <SmartLink
-                            to={`/locataires?edit=${encodeURIComponent(t.id)}`}
-                            returnFocusId={t.id}
-                            className="font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                      <div className="min-w-0">
+                        <SmartLink
+                          to={`/locataires?edit=${encodeURIComponent(t.id)}`}
+                          returnFocusId={t.id}
+                          className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                        >
+                          {t.firstName} {t.lastName}
+                        </SmartLink>
+                        {t.idDocFileKey ? (
+                          <button
+                            type="button"
+                            className="mt-0.5 block text-left text-[11px] text-slate-500 hover:underline dark:text-slate-400"
+                            onClick={() => openTenantIdDocumentPreview(t.id)}
                           >
-                            {t.firstName} {t.lastName}
-                          </SmartLink>
-                          {t.idDocFileKey ? (
-                            <button
-                              type="button"
-                              className="mt-1 text-left text-xs font-medium text-brand-700 hover:underline dark:text-brand-400"
-                              onClick={() => openTenantIdDocumentPreview(t.id)}
-                            >
-                              Pièce d’identité
-                            </button>
-                          ) : null}
-                        </div>
+                            Pièce d’identité
+                          </button>
+                        ) : null}
                       </div>
                     </td>
-                    <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
-                      <div className="max-w-[14rem] space-y-1">
-                        <p className="tabular-nums">
+                    <td className={`${listTableCellClass} text-slate-600 dark:text-slate-300`}>
+                      <div className="max-w-[12rem] space-y-0.5">
+                        <p className="tabular-nums text-sm">
                           {t.phone?.trim() ? (
                             <a
                               href={`tel:${t.phone.replace(/\s/g, '')}`}
-                              className="text-brand-800 hover:underline dark:text-brand-400"
+                              className="hover:underline"
                             >
                               {t.phone}
                             </a>
@@ -687,54 +682,56 @@ export function TenantsPage() {
                             <span className="text-slate-400">—</span>
                           )}
                         </p>
-                        <p className="break-all text-xs leading-snug">
-                          {t.email?.trim() ? (
-                            <a href={`mailto:${t.email}`} className="text-brand-800 hover:underline dark:text-brand-400">
+                        {t.email?.trim() ? (
+                          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                            <a href={`mailto:${t.email}`} className="hover:underline">
                               {t.email}
                             </a>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </p>
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                     <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
                       {l ? (
-                        <div className="max-w-md">
-                          <BuildingUnitStack
-                            buildingName={
-                              <SmartLink
-                                to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/locataires')}`}
-                                returnFocusId={t.id}
-                                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
-                              >
-                                {l.unit.building.name}
-                              </SmartLink>
-                            }
-                            buildingSubline={
-                              <>
-                                {l.unit.building.commune}, {l.unit.building.city}
-                              </>
-                            }
-                            unitKindLabel={unitKindLabel(l.unit.kind)}
-                            unitLabel={l.unit.label}
-                          />
-                        </div>
+                        <BuildingUnitStack
+                          buildingName={
+                            <SmartLink
+                              to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/locataires')}`}
+                              returnFocusId={t.id}
+                              className="underline-offset-2 hover:underline"
+                            >
+                              {l.unit.building.name}
+                            </SmartLink>
+                          }
+                          buildingSubline={
+                            <>
+                              {l.unit.building.commune}, {l.unit.building.city}
+                            </>
+                          }
+                          unitKindLabel={unitKindLabel(l.unit.kind)}
+                          unitLabel={l.unit.label}
+                        />
                       ) : (
                         <span className="text-slate-400">Sans bail actif</span>
                       )}
                     </td>
-                    <td className={`whitespace-nowrap ${listTableCellClass}`}>
-                      {l ? <FicheLocationLink leaseId={l.id} returnFocusRowId={t.id} /> : <span className="text-xs text-slate-400">—</span>}
-                    </td>
                     <td className={`whitespace-nowrap text-right ${listTableCellClass}`}>
-                      <div className="inline-flex flex-col items-end gap-1.5 sm:flex-row sm:items-center">
-                        <Button variant="secondary" className="py-1.5 text-xs" onClick={() => beginEdit(t)}>
+                      <div className="inline-flex items-center gap-2.5">
+                        {l ? <FicheLocationLink leaseId={l.id} returnFocusRowId={t.id} /> : null}
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-300 dark:hover:text-slate-100"
+                          onClick={() => beginEdit(t)}
+                        >
                           Modifier
-                        </Button>
-                        <Button variant="danger" className="py-1.5 text-xs" onClick={() => remove(t.id)}>
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-red-600/90 hover:underline dark:text-red-400"
+                          onClick={() => remove(t.id)}
+                        >
                           Supprimer
-                        </Button>
+                        </button>
                       </div>
                     </td>
                   </tr>

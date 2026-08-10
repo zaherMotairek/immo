@@ -6,6 +6,7 @@ import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { GlobalSearchBar } from './GlobalSearchBar';
 import { SidebarNavIcon } from './SidebarNavIcons';
 import { ThemeToggle } from './ThemeToggle';
+import { InstallAppButton } from './InstallAppButton';
 import { Button } from './ui';
 
 type NavItem = { to: string; label: string; end?: boolean };
@@ -279,6 +280,7 @@ export function Layout() {
           <p className="truncate px-1 text-[11px] text-slate-400" title={user?.email ?? undefined}>
             {user?.email}
           </p>
+          <InstallAppButton variant="sidebar" className="mt-2" />
           <Button
             variant="ghost"
             className="mt-2 w-full justify-start rounded-xl border border-slate-700/90 px-3 py-2.5 text-[13px] font-medium text-slate-200 hover:bg-white/[0.06] hover:text-white"
@@ -363,7 +365,8 @@ export function Layout() {
                 <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
               </svg>
             </button>
-            <span className="min-w-0 truncate text-sm font-semibold text-white">ImmoPilot</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">ImmoPilot</span>
+            <InstallAppButton variant="compact" className="shrink-0" />
           </div>
         ) : null}
         <div className="odoo-chrome-bar sticky top-0 z-30 max-lg:static max-lg:z-auto px-3 pb-3 pt-3 print:hidden sm:px-6 sm:pb-3.5 sm:pt-3.5 lg:px-6 xl:px-8">

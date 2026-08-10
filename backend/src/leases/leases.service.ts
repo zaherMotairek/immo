@@ -23,7 +23,9 @@ import {
   drawScheduleTable,
   drawSectionHeading,
   drawTopBanner,
+  formatDatePdfFr,
   formatFcfaPdf,
+  pdfSafeText,
 } from '../common/immo-pdf';
 
 function leaseBelongsToOrg(organizationId: string) {
@@ -31,7 +33,7 @@ function leaseBelongsToOrg(organizationId: string) {
 }
 
 function paymentStatusFr(s: PaymentStatus | undefined): string {
-  if (!s) return '—';
+  if (!s) return '-';
   switch (s) {
     case PaymentStatus.PAID:
       return 'Payé';
@@ -61,10 +63,7 @@ function unitKindFr(kind: string): string {
 }
 
 function fmtDateFr(d: unknown): string {
-  if (d == null) return '—';
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  const s = String(d);
-  return s.length >= 10 ? s.slice(0, 10) : s;
+  return formatDatePdfFr(d as Date | string | null | undefined);
 }
 
 @Injectable()
@@ -912,7 +911,7 @@ export class LeasesService {
       margin,
       contentW,
       'Dates de prise d’effet et de fin du bail',
-      `${fmtDateFr(f.startDate)}  →  ${f.endDate ? fmtDateFr(f.endDate) : 'Sans date de fin (tacite reconduction possible selon contrat)'}`,
+      `${fmtDateFr(f.startDate)} - ${f.endDate ? fmtDateFr(f.endDate) : 'Sans date de fin (tacite reconduction possible selon contrat)'}`,
     );
     drawField(doc, margin, contentW, 'État du bail', f.active ? 'Actif' : 'Inactif');
     if (f.financial.depositAmount != null && f.financial.depositAmount > 0) {

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Card } from '@/components/ui';
+import { OdooTabBar } from '@/components/OdooKit';
 import { CautionsEncaisséesPage } from './CautionsEncaisséesPage';
 import { ChargesPage } from './ChargesPage';
 
@@ -26,29 +26,19 @@ export function CautionsChargesPage() {
   }
 
   return (
-    <section className="space-y-4">
-      <Card className="!p-3 sm:!p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={activeTab === 'cautions' ? 'primary' : 'secondary'}
-            className="py-1.5 text-xs"
-            onClick={() => selectTab('cautions')}
-          >
-            Cautions
-          </Button>
-          <Button
-            type="button"
-            variant={activeTab === 'charges' ? 'primary' : 'secondary'}
-            className="py-1.5 text-xs"
-            onClick={() => selectTab('charges')}
-          >
-            Charges
-          </Button>
-        </div>
-      </Card>
-
-      {activeTab === 'cautions' ? <CautionsEncaisséesPage /> : <ChargesPage />}
+    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] dark:border-zinc-600 dark:bg-zinc-900">
+      <OdooTabBar
+        tabs={[
+          { id: 'cautions', label: 'Cautions encaissées' },
+          { id: 'charges', label: 'Charges & impôts' },
+        ]}
+        activeId={activeTab}
+        onChange={(id) => selectTab(id as FinanceTab)}
+        ariaLabel="Cautions et charges"
+      />
+      <div className="odoo-notebook-content p-3 sm:p-4">
+        {activeTab === 'cautions' ? <CautionsEncaisséesPage embedded /> : <ChargesPage embedded />}
+      </div>
     </section>
   );
 }

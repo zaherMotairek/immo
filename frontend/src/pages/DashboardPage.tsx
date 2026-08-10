@@ -20,7 +20,7 @@ import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { Button, Card, HelpHint } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
-import { listBlockRowClass, listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { listBlockRowClass, listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -288,104 +288,152 @@ export function DashboardPage() {
   const remainingVsExpected = Math.max(0, kpis.expectedMonthlyRent - kpis.collectedThisMonth);
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page space-y-5">
       <AppPageTitle
-        className="max-w-3xl"
         iconTo="/"
         title="Tableau de bord"
         hintTitle="Vue d’ensemble : encaissements du mois, retards, alertes, accès rapide aux paiements. Les KPIs reflètent le mois civil en cours."
+        subtitle="Synthèse de votre parc locatif et des encaissements du mois en cours."
       />
 
       {!isEmptyPortfolio ? (
-        <Card className="overflow-hidden border-slate-200/70 bg-gradient-to-br from-white/95 via-slate-50/50 to-slate-100/25 shadow-[0_12px_40px_-16px_rgb(15_23_42/0.12)] dark:border-slate-600/60 dark:from-slate-900/95 dark:via-slate-900 dark:to-zinc-950/90 dark:shadow-black/25">
-          <div className="flex flex-col gap-4 border-b border-slate-200/80 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-slate-700/80">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Synthèse · Mois en cours</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{monthLabelCap}</p>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{rangeLabel}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <PdfPrintButton
-                path="/dashboard/worksheet.pdf"
-                title="Feuille de route PDF : cases « perçu », notes manuscrites, puis saisie dans Paiements"
-              />
+        <section className="dashboard-finance overflow-hidden rounded-xl border border-slate-200/90 bg-[var(--color-surface)] shadow-[0_10px_36px_-18px_rgb(15_23_42/0.18)] dark:border-[var(--odoo-border)] dark:shadow-black/25">
+          <div className="dashboard-finance__hero relative overflow-hidden px-4 py-5 text-zinc-50 sm:px-6 sm:py-6">
+            <div className="dashboard-finance__hero-grid" aria-hidden />
+            <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Synthèse · mois en cours</p>
+                <p className="mt-1.5 text-3xl font-bold tracking-tight sm:text-[2rem]">{monthLabelCap}</p>
+                <p className="mt-1 text-sm text-zinc-400">{rangeLabel}</p>
+                {pctOfExpected !== null ? (
+                  <div className="mt-4 max-w-sm">
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-xs">
+                      <span className="font-medium text-zinc-300">Couverture des loyers</span>
+                      <span className="tabular-nums font-semibold text-amber-300">{pctOfExpected}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="dashboard-finance__bar h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300"
+                        style={{ width: `${Math.min(100, Math.max(0, pctOfExpected))}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="relative z-10 shrink-0">
+                <PdfPrintButton
+                  path="/dashboard/worksheet.pdf"
+                  title="Feuille de route PDF : cases « perçu », notes manuscrites, puis saisie dans Paiements"
+                />
+              </div>
             </div>
           </div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4 sm:p-5">
-            <Card className="!p-4 border-emerald-200/70 bg-emerald-50/45 dark:border-emerald-900/45 dark:bg-emerald-950/25">
+
+          <div className="grid gap-px bg-slate-200/80 sm:grid-cols-2 xl:grid-cols-4 dark:bg-zinc-700/50">
+            <div className="dashboard-kpi dashboard-kpi--ok bg-[var(--color-surface)] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900/85 dark:text-emerald-300/95">Encaissé (loyers)</p>
-                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-emerald-950 dark:text-emerald-50">{fcfa(kpis.collectedThisMonth)}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                    Encaissé (loyers)
+                  </p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-zinc-50">
+                    {fcfa(kpis.collectedThisMonth)}
+                  </p>
                   {pctOfExpected !== null ? (
-                    <p className="mt-1 text-xs font-medium text-emerald-800/90 dark:text-emerald-400/95">{pctOfExpected}% de l’attendu</p>
+                    <p className="mt-1.5 text-xs font-medium text-emerald-700/90 dark:text-emerald-400/90">
+                      {pctOfExpected}% de l’attendu
+                    </p>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Attendu non renseigné</p>
+                    <p className="mt-1.5 text-xs text-slate-500">Attendu non renseigné</p>
                   )}
                 </div>
-                <KpiIconMoney className="size-9 shrink-0 text-emerald-600/65 dark:text-emerald-500/55" aria-hidden />
+                <span className="dashboard-kpi__icon dashboard-kpi__icon--ok" aria-hidden>
+                  <KpiIconMoney className="size-5" />
+                </span>
               </div>
-            </Card>
-            <Card className="!p-4 border-slate-200/90 dark:border-slate-600/70">
+            </div>
+            <div className="dashboard-kpi dashboard-kpi--neutral bg-[var(--color-surface)] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Attendu ce mois</p>
-                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(kpis.expectedMonthlyRent)}</p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Loyers mensuels actifs</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                    Attendu ce mois
+                  </p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-zinc-50">
+                    {fcfa(kpis.expectedMonthlyRent)}
+                  </p>
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-zinc-400">Loyers mensuels actifs</p>
                 </div>
-                <KpiIconTrendUp className="size-9 shrink-0 text-slate-400/90 dark:text-slate-500/80" aria-hidden />
+                <span className="dashboard-kpi__icon dashboard-kpi__icon--neutral" aria-hidden>
+                  <KpiIconTrendUp className="size-5" />
+                </span>
               </div>
-            </Card>
-            <Card className="!p-4 border-slate-200/90 dark:border-slate-600/70">
+            </div>
+            <div className="dashboard-kpi dashboard-kpi--neutral bg-[var(--color-surface)] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reste (vs attendu)</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                      Reste (vs attendu)
+                    </p>
                     <HelpHint title="Écart entre le total attendu du mois et les loyers déjà encaissés sur les échéances du mois (indicateur de couverture, pas un solde comptable)." />
                   </div>
-                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(remainingVsExpected)}</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-zinc-50">
+                    {fcfa(remainingVsExpected)}
+                  </p>
                 </div>
-                <KpiIconUnits className="size-9 shrink-0 text-slate-400/90 dark:text-slate-500/80" aria-hidden />
+                <span className="dashboard-kpi__icon dashboard-kpi__icon--neutral" aria-hidden>
+                  <KpiIconUnits className="size-5" />
+                </span>
               </div>
-            </Card>
-            <Card className="!p-4 border-amber-200/80 bg-amber-50/60 dark:border-amber-800/60 dark:bg-amber-950/25">
+            </div>
+            <div className="dashboard-kpi dashboard-kpi--warn bg-[var(--color-surface)] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Retards / impayés</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                      Retards / impayés
+                    </p>
                     <HelpHint title="Total restant dû sur les échéances en retard ou impayées." />
                   </div>
-                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-amber-900 dark:text-amber-100">{fcfa(kpis.overdueAmount)}</p>
-                  <p className="mt-1 text-xs font-medium text-amber-900/85 dark:text-amber-300/90">{kpis.overdueCount} échéance(s)</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-amber-950 dark:text-amber-100">
+                    {fcfa(kpis.overdueAmount)}
+                  </p>
+                  <p className="mt-1.5 text-xs font-medium text-amber-800/90 dark:text-amber-300/90">
+                    {kpis.overdueCount} échéance(s)
+                  </p>
                 </div>
-                <KpiIconAlert className="size-9 shrink-0 text-amber-600/75 dark:text-amber-500/60" aria-hidden />
+                <span className="dashboard-kpi__icon dashboard-kpi__icon--warn" aria-hidden>
+                  <KpiIconAlert className="size-5" />
+                </span>
               </div>
-            </Card>
+            </div>
           </div>
+
           {coveragePieData ? (
             <div
-              className="border-t border-slate-200/80 px-4 py-5 sm:px-6 dark:border-slate-700/80"
+              className="border-t border-slate-200/90 bg-gradient-to-br from-slate-50/90 to-white px-4 py-5 sm:px-6 dark:border-[var(--odoo-border)] dark:from-zinc-800/40 dark:to-[var(--color-surface)]"
               role="img"
               aria-label={`Encaissement du mois : ${pctOfExpected ?? 0} pour cent du loyer attendu encaissé, reste ${fcfa(remainingVsExpected)} à percevoir.`}
             >
               <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-10">
                 <div className="min-w-0 flex-1 text-center md:text-left">
                   <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Encaissé vs reste (loyer attendu)</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-zinc-50">Encaissé vs reste (loyer attendu)</p>
                     <HelpHint title="Graphique sur la base du loyer mensuel attendu (baux actifs). « Reste » = différence avec ce qui est déjà encaissé ce mois sur les échéances du mois. En début de mois, l’anneau est souvent très « reste » : les échéances arrivent plus tard." />
                   </div>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                    Même indicateur que la carte « Encaissé » ({pctOfExpected !== null ? `${pctOfExpected}%` : '—'} de l’attendu), en vue proportionnelle.
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-zinc-400">
+                    Même indicateur que la carte « Encaissé » ({pctOfExpected !== null ? `${pctOfExpected}%` : '—'} de
+                    l’attendu), en vue proportionnelle.
                   </p>
                   <ul className="mt-4 flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs tabular-nums md:justify-start">
-                    <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                      <span className="size-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                    <li className="flex items-center gap-2 text-slate-700 dark:text-zinc-300">
+                      <span className="size-2.5 shrink-0 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/40" aria-hidden />
                       <span>
                         Encaissé · <strong>{fcfa(Math.min(kpis.collectedThisMonth, kpis.expectedMonthlyRent))}</strong>
                       </span>
                     </li>
-                    <li className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                      <span className="size-2.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500" aria-hidden />
+                    <li className="flex items-center gap-2 text-slate-700 dark:text-zinc-300">
+                      <span className="size-2.5 shrink-0 rounded-full bg-slate-400 dark:bg-zinc-500" aria-hidden />
                       <span>
                         Reste à percevoir · <strong>{fcfa(remainingVsExpected)}</strong>
                       </span>
@@ -402,9 +450,7 @@ export function DashboardPage() {
                       cy="50%"
                       innerRadius={62}
                       outerRadius={88}
-                      paddingAngle={
-                        coveragePieData.filter((d) => d.value > 0).length > 1 ? 2 : 0
-                      }
+                      paddingAngle={coveragePieData.filter((d) => d.value > 0).length > 1 ? 2 : 0}
                       stroke="none"
                     >
                       {coveragePieData.map((slice) => (
@@ -416,8 +462,8 @@ export function DashboardPage() {
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-0.5">
                     {pctOfExpected !== null ? (
                       <>
-                        <span className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-50">{pctOfExpected}%</span>
-                        <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        <span className="text-2xl font-bold tabular-nums text-slate-900 dark:text-zinc-50">{pctOfExpected}%</span>
+                        <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
                           encaissé
                         </span>
                       </>
@@ -429,19 +475,22 @@ export function DashboardPage() {
               </div>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-200/80 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400 sm:px-6">
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-200/90 bg-slate-50/80 px-4 py-3 text-sm text-slate-600 dark:border-[var(--odoo-border)] dark:bg-zinc-800/30 dark:text-zinc-400 sm:px-6">
             <span>
               Cautions encaissées ce mois :{' '}
-              <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(kpis.depositsCollectedThisMonth)}</span>
+              <span className="font-semibold tabular-nums text-slate-900 dark:text-zinc-100">
+                {fcfa(kpis.depositsCollectedThisMonth)}
+              </span>
             </span>
-            <span className="text-slate-300 dark:text-slate-600" aria-hidden>
+            <span className="text-slate-300 dark:text-zinc-600" aria-hidden>
               ·
             </span>
-            <SmartLink to="/cautions" className="font-semibold text-brand-700 hover:underline dark:text-brand-400">
+            <SmartLink to="/cautions" className="font-semibold text-slate-800 underline-offset-2 hover:underline dark:text-zinc-200">
               Voir les cautions →
             </SmartLink>
           </div>
-        </Card>
+        </section>
       ) : null}
 
       {showUpcomingReminder ? (
@@ -544,15 +593,12 @@ export function DashboardPage() {
                     <tr
                       key={row.paymentId}
                       id={`dashboard-upcoming-${row.paymentId}`}
-                      onClick={(e) => {
-                        const t = e.target as HTMLElement;
-                        if (t.closest('a, button, input, textarea, select, label')) return;
-                        setZoomAlertPaymentId(row.paymentId);
-                      }}
-                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${
+                      title="Double-clic pour ouvrir le détail"
+                      onDoubleClick={(e) => onListRowDoubleClick(e, () => setZoomAlertPaymentId(row.paymentId))}
+                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${
                         zoomAlertPaymentId === row.paymentId
                           ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
-                          : 'cursor-pointer'
+                          : ''
                       }`}
                     >
                       <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
@@ -648,70 +694,70 @@ export function DashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SmartLink
           to="/biens"
-          className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
+          className="group block rounded-xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)]"
           aria-label={`Voir les biens — ${kpis.buildings} enregistré${kpis.buildings !== 1 ? 's' : ''}`}
         >
-          <Card className="relative !p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:border-slate-600/70 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
-            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="dashboard-park-card dashboard-park-card--sky h-full p-4 transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
+            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-sky-800/80 dark:text-sky-300/90">
               <span className="flex items-center gap-2">
-                <KpiIconBuilding className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400" />
+                <KpiIconBuilding className="h-4 w-4 shrink-0" />
                 Biens
               </span>
-              <span className="text-[10px] font-semibold normal-case tracking-normal text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-brand-400">
+              <span className="text-[10px] font-semibold normal-case tracking-normal opacity-0 transition-opacity group-hover:opacity-100">
                 Ouvrir →
               </span>
             </p>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{kpis.buildings}</p>
-          </Card>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-zinc-50">{kpis.buildings}</p>
+          </div>
         </SmartLink>
         <SmartLink
           to="/biens"
-          className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
+          className="group block rounded-xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)]"
           aria-label={`Voir les biens et les unités — ${kpis.units} unité${kpis.units !== 1 ? 's' : ''}`}
         >
-          <Card className="relative !p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:border-slate-600/70 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
-            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="dashboard-park-card dashboard-park-card--teal h-full p-4 transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
+            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-teal-800/80 dark:text-teal-300/90">
               <span className="flex items-center gap-2">
-                <KpiIconUnits className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400" />
+                <KpiIconUnits className="h-4 w-4 shrink-0" />
                 Unités
               </span>
-              <span className="text-[10px] font-semibold normal-case tracking-normal text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-brand-400">
+              <span className="text-[10px] font-semibold normal-case tracking-normal opacity-0 transition-opacity group-hover:opacity-100">
                 Ouvrir →
               </span>
             </p>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{kpis.units}</p>
-          </Card>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-zinc-50">{kpis.units}</p>
+          </div>
         </SmartLink>
         <SmartLink
           to="/locataires"
-          className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
+          className="group block rounded-xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)]"
           aria-label={`Voir les locataires — ${kpis.tenants} enregistré${kpis.tenants !== 1 ? 's' : ''}`}
         >
-          <Card className="relative !p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 group-hover:ring-1 group-hover:ring-brand-500/15 dark:border-slate-600/70 dark:group-hover:border-brand-500/40 dark:group-hover:shadow-black/30">
-            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <div className="dashboard-park-card dashboard-park-card--amber h-full p-4 transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
+            <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-amber-900/80 dark:text-amber-300/90">
               <span className="flex items-center gap-2">
-                <KpiIconTenant className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400" />
+                <KpiIconTenant className="h-4 w-4 shrink-0" />
                 Locataires
               </span>
-              <span className="text-[10px] font-semibold normal-case tracking-normal text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-brand-400">
+              <span className="text-[10px] font-semibold normal-case tracking-normal opacity-0 transition-opacity group-hover:opacity-100">
                 Ouvrir →
               </span>
             </p>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{kpis.tenants}</p>
-          </Card>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-zinc-50">{kpis.tenants}</p>
+          </div>
         </SmartLink>
         <SmartLink
           to="/paiements?year=all&month=all"
-          className="group block rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)] dark:focus-visible:ring-offset-slate-900"
+          className="group block rounded-xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-app-bg)]"
         >
-          <Card className="!p-4 h-full border-slate-200/90 transition-all duration-200 group-hover:border-brand-400/55 group-hover:shadow-md group-hover:shadow-slate-900/8 dark:border-slate-600/70">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            <KpiIconMoney className="h-4 w-4 shrink-0 text-slate-400" />
-            Loyer mensuel attendu
-          </p>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(kpis.expectedMonthlyRent)}</p>
-            <p className="mt-1 text-xs font-semibold text-brand-700 dark:text-brand-400">Ouvrir les paiements →</p>
-          </Card>
+          <div className="dashboard-park-card dashboard-park-card--emerald h-full p-4 transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-800/80 dark:text-emerald-300/90">
+              <KpiIconMoney className="h-4 w-4 shrink-0" />
+              Loyer mensuel attendu
+            </p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900 dark:text-zinc-50">{fcfa(kpis.expectedMonthlyRent)}</p>
+            <p className="mt-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">Ouvrir les paiements →</p>
+          </div>
         </SmartLink>
       </div>
 
@@ -784,7 +830,7 @@ export function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Alertes loyers</h2>
             <HelpHint
               className="align-middle"
-              title="Comme sur la page Paiements : regroupement par mois, liste compacte ; cliquer une ligne ouvre le panneau à droite (encaissement, versement partiel, relances, fiche location)."
+              title="Comme sur la page Paiements : regroupement par mois, liste compacte ; double-cliquer une ligne ouvre le panneau à droite (encaissement, versement partiel, relances, fiche location)."
             />
           </div>
           <LinkButton to="/paiements?overdue=1&year=all&month=all" variant="secondary" className="py-2 text-xs">
@@ -881,12 +927,9 @@ export function DashboardPage() {
                         <li
                           key={a.paymentId}
                           id={`dashboard-alert-${a.paymentId}`}
-                          onClick={(e) => {
-                            const t = e.target as HTMLElement;
-                            if (t.closest('a, button, input, textarea, select, label')) return;
-                            setZoomAlertPaymentId(a.paymentId);
-                          }}
-                          className={`scroll-mt-28 ${listBlockRowClass(rowIdx)} sm:items-start cursor-pointer ${
+                          title="Double-clic pour ouvrir le détail"
+                          onDoubleClick={(e) => onListRowDoubleClick(e, () => setZoomAlertPaymentId(a.paymentId))}
+                          className={`scroll-mt-28 ${listBlockRowClass(rowIdx)} sm:items-start ${listTableRowOpenableClass} ${
                             zoomAlertPaymentId === a.paymentId
                               ? '!bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:!bg-brand-950/40 dark:ring-brand-500/30'
                               : ''

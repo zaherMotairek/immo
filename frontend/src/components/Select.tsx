@@ -14,18 +14,18 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { SelectHTMLAttributes } from 'react';
-import { useFixedPanelPosition } from '@/hooks/useFixedPanelPosition';
+import { useFixedPanelPosition, fixedPanelStyle } from '@/hooks/useFixedPanelPosition';
 import { scrollIntoContainedView } from '@/lib/domScroll';
 
 /** Même famille visuelle que SearchableSelect (périmètre Paiements) + listes natives de secours */
 const selectNativeFallbackClass =
-  'w-full min-h-[2.5rem] rounded-xl border border-slate-200/95 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:outline-none focus:shadow-md focus:ring-2 focus:ring-brand-500/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-50';
+  'w-full min-h-[2.5rem] rounded-xl border border-[var(--odoo-border)] bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:outline-none focus:shadow-md focus:ring-2 focus:ring-brand-500/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-50';
 
 const triggerClass =
-  'w-full min-h-[2.5rem] flex items-center rounded-xl border border-slate-200/95 bg-white py-2 pl-3 pr-11 text-left text-xs font-medium text-slate-900 shadow-sm transition-[box-shadow] duration-150 focus:outline-none focus:shadow-md focus:ring-2 focus:ring-brand-500/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-50';
+  'w-full min-h-[2.5rem] flex items-center rounded-xl border border-[var(--odoo-border)] bg-white py-2 pl-3 pr-11 text-left text-xs font-medium text-slate-900 shadow-sm transition-[box-shadow] duration-150 focus:outline-none focus:shadow-md focus:ring-2 focus:ring-brand-500/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-50';
 
 const panelShellClass =
-  'overflow-hidden rounded-2xl border border-slate-200/95 bg-white shadow-[0_12px_40px_-8px_rgb(15_23_42/0.28),0_4px_16px_-4px_rgb(15_23_42/0.12)] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_16px_48px_-8px_rgb(0_0_0/0.55)] dark:ring-white/[0.06]';
+  'overflow-hidden rounded-2xl border border-[var(--odoo-border)] bg-white shadow-[0_12px_40px_-8px_rgb(15_23_42/0.28),0_4px_16px_-4px_rgb(15_23_42/0.12)] ring-1 ring-slate-900/[0.04] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_16px_48px_-8px_rgb(0_0_0/0.55)] dark:ring-white/[0.06]';
 
 const panelHeaderClass =
   'flex items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-3 py-2 dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900';
@@ -284,7 +284,7 @@ const SelectCustomDropdown = forwardRef<HTMLButtonElement, SelectCustomDropdownP
             <div
               ref={panelRef}
               className="fixed z-[10000] origin-top"
-              style={{ top: panelBox.top, left: panelBox.left, width: panelBox.width }}
+              style={fixedPanelStyle(panelBox)}
               onMouseDown={(e) => e.preventDefault()}
             >
               <div className={panelShellClass}>

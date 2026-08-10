@@ -23,9 +23,10 @@
   --color-app-bg-deep: #ececee;
   --color-surface: #ffffff;
   --color-ink: #0a0a0a;
-  --color-muted: #52525b;
-  --odoo-border: #d4d4d8;
-  --odoo-border-subtle: #e4e4e7;
+  --color-muted: #4b4b55;
+  --odoo-border: #c8c8d0;
+  --odoo-border-subtle: #d8d8de;
+  --odoo-border-strong: #a8a8b2;
   --odoo-sidebar-top: #121212;
   --odoo-sidebar-bottom: #050505;
   --odoo-table-head-bg: #f8f9fa;
@@ -77,6 +78,7 @@ html.dark {
   --color-muted: #d4d4d8;
   --odoo-border: #52525b;
   --odoo-border-subtle: #4b4b55;
+  --odoo-border-strong: #71717a;
   --odoo-table-head-bg: #2d2d30;
   --odoo-row-hover: #2a2a2e;
   --odoo-sidebar-top: #0a0a0a;
@@ -152,4 +154,247 @@ main a:focus-visible {
     background-image: none !important;
     color: var(--color-ink) !important;
   }
+}
+
+/* ——— Auth (login / mot de passe) ——— */
+.auth-shell {
+  background: #f3f3f5;
+}
+
+html.dark .auth-shell {
+  background: #2e2e34;
+}
+
+.auth-shell__brand {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 20%, rgb(212 168 75 / 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 90%, rgb(255 255 255 / 0.06), transparent 50%),
+    linear-gradient(165deg, #1a1a1e 0%, #0e0e10 48%, #121216 100%);
+}
+
+.auth-shell__glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% -10% auto auto;
+  width: 70%;
+  height: 70%;
+  background: radial-gradient(circle, rgb(212 168 75 / 0.18), transparent 65%);
+  animation: auth-glow-drift 14s ease-in-out infinite alternate;
+}
+
+.auth-shell__grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.55), transparent 88%);
+}
+
+.auth-shell__wordmark {
+  font-family: 'Syne', 'Outfit', ui-sans-serif, system-ui, sans-serif;
+}
+
+.auth-shell__main {
+  font-family: 'Outfit', 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  background:
+    linear-gradient(180deg, #f7f7f9 0%, #efeff2 100%);
+}
+
+html.dark .auth-shell__main {
+  background: linear-gradient(180deg, #35353c 0%, #2a2a30 100%);
+}
+
+.auth-shell__brand-in {
+  animation: auth-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-shell__form-in {
+  animation: auth-rise 0.75s 0.12s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-shell__rule {
+  transform-origin: left center;
+  animation: auth-rule 0.85s 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-rule {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes auth-glow-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-8%, 10%) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-shell__brand-in,
+  .auth-shell__form-in,
+  .auth-shell__rule,
+  .auth-shell__glow {
+    animation: none !important;
+  }
+}
+
+/* ——— Tableau de bord ——— */
+.dashboard-finance__hero {
+  background:
+    radial-gradient(ellipse 70% 80% at 90% 0%, rgb(212 168 75 / 0.2), transparent 55%),
+    linear-gradient(145deg, #1c1c20 0%, #121216 55%, #18181c 100%);
+}
+
+.dashboard-finance__hero-grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(90deg, transparent, #000 30%, #000 100%);
+}
+
+.dashboard-finance__bar {
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dashboard-kpi {
+  position: relative;
+}
+
+.dashboard-kpi::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.dashboard-kpi--ok::before {
+  background: #10b981;
+}
+
+.dashboard-kpi--warn::before {
+  background: #f59e0b;
+}
+
+.dashboard-kpi--neutral::before {
+  background: #94a3b8;
+}
+
+.dashboard-kpi__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.65rem;
+  flex-shrink: 0;
+}
+
+.dashboard-kpi__icon--ok {
+  color: #059669;
+  background: rgb(16 185 129 / 0.12);
+}
+
+.dashboard-kpi__icon--warn {
+  color: #d97706;
+  background: rgb(245 158 11 / 0.14);
+}
+
+.dashboard-kpi__icon--neutral {
+  color: #64748b;
+  background: rgb(148 163 184 / 0.16);
+}
+
+html.dark .dashboard-kpi__icon--ok {
+  color: #34d399;
+  background: rgb(16 185 129 / 0.18);
+}
+
+html.dark .dashboard-kpi__icon--warn {
+  color: #fbbf24;
+  background: rgb(245 158 11 / 0.2);
+}
+
+html.dark .dashboard-kpi__icon--neutral {
+  color: #a1a1aa;
+  background: rgb(161 161 170 / 0.14);
+}
+
+.dashboard-park-card {
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+
+.dashboard-park-card--sky {
+  border-color: rgb(125 211 252 / 0.55);
+  background: linear-gradient(165deg, rgb(240 249 255) 0%, var(--color-surface) 70%);
+  box-shadow: inset 3px 0 0 #0ea5e9;
+}
+
+.dashboard-park-card--teal {
+  border-color: rgb(94 234 212 / 0.5);
+  background: linear-gradient(165deg, rgb(240 253 250) 0%, var(--color-surface) 70%);
+  box-shadow: inset 3px 0 0 #14b8a6;
+}
+
+.dashboard-park-card--amber {
+  border-color: rgb(252 211 77 / 0.55);
+  background: linear-gradient(165deg, rgb(255 251 235) 0%, var(--color-surface) 70%);
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.dashboard-park-card--emerald {
+  border-color: rgb(110 231 183 / 0.55);
+  background: linear-gradient(165deg, rgb(236 253 245) 0%, var(--color-surface) 70%);
+  box-shadow: inset 3px 0 0 #10b981;
+}
+
+html.dark .dashboard-park-card--sky {
+  border-color: rgb(14 165 233 / 0.35);
+  background: linear-gradient(165deg, rgb(12 74 110 / 0.28) 0%, var(--color-surface) 75%);
+}
+
+html.dark .dashboard-park-card--teal {
+  border-color: rgb(20 184 166 / 0.35);
+  background: linear-gradient(165deg, rgb(19 78 74 / 0.3) 0%, var(--color-surface) 75%);
+}
+
+html.dark .dashboard-park-card--amber {
+  border-color: rgb(245 158 11 / 0.35);
+  background: linear-gradient(165deg, rgb(120 53 15 / 0.28) 0%, var(--color-surface) 75%);
+}
+
+html.dark .dashboard-park-card--emerald {
+  border-color: rgb(16 185 129 / 0.35);
+  background: linear-gradient(165deg, rgb(6 78 59 / 0.3) 0%, var(--color-surface) 75%);
 }

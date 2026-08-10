@@ -4,7 +4,6 @@ import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
-import { BuildingScopeBadge } from '@/components/BuildingUnitBadges';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
@@ -27,6 +26,14 @@ import {
   IMMEUBLE_RDC_CHECKBOX_HINT,
   type BuildingStructureValue,
 } from '@/lib/buildingStructure';
+import {
+  listTableCellClass,
+  listTableClassName,
+  listTableDataRowClass,
+  listTableFirstCellClass,
+  listTableRowOpenableClass,
+  onListRowDoubleClick,
+} from '@/lib/listTableStyles';
 
 type BuildingRow = {
   id: string;
@@ -54,6 +61,20 @@ function structureKindShort(k?: BuildingStructureValue | string | null) {
   if (k === 'IMMEUBLE') return 'Multi locataires';
   if (k === 'TERRAIN_LOTS') return 'Terrain multi loc.';
   return 'Un seul lot';
+}
+
+function buildingDetailsText(b: BuildingRow): string {
+  if (b.structureKind === 'IMMEUBLE') {
+    const parts: string[] = [];
+    if (b.floorCount != null) parts.push(`${b.floorCount} ét.`);
+    if (b.apartmentsPerFloor != null && b.apartmentsPerFloor > 0) parts.push(`${b.apartmentsPerFloor}/ét.`);
+    if (b.apartmentCount != null) parts.push(`${b.apartmentCount} app.`);
+    return parts.length ? parts.join(' · ') : '—';
+  }
+  if (b.structureKind === 'TERRAIN_LOTS' && b.terrainLotCount != null) {
+    return `${b.terrainLotCount} lot${b.terrainLotCount !== 1 ? 's' : ''} décl.`;
+  }
+  return '—';
 }
 
 function BuildingCardIcon({ structureKind }: { structureKind?: BuildingStructureValue | string | null }) {
@@ -405,279 +426,6 @@ export function BuildingsPage() {
         </Button>
       </div>
 
-      <OdooActionBar
-        left={
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span className="font-semibold">Affichage</span>
-            <span>{filteredRows.length} bien(s)</span>
-            <span>· {totalUnitsFiltered} unité(s)</span>
-            {genreFilter ? <span className="font-semibold text-brand-700 dark:text-brand-300">Filtre genre actif</span> : null}
-          </div>
-        }
-        right={
-          rows.length > 0 ? (
-            <OdooListToolbar
-              search={listSearch}
-              onSearchChange={setListSearch}
-              searchPlaceholder="Rechercher (nom, ville, commune…)"
-              searchAriaLabel="Filtrer les biens"
-              showViewToggle
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              exports={
-                <>
-                  <PdfPrintButton
-                    path={worksheetPdfPath}
-                    title="Feuille de route PDF (filtres actifs)"
-                    variant="labeled"
-                  />
-                  <PdfPrintButton path="/reports/table-biens.pdf" title="Tableau PDF complet" variant="icon" />
-                </>
-              }
-            />
-          ) : null
-        }
-      />
-
-      <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-2.5 shadow-sm shadow-slate-900/5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/25">
-        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Afficher</p>
-          <HelpHint className="align-middle" title={filterHint} />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          <button
-            type="button"
-            title="Tout le patrimoine, tous les genres de biens"
-            onClick={() => clearGenreFilter()}
-            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
-              !genreFilter
-                ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
-                : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
-            }`}
-          >
-            Tous les biens
-          </button>
-          {BUILDING_STRUCTURE_OPTIONS.map((opt) => {
-            const active = genreFilter === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                title={opt.description}
-                onClick={() => selectGenreFilter(opt.value)}
-                className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
-                  active
-                    ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
-                    : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
-                }`}
-              >
-                {opt.cardTitle}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <Card>
-        <div className="mb-3 border-b border-slate-200/80 pb-3 dark:border-slate-700">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              {viewMode === 'kanban' ? 'Kanban patrimoine' : 'Vos sites'}
-            </h2>
-            {rows.length > 0 ? (
-              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                {listSearch.trim() ? (
-                  <>
-                    <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                      {filteredRows.length}
-                    </span>{' '}
-                    sur{' '}
-                    <span className="tabular-nums">{rows.length}</span>{' '}
-                    {rows.length !== 1 ? 'biens affichés' : 'bien affiché'}
-                    {genreFilter ? ' (filtre genre actif)' : ''} ·{' '}
-                    <span className="tabular-nums">{totalUnitsFiltered}</span> unité{totalUnitsFiltered !== 1 ? 's' : ''} dans cette
-                    sélection
-                  </>
-                ) : (
-                  <>
-                    <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{rows.length}</span>{' '}
-                    bien{rows.length !== 1 ? 's' : ''}
-                    {genreFilter ? ' (filtre actif)' : ''} ·{' '}
-                    <span className="tabular-nums">{totalUnits}</span> unité{totalUnits !== 1 ? 's' : ''} au total
-                  </>
-                )}
-              </p>
-            ) : (
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Aucun bien pour cette vue.</p>
-            )}
-          </div>
-        </div>
-
-        {listErr && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
-            <p className="font-medium">La liste n’a pas pu être chargée</p>
-            <p className="mt-1 opacity-90">{listErr}</p>
-            <p className="mt-2 text-xs text-red-800/90 dark:text-red-300/90">
-              Si vous voyez une erreur serveur (500) : dans le dossier{' '}
-              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">backend</code>, arrêtez Node, puis{' '}
-              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">npx prisma migrate deploy</code> et{' '}
-              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">npx prisma generate</code>, relancez{' '}
-              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">npm run start:dev</code>. Assurez-vous d’être connecté.
-            </p>
-            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => load()}>
-              Réessayer
-            </Button>
-          </div>
-        )}
-
-        {filteredRows.length > 0 && viewMode === 'kanban' ? (
-          <OdooKanbanBoard>
-            {BUILDING_STRUCTURE_OPTIONS.map((opt) => (
-              <OdooKanbanColumn key={opt.value} title={opt.cardTitle} count={kanbanColumns[opt.value].length}>
-                {kanbanColumns[opt.value].map((b) => (
-                  <OdooKanbanCard key={b.id} onClick={() => navigate(`/biens/${b.id}`)}>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{b.name}</p>
-                    <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
-                      {[b.commune ?? '—', b.city].filter(Boolean).join(' · ')}
-                    </p>
-                    <p className="mt-1 text-[10px] font-bold tabular-nums text-brand-700 dark:text-brand-300">
-                      {b._count.units} unité{b._count.units !== 1 ? 's' : ''}
-                    </p>
-                  </OdooKanbanCard>
-                ))}
-              </OdooKanbanColumn>
-            ))}
-          </OdooKanbanBoard>
-        ) : null}
-
-        {filteredRows.length > 0 && viewMode === 'list' ? (
-        <ul className="grid list-none gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredRows.map((b) => {
-            const isImmeuble = b.structureKind === 'IMMEUBLE';
-            return (
-              <li
-                key={b.id}
-                id={`bien-row-${b.id}`}
-                className={`scroll-mt-28 ${bienRowFlashClass(flashBuildingId === b.id)}`}
-              >
-                <div className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200/90 bg-gradient-to-b from-slate-50/95 to-slate-100/40 shadow-sm transition hover:border-brand-400/55 hover:shadow dark:border-slate-700 dark:from-slate-900/80 dark:to-slate-900/40 dark:hover:border-brand-500/45">
-                  <SmartLink
-                    to={`/biens/${b.id}`}
-                    returnFocusId={b.id}
-                    className="group flex flex-1 flex-col p-2.5 no-underline outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
-                  >
-                    <div className="flex gap-2">
-                      <BuildingCardIcon structureKind={b.structureKind} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                            <BuildingScopeBadge className="shrink-0" />
-                            <h3 className="min-w-0 text-sm font-semibold leading-snug text-slate-900 group-hover:text-brand-700 dark:text-slate-100 dark:group-hover:text-brand-400">
-                              {b.name}
-                            </h3>
-                          </div>
-                          <span className="shrink-0 rounded-md bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-brand-800 dark:bg-brand-500/20 dark:text-brand-200">
-                            {b._count.units}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
-                          {[b.commune ?? '—', b.city].filter(Boolean).join(' · ')}
-                          {b.postalCode ? ` · ${b.postalCode}` : ''}
-                        </p>
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          <span className="rounded-md bg-slate-200/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                            {structureKindShort(b.structureKind)}
-                          </span>
-                          {isImmeuble && (b.floorCount != null || b.apartmentCount != null) ? (
-                            <span className="rounded-md bg-slate-200/50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800/80 dark:text-slate-400">
-                              {b.floorCount != null ? `${b.floorCount} ét.` : '— ét.'} ·{' '}
-                              {b.apartmentsPerFloor != null && b.apartmentsPerFloor > 0
-                                ? `${b.apartmentsPerFloor}/ét.`
-                                : null}
-                              {b.apartmentsPerFloor != null && b.apartmentsPerFloor > 0 ? ' · ' : ''}
-                              {b.apartmentCount != null ? `${b.apartmentCount} app.` : '— app.'}
-                            </span>
-                          ) : null}
-                          {b.structureKind === 'TERRAIN_LOTS' && b.terrainLotCount != null ? (
-                            <span className="rounded-md bg-lime-200/60 px-2 py-0.5 text-[10px] font-medium text-lime-950 dark:bg-lime-950/50 dark:text-lime-100">
-                              {b.terrainLotCount} lot{b.terrainLotCount !== 1 ? 's' : ''} décl.
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  </SmartLink>
-                  <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200/60 bg-slate-100/40 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900/50">
-                    <SmartLink
-                      to={`/biens/${b.id}`}
-                      returnFocusId={b.id}
-                      className="text-[11px] font-medium text-brand-600 transition hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300"
-                    >
-                      Ouvrir la fiche
-                      <span className="inline-block transition hover:translate-x-0.5" aria-hidden>
-                        →
-                      </span>
-                    </SmartLink>
-                    <button
-                      type="button"
-                      className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/50"
-                      onClick={() => void requestDeleteBuilding(b)}
-                    >
-                      Supprimer…
-                    </button>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        ) : null}
-
-        {rows.length > 0 && filteredRows.length === 0 && listSearch.trim() && !listErr ? (
-          <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Aucun bien ne correspond à « {listSearch.trim()} ».
-            </p>
-            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => setListSearch('')}>
-              Effacer la recherche
-            </Button>
-          </div>
-        ) : null}
-
-        {rows.length === 0 && !listErr && (
-          <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {genreFilter ? (
-                <>
-                  Aucun bien ne correspond à ce genre.{' '}
-                  <button
-                    type="button"
-                    className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
-                    onClick={() => clearGenreFilter()}
-                  >
-                    Retirer le filtre
-                  </button>
-                </>
-              ) : (
-                <>
-                  Aucun bien pour le moment — utilisez le formulaire ci-dessous ou{' '}
-                  <code className="rounded bg-slate-200/80 px-1 text-xs dark:bg-slate-800">npm run seed</code> côté backend.
-                </>
-              )}
-            </p>
-            {!genreFilter ? (
-              <button
-                type="button"
-                className="mt-3 inline-block text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
-                onClick={() => openAddForm()}
-              >
-                Créer un premier bien
-              </button>
-            ) : null}
-          </div>
-        )}
-      </Card>
-
       <div ref={addFormRef} id="nouveau-bien" className="scroll-mt-24">
         <Card className="!p-0 overflow-hidden">
           <button
@@ -929,6 +677,282 @@ export function BuildingsPage() {
           ) : null}
         </Card>
       </div>
+
+      <OdooActionBar
+        left={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
+            <span className="font-semibold">Affichage</span>
+            <span>{filteredRows.length} bien(s)</span>
+            <span>· {totalUnitsFiltered} unité(s)</span>
+            {genreFilter ? <span className="font-semibold text-brand-700 dark:text-brand-300">Filtre genre actif</span> : null}
+          </div>
+        }
+        right={
+          rows.length > 0 ? (
+            <OdooListToolbar
+              search={listSearch}
+              onSearchChange={setListSearch}
+              searchPlaceholder="Rechercher (nom, ville, commune…)"
+              searchAriaLabel="Filtrer les biens"
+              showViewToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              exports={
+                <>
+                  <PdfPrintButton
+                    path={worksheetPdfPath}
+                    title="Feuille de route PDF (filtres actifs)"
+                    variant="labeled"
+                  />
+                  <PdfPrintButton path="/reports/table-biens.pdf" title="Tableau PDF complet" variant="icon" />
+                </>
+              }
+            />
+          ) : null
+        }
+      />
+
+      <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-2.5 shadow-sm shadow-slate-900/5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/25">
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Afficher</p>
+          <HelpHint className="align-middle" title={filterHint} />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            title="Tout le patrimoine, tous les genres de biens"
+            onClick={() => clearGenreFilter()}
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
+              !genreFilter
+                ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
+                : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
+            }`}
+          >
+            Tous les biens
+          </button>
+          {BUILDING_STRUCTURE_OPTIONS.map((opt) => {
+            const active = genreFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                title={opt.description}
+                onClick={() => selectGenreFilter(opt.value)}
+                className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
+                  active
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-sm dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-100'
+                    : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
+                }`}
+              >
+                {opt.cardTitle}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <Card>
+        <div className="mb-3 border-b border-slate-200/80 pb-3 dark:border-slate-700">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              {viewMode === 'kanban' ? 'Kanban patrimoine' : 'Liste des biens'}
+            </h2>
+            {rows.length > 0 ? (
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+                {listSearch.trim() ? (
+                  <>
+                    <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                      {filteredRows.length}
+                    </span>{' '}
+                    sur{' '}
+                    <span className="tabular-nums">{rows.length}</span>{' '}
+                    {rows.length !== 1 ? 'biens affichés' : 'bien affiché'}
+                    {genreFilter ? ' (filtre genre actif)' : ''} ·{' '}
+                    <span className="tabular-nums">{totalUnitsFiltered}</span> unité{totalUnitsFiltered !== 1 ? 's' : ''} dans cette
+                    sélection
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">{rows.length}</span>{' '}
+                    bien{rows.length !== 1 ? 's' : ''}
+                    {genreFilter ? ' (filtre actif)' : ''} ·{' '}
+                    <span className="tabular-nums">{totalUnits}</span> unité{totalUnits !== 1 ? 's' : ''} au total
+                  </>
+                )}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Aucun bien pour cette vue.</p>
+            )}
+          </div>
+        </div>
+
+        {listErr && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+            <p className="font-medium">La liste n’a pas pu être chargée</p>
+            <p className="mt-1 opacity-90">{listErr}</p>
+            <p className="mt-2 text-xs text-red-800/90 dark:text-red-300/90">
+              Si vous voyez une erreur serveur (500) : dans le dossier{' '}
+              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">backend</code>, arrêtez Node, puis{' '}
+              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">npx prisma migrate deploy</code> et{' '}
+              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">npx prisma generate</code>, relancez{' '}
+              <code className="rounded bg-red-100 px-1 dark:bg-red-950/80 dark:text-red-100">npm run start:dev</code>. Assurez-vous d’être connecté.
+            </p>
+            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => load()}>
+              Réessayer
+            </Button>
+          </div>
+        )}
+
+        {filteredRows.length > 0 && viewMode === 'kanban' ? (
+          <OdooKanbanBoard>
+            {BUILDING_STRUCTURE_OPTIONS.map((opt) => (
+              <OdooKanbanColumn key={opt.value} title={opt.cardTitle} count={kanbanColumns[opt.value].length}>
+                {kanbanColumns[opt.value].map((b) => (
+                  <OdooKanbanCard key={b.id} onClick={() => navigate(`/biens/${b.id}`)}>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{b.name}</p>
+                    <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+                      {[b.commune ?? '—', b.city].filter(Boolean).join(' · ')}
+                    </p>
+                    <p className="mt-1 text-[10px] font-bold tabular-nums text-brand-700 dark:text-brand-300">
+                      {b._count.units} unité{b._count.units !== 1 ? 's' : ''}
+                    </p>
+                  </OdooKanbanCard>
+                ))}
+              </OdooKanbanColumn>
+            ))}
+          </OdooKanbanBoard>
+        ) : null}
+
+        {filteredRows.length > 0 && viewMode === 'list' ? (
+          <div className="min-w-0 overflow-x-auto">
+            <table className={`${listTableClassName} min-w-[720px]`}>
+              <thead>
+                <tr className="border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)]">
+                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                    Bien
+                  </th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                    Localisation
+                  </th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                    Type
+                  </th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                    Détails
+                  </th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                    Unités
+                  </th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((b, rowIndex) => {
+                  const details = buildingDetailsText(b);
+                  const place = [b.commune ?? '—', b.city].filter(Boolean).join(' · ');
+                  const placeFull = b.postalCode ? `${place} · ${b.postalCode}` : place;
+                  return (
+                    <tr
+                      key={b.id}
+                      id={`bien-row-${b.id}`}
+                      title="Double-clic pour ouvrir la fiche"
+                      onDoubleClick={(e) => onListRowDoubleClick(e, () => navigate(`/biens/${b.id}`))}
+                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${bienRowFlashClass(flashBuildingId === b.id)}`}
+                    >
+                      <td className={listTableFirstCellClass}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <BuildingCardIcon structureKind={b.structureKind} />
+                          <SmartLink
+                            to={`/biens/${b.id}`}
+                            returnFocusId={b.id}
+                            className="truncate text-sm font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                          >
+                            {b.name}
+                          </SmartLink>
+                        </div>
+                      </td>
+                      <td className={`${listTableCellClass} text-slate-600 dark:text-slate-300`}>
+                        <span className="block text-xs leading-snug sm:text-sm">{placeFull}</span>
+                      </td>
+                      <td className={`${listTableCellClass} text-xs text-slate-600 dark:text-slate-300`}>
+                        {structureKindShort(b.structureKind)}
+                      </td>
+                      <td className={`${listTableCellClass} text-xs text-slate-600 dark:text-slate-400`}>{details}</td>
+                      <td className={`${listTableCellClass} text-right tabular-nums text-slate-800 dark:text-slate-200`}>
+                        {b._count.units}
+                      </td>
+                      <td className={`${listTableCellClass} text-right`}>
+                        <div className="inline-flex items-center gap-2.5">
+                          <SmartLink
+                            to={`/biens/${b.id}`}
+                            returnFocusId={b.id}
+                            className="text-xs font-medium text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+                          >
+                            Ouvrir
+                          </SmartLink>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-red-600/90 hover:underline dark:text-red-400"
+                            onClick={() => void requestDeleteBuilding(b)}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        {rows.length > 0 && filteredRows.length === 0 && listSearch.trim() && !listErr ? (
+          <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Aucun bien ne correspond à « {listSearch.trim()} ».
+            </p>
+            <Button type="button" variant="secondary" className="mt-3 py-2 text-xs" onClick={() => setListSearch('')}>
+              Effacer la recherche
+            </Button>
+          </div>
+        ) : null}
+
+        {rows.length === 0 && !listErr && (
+          <div className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/50 py-12 text-center dark:border-slate-600 dark:bg-slate-900/30">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {genreFilter ? (
+                <>
+                  Aucun bien ne correspond à ce genre.{' '}
+                  <button
+                    type="button"
+                    className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                    onClick={() => clearGenreFilter()}
+                  >
+                    Retirer le filtre
+                  </button>
+                </>
+              ) : (
+                <>
+                  Aucun bien pour le moment — utilisez le formulaire ci-dessus ou{' '}
+                  <code className="rounded bg-slate-200/80 px-1 text-xs dark:bg-slate-800">npm run seed</code> côté backend.
+                </>
+              )}
+            </p>
+            {!genreFilter ? (
+              <button
+                type="button"
+                className="mt-3 inline-block text-sm font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-400"
+                onClick={() => openAddForm()}
+              >
+                Créer un premier bien
+              </button>
+            ) : null}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

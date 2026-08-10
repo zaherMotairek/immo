@@ -69,6 +69,7 @@ export function CollectorsPage() {
         iconTo="/collecteurs"
         title="Collecteurs de loyers"
         hintTitle="Assigner un collecteur sur un paiement depuis le panneau de droite."
+        subtitle="Agents de terrain chargés de récupérer les loyers."
       />
       <OdooActionBar
         left={

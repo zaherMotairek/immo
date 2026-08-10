@@ -18,9 +18,12 @@ import {
   drawSectionHeading,
   drawTopBanner,
   drawZebraTableEqualCols,
+  formatDatePdfFr,
   formatFcfaPdf,
   IMMO_PDF,
+  truncPdfCell,
 } from '../common/immo-pdf';
+import { naturalCompare } from '../common/sort.util';
 
 function paymentStatusFr(s: PaymentStatus | undefined): string {
   if (!s) return '—';
@@ -825,17 +828,23 @@ export class ReportsService {
   async buildLeasesTablePdf(organizationId: string): Promise<Buffer> {
     await this.payments.syncLateStatuses();
     const list = await this.leases.list(organizationId);
+    const sorted = [...list].sort(
+      (a, b) =>
+        naturalCompare(a.unit.building.name, b.unit.building.name) ||
+        naturalCompare(a.unit.label, b.unit.label) ||
+        a.tenant.lastName.localeCompare(b.tenant.lastName, 'fr'),
+    );
     const headers = ['Locataire', 'Bien', 'Unité', 'Loyer mensuel', 'Début', 'Fin', 'Statut'];
-    const rows = list.map((l) => [
-      this.truncPdfCell(`${l.tenant.firstName} ${l.tenant.lastName}`, 28),
-      this.truncPdfCell(l.unit.building.name, 32),
-      this.truncPdfCell(`${l.unit.label} (${unitKindFr(l.unit.kind)})`, 24),
-      this.truncPdfCell(formatFcfaPdf(l.monthlyRent.toNumber()), 16),
-      l.startDate.toISOString().slice(0, 10),
-      l.endDate ? l.endDate.toISOString().slice(0, 10) : '—',
+    const rows = sorted.map((l) => [
+      truncPdfCell(`${l.tenant.firstName} ${l.tenant.lastName}`, 28),
+      truncPdfCell(l.unit.building.name, 32),
+      truncPdfCell(`${l.unit.label} (${unitKindFr(l.unit.kind)})`, 24),
+      truncPdfCell(formatFcfaPdf(l.monthlyRent.toNumber()), 16),
+      formatDatePdfFr(l.startDate),
+      l.endDate ? formatDatePdfFr(l.endDate) : '-',
       l.active ? 'Actif' : 'Inactif',
     ]);
-    const n = list.length;
+    const n = sorted.length;
     const sub = `${n} contrat${n === 1 ? '' : 's'} de location enregistré${n === 1 ? '' : 's'}`;
     return this.renderDataTablePdf('Registre des baux', sub, headers, rows);
   }
@@ -845,12 +854,12 @@ export class ReportsService {
     const headers = ['Locataire', 'Téléphone', 'E-mail', 'Bien et unité'];
     const rows = list.map((t) => {
       const lease = t.leases[0];
-      const bu = lease ? `${lease.unit.building.name} — ${lease.unit.label}` : '—';
+      const bu = lease ? `${lease.unit.building.name} - ${lease.unit.label}` : '-';
       return [
-        this.truncPdfCell(`${t.firstName} ${t.lastName}`, 32),
-        this.truncPdfCell(t.phone ?? '—', 22),
-        this.truncPdfCell(t.email ?? '—', 36),
-        this.truncPdfCell(bu, 48),
+        truncPdfCell(`${t.firstName} ${t.lastName}`, 32),
+        truncPdfCell(t.phone ?? '-', 22),
+        truncPdfCell(t.email ?? '-', 36),
+        truncPdfCell(bu, 48),
       ];
     });
     return this.renderDataTablePdf(
@@ -865,13 +874,13 @@ export class ReportsService {
     const list = await this.buildings.list(organizationId);
     const headers = ['Nom du bien', 'Lieu', 'Type', 'Nb unités'];
     const rows = list.map((b) => [
-      this.truncPdfCell(b.name, 40),
-      this.truncPdfCell([b.commune, b.city].filter(Boolean).join(' · ') || '—', 44),
+      truncPdfCell(b.name, 40),
+      truncPdfCell([b.commune, b.city].filter(Boolean).join(' - ') || '-', 44),
       this.structureKindLabel(b.structureKind),
       String(b._count.units),
     ]);
     return this.renderDataTablePdf(
-      'Patrimoine — synthèse des biens',
+      'Patrimoine - synthèse des biens',
       `${list.length} site${list.length === 1 ? '' : 's'} immobilier${list.length === 1 ? '' : 's'}`,
       headers,
       rows,
@@ -880,17 +889,23 @@ export class ReportsService {
 
   async buildLocationsTablePdf(organizationId: string, activeOnly: boolean): Promise<Buffer> {
     const overview = await this.leases.listOverview(organizationId, activeOnly);
-    const headers = ['Lieu', 'Bien — unité', 'Locataire', 'Loyer', 'Échéance', 'Mois en cours', 'Bail'];
-    const rows = overview.map((r) => [
-      this.truncPdfCell(r.localizationLine, 28),
-      this.truncPdfCell(`${r.buildingName} — ${r.unitLabel}`, 36),
-      this.truncPdfCell(r.tenantFullName, 28),
-      this.truncPdfCell(formatFcfaPdf(r.monthlyRent), 14),
+    const sorted = [...overview].sort(
+      (a, b) =>
+        naturalCompare(a.buildingName, b.buildingName) ||
+        naturalCompare(a.unitLabel, b.unitLabel) ||
+        a.tenantFullName.localeCompare(b.tenantFullName, 'fr'),
+    );
+    const headers = ['Lieu', 'Bien - unité', 'Locataire', 'Loyer', 'Échéance', 'Mois en cours', 'Bail'];
+    const rows = sorted.map((r) => [
+      truncPdfCell(r.localizationLine, 28),
+      truncPdfCell(`${r.buildingName} - ${r.unitLabel}`, 36),
+      truncPdfCell(r.tenantFullName, 28),
+      truncPdfCell(formatFcfaPdf(r.monthlyRent), 14),
       `le ${r.rentDueDay}`,
-      this.truncPdfCell(r.currentMonthStatusFr, 14),
+      truncPdfCell(r.currentMonthStatusFr, 14),
       r.active ? 'Actif' : 'Inactif',
     ]);
-    const sub = `${overview.length} occupation${overview.length === 1 ? '' : 's'}${activeOnly ? ' · baux actifs uniquement' : ' · tous statuts'}`;
+    const sub = `${sorted.length} occupation${sorted.length === 1 ? '' : 's'}${activeOnly ? ' - baux actifs uniquement' : ' - tous statuts'}`;
     return this.renderDataTablePdf('Locations et statut des loyers', sub, headers, rows);
   }
 
@@ -903,11 +918,6 @@ export class ReportsService {
       default:
         return 'Un seul lot';
     }
-  }
-
-  private truncPdfCell(s: string, maxChars: number): string {
-    const t = String(s).replace(/\s+/g, ' ').trim();
-    return t.length <= maxChars ? t : `${t.slice(0, Math.max(0, maxChars - 1))}…`;
   }
 
   private async renderDataTablePdf(

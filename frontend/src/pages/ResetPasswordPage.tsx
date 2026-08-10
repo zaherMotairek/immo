@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AuthBrandMark } from '@/components/AuthBrandMark';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { AuthShell } from '@/components/AuthShell';
 import { api } from '@/lib/api';
-import { AUTH_CARD_CLASS, AUTH_PAGE_SHELL_CLASS, authSafePaddingStyle, authThemeTogglePositionStyle } from '@/lib/authLayout';
-import { Button, Card, Input, Label } from '@/components/ui';
+import { Button, Input, Label } from '@/components/ui';
+
+const inputClass =
+  'mt-1.5 min-h-11 rounded-lg border-slate-300/90 bg-white text-base shadow-none dark:border-zinc-500 dark:bg-zinc-800/80';
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -45,85 +46,83 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className={AUTH_PAGE_SHELL_CLASS} style={authSafePaddingStyle}>
-      <div className="absolute sm:right-6 sm:top-6" style={authThemeTogglePositionStyle}>
-        <ThemeToggle tone="onLight" />
-      </div>
-      <div className="mx-auto w-full max-w-md">
-        <AuthBrandMark />
-        <div className="mb-6 text-center sm:mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-[1.65rem]">
-            Nouveau mot de passe
-          </h1>
-          <p className="mx-auto mt-2 max-w-[22rem] text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            Au moins 8 caractères. Le lien reçu par e-mail expire au bout d’une heure.
-          </p>
-        </div>
-        {ok ? (
-          <Card className={AUTH_CARD_CLASS}>
-            <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300" role="status">
-              Mot de passe mis à jour. Vous pouvez vous connecter avec votre nouvel identifiant.
-            </p>
-            <Link
-              to="/login"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-600/25 transition hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-            >
-              Aller à la connexion
-            </Link>
-          </Card>
-        ) : (
-          <Card className={AUTH_CARD_CLASS}>
-            <form onSubmit={onSubmit} className="space-y-4" autoComplete="on">
-              {!token ? (
-                <p className="text-sm text-amber-800 dark:text-amber-300" role="alert">
-                  Aucun jeton dans l’URL. Utilisez le lien « Réinitialiser » reçu par e-mail, ou refaites une demande depuis la page
-                  « Mot de passe oublié ».
-                </p>
-              ) : null}
-              <div>
-                <Label htmlFor="reset-new">Nouveau mot de passe</Label>
-                <Input
-                  id="reset-new"
-                  type="password"
-                  name="newPassword"
-                  autoComplete="new-password"
-                  className="mt-1 min-h-11 text-base"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-              <div>
-                <Label htmlFor="reset-confirm">Confirmer</Label>
-                <Input
-                  id="reset-confirm"
-                  type="password"
-                  name="confirmPassword"
-                  autoComplete="new-password"
-                  className="mt-1 min-h-11 text-base"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-              {err ? <p className="text-sm text-red-600 dark:text-red-400">{err}</p> : null}
-              <Button type="submit" className="min-h-11 w-full text-base font-semibold" disabled={loading || !token}>
-                {loading ? 'Enregistrement…' : 'Enregistrer le mot de passe'}
-              </Button>
-            </form>
-          </Card>
-        )}
-        <p className="mt-6 text-center text-sm">
-          <Link
-            to="/login"
-            className="font-semibold text-brand-700 underline-offset-[3px] transition hover:text-brand-800 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
-          >
-            ← Connexion
-          </Link>
+    <AuthShell panelLead="Choisissez un nouveau mot de passe pour sécuriser votre accès.">
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-zinc-50">Nouveau mot de passe</h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-600 dark:text-zinc-400">
+          Au moins 8 caractères. Le lien reçu expire au bout d’une heure.
         </p>
       </div>
-    </div>
+
+      {ok ? (
+        <div className="mt-8 space-y-4">
+          <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300" role="status">
+            Mot de passe mis à jour. Vous pouvez vous connecter.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-600 px-4 text-base font-semibold text-white transition hover:bg-brand-700"
+          >
+            Aller à la connexion
+          </Link>
+        </div>
+      ) : (
+        <form onSubmit={onSubmit} className="mt-8 space-y-5" autoComplete="on">
+          {!token ? (
+            <p className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/35 dark:text-amber-100" role="alert">
+              Aucun jeton dans l’URL. Utilisez le lien reçu par e-mail, ou refaites une demande.
+            </p>
+          ) : null}
+          <div>
+            <Label htmlFor="reset-new">Nouveau mot de passe</Label>
+            <Input
+              id="reset-new"
+              type="password"
+              name="newPassword"
+              autoComplete="new-password"
+              className={inputClass}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+          <div>
+            <Label htmlFor="reset-confirm">Confirmer</Label>
+            <Input
+              id="reset-confirm"
+              type="password"
+              name="confirmPassword"
+              autoComplete="new-password"
+              className={inputClass}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+          {err ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-200/90 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-950/35 dark:text-red-200"
+            >
+              {err}
+            </div>
+          ) : null}
+          <Button type="submit" className="min-h-11 w-full rounded-lg text-base font-semibold" disabled={loading || !token}>
+            {loading ? 'Enregistrement…' : 'Enregistrer le mot de passe'}
+          </Button>
+        </form>
+      )}
+
+      <p className="mt-8">
+        <Link
+          to="/login"
+          className="text-sm font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
+        >
+          ← Connexion
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

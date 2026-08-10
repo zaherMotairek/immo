@@ -14,15 +14,15 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "/sync-kiz.png",
-      "sizes": "1024x1024",
-      "type": "image/png",
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/sync-kiz.png",
-      "sizes": "1024x1024",
-      "type": "image/png",
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     }
   ]

@@ -176,10 +176,10 @@ export function AdminClientsPage() {
   return (
     <div className="space-y-8">
       <AppPageTitle
-        className="max-w-4xl"
         iconTo="/admin"
         title="Clients & accès plateforme"
         hintTitle="Liste des organisations : prolongez l’accès en indiquant « payé jusqu’au » (dernier jour inclus), ou coupez tout accès avec « suspendre ». Sans date, seul le blocage manuel s’applique. Les comptes USER sont bloqués à la connexion et sur toutes les requêtes API ; les administrateurs plateforme ne sont jamais bloqués."
+        subtitle="Création des comptes clients et gestion des accès."
       />
 
       <Card className="!overflow-hidden !p-0">

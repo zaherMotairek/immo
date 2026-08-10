@@ -26,7 +26,7 @@ export const IMMO_PDF = {
   instructionBorder: '#7dd3fc',
 } as const;
 
-export const TAGLINE = 'ImmoPilot — Gestion immobilière';
+export const TAGLINE = 'ImmoPilot - Gestion immobilière';
 
 /**
  * Montants FCFA pour PDFKit (Helvetica) : chiffres groupés par espaces ASCII + « FCFA ».
@@ -36,6 +36,38 @@ export function formatFcfaPdf(n: number): string {
   const r = Math.round(Math.abs(Number(n)));
   const s = r.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return `${s} FCFA`;
+}
+
+/**
+ * Helvetica (PDFKit) ne gère pas bien les tirets / flèches Unicode :
+ * ils deviennent illisibles. Remplace par de l’ASCII sûr.
+ */
+export function pdfSafeText(s: string): string {
+  return String(s ?? '')
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-') // tirets
+    .replace(/[\u2022\u00B7\u2027\u2219]/g, '-') // puces / points médians
+    .replace(/[\u2190-\u21FF\u27F0-\u27FF]/g, '-') // flèches
+    .replace(/\u2026/g, '...')
+    .replace(/[\u00A0\u202F\u2007\u2009]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Date calendaire (UTC) → jj/mm/aaaa pour PDF. */
+export function formatDatePdfFr(d: Date | string | null | undefined): string {
+  if (d == null || d === '') return '-';
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return '-';
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/** Coupe une cellule PDF sans caractère Unicode problématique. */
+export function truncPdfCell(s: string, maxChars: number): string {
+  const t = pdfSafeText(s);
+  return t.length <= maxChars ? t : `${t.slice(0, Math.max(0, maxChars - 3))}...`;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -51,15 +83,19 @@ export function drawTopBanner(
   y += 2;
   doc.rect(margin, y, contentW, 5).fill(IMMO_PDF.primary);
   y += 5 + 20;
-  doc.fillColor(IMMO_PDF.muted).font('Helvetica').fontSize(7.5).text(options.eyebrow.toUpperCase(), margin, y, {
+  doc.fillColor(IMMO_PDF.muted).font('Helvetica').fontSize(7.5).text(pdfSafeText(options.eyebrow).toUpperCase(), margin, y, {
     characterSpacing: 1.2,
     width: contentW,
   });
   y = doc.y + 6;
-  doc.fillColor(IMMO_PDF.ink).font('Helvetica-Bold').fontSize(20).text(options.title, margin, y, { width: contentW });
+  doc.fillColor(IMMO_PDF.ink).font('Helvetica-Bold').fontSize(20).text(pdfSafeText(options.title), margin, y, { width: contentW });
   y = doc.y + 8;
   if (options.subtitle) {
-    doc.fillColor(IMMO_PDF.muted).font('Helvetica').fontSize(10).text(options.subtitle, margin, y, { width: contentW, lineGap: 3 });
+    doc
+      .fillColor(IMMO_PDF.muted)
+      .font('Helvetica')
+      .fontSize(10)
+      .text(pdfSafeText(options.subtitle), margin, y, { width: contentW, lineGap: 3 });
     y = doc.y + 10;
   } else {
     y += 8;
@@ -92,12 +128,16 @@ export function drawSectionHeading(doc: any, margin: number, contentW: number, t
 
 /** Libellé discret + texte (champ de fiche). */
 export function drawField(doc: any, margin: number, contentW: number, label: string, value: string) {
-  doc.fillColor(IMMO_PDF.subtle).font('Helvetica-Bold').fontSize(7).text(label.toUpperCase(), margin, doc.y, {
+  doc.fillColor(IMMO_PDF.subtle).font('Helvetica-Bold').fontSize(7).text(pdfSafeText(label).toUpperCase(), margin, doc.y, {
     characterSpacing: 0.65,
     width: contentW,
   });
   doc.moveDown(0.15);
-  doc.fillColor(IMMO_PDF.ink).font('Helvetica').fontSize(10.5).text(value || '—', margin, doc.y, { width: contentW, lineGap: 2 });
+  doc
+    .fillColor(IMMO_PDF.ink)
+    .font('Helvetica')
+    .fontSize(10.5)
+    .text(pdfSafeText(value || '-') || '-', margin, doc.y, { width: contentW, lineGap: 2 });
   doc.moveDown(0.65);
 }
 
@@ -116,8 +156,8 @@ export function drawFooter(doc: any, margin: number, contentW: number, pageHeigh
     .text(`Document généré le ${ts}`, margin, yLine + 7 + 12, { width: contentW, align: 'center' });
 }
 
-const ROW_H = 18;
-const HEADER_H = 22;
+const ROW_H = 22;
+const HEADER_H = 24;
 
 export function drawZebraTable(
   doc: any,
@@ -141,7 +181,12 @@ export function drawZebraTable(
     let x = margin;
     doc.fillColor(IMMO_PDF.tableHeaderInk).font('Helvetica-Bold').fontSize(8);
     for (let i = 0; i < n; i++) {
-      doc.text(String(headers[i] ?? ''), x + 6, y + 7, { width: (w[i] as number) - 12, lineGap: 0 });
+      doc.text(pdfSafeText(String(headers[i] ?? '')), x + 6, y + 7, {
+        width: (w[i] as number) - 12,
+        height: HEADER_H - 10,
+        ellipsis: true,
+        lineGap: 0,
+      });
       x += w[i] as number;
     }
     doc
@@ -169,9 +214,11 @@ export function drawZebraTable(
     let x = margin;
     const cells = row.length >= n ? row : [...row, ...Array(n - row.length).fill('—')];
     for (let i = 0; i < n; i++) {
-      const txt = String(cells[i] ?? '—').replace(/\s+/g, ' ').trim();
-      doc.fillColor(IMMO_PDF.ink).text(txt, x + 6, y + 6, {
+      const txt = pdfSafeText(String(cells[i] ?? '-')) || '-';
+      doc.fillColor(IMMO_PDF.ink).text(txt, x + 6, y + 5, {
         width: (w[i] as number) - 12,
+        height: ROW_H - 8,
+        ellipsis: true,
         lineGap: 0,
       });
       x += w[i] as number;

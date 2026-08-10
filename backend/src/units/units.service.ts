@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { BuildingStructureKind, Prisma, UnitKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { selectApartmentsPerFloorColumn } from '../buildings/apartments-per-floor-column';
+import { sortByNaturalLabel } from '../common/sort.util';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 
@@ -11,7 +12,7 @@ export class UnitsService {
 
   async listByBuilding(buildingId: string, organizationId: string) {
     await this.ensureBuilding(buildingId, organizationId);
-    return this.prisma.unit.findMany({
+    const rows = await this.prisma.unit.findMany({
       where: { buildingId },
       orderBy: { label: 'asc' },
       include: {
@@ -22,6 +23,7 @@ export class UnitsService {
         },
       },
     });
+    return sortByNaturalLabel(rows);
   }
 
   async create(buildingId: string, dto: CreateUnitDto, organizationId: string) {

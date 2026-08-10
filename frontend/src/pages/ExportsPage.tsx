@@ -46,10 +46,10 @@ export function ExportsPage() {
   return (
     <div className="space-y-6">
       <AppPageTitle
-        className="max-w-3xl"
         iconTo="/exports"
         title="Export / import"
         hintTitle="Téléchargez le modèle Excel (même structure que l’export), complétez-le, puis réimportez-le pour alimenter votre espace (biens, baux, paiements, charges)."
+        subtitle="Modèle Excel, export des données et réimport en masse."
       />
 
       <Card className="max-w-lg">

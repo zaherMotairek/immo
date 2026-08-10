@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { OdooTabBar } from '@/components/OdooKit';
 import { Button, Card, Label, Select, StatTile } from '@/components/ui';
 import {
   closeAccountingPeriod,
@@ -109,6 +110,7 @@ export function ComptabilitePage() {
         iconTo="/comptabilite"
         title="Mode comptable"
         hintTitle="Résumé annuel clair pour la comptabilité avec bénéfice estimé et exports."
+        subtitle="Synthèse annuelle, clôtures de période et exports comptables."
       />
       <Card className="space-y-3">
         <div className="flex flex-wrap items-end gap-2">
@@ -145,19 +147,18 @@ export function ComptabilitePage() {
             <StatTile label="Charges" value={fcfa(data.totals.charges)} />
             <StatTile label="Bénéfice estimé" value={fcfa(data.estimatedProfit)} />
           </div>
-          <Card className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant={tab === 'resume' ? 'primary' : 'secondary'} className="py-1.5 text-xs" onClick={() => setTab('resume')}>
-                Résumé mensuel
-              </Button>
-              <Button type="button" variant={tab === 'ledger' ? 'primary' : 'secondary'} className="py-1.5 text-xs" onClick={() => setTab('ledger')}>
-                Grand livre
-              </Button>
-              <Button type="button" variant={tab === 'receivables' ? 'primary' : 'secondary'} className="py-1.5 text-xs" onClick={() => setTab('receivables')}>
-                Créances / impayés
-              </Button>
-            </div>
-
+          <Card className="overflow-hidden !p-0">
+            <OdooTabBar
+              tabs={[
+                { id: 'resume', label: 'Résumé mensuel' },
+                { id: 'ledger', label: 'Grand livre' },
+                { id: 'receivables', label: 'Créances / impayés' },
+              ]}
+              activeId={tab}
+              onChange={(id) => setTab(id as typeof tab)}
+              ariaLabel="Sections comptables"
+            />
+            <div className="space-y-3 p-3 sm:p-4">
             {tab === 'resume' ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -275,6 +276,7 @@ export function ComptabilitePage() {
                 </div>
               </>
             ) : null}
+            </div>
           </Card>
         </>
       ) : null}

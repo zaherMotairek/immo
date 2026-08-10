@@ -11,9 +11,12 @@ import {
   drawTopBanner,
   drawWorksheetLegend,
   drawZebraTable,
+  formatDatePdfFr,
   formatFcfaPdf,
+  truncPdfCell,
   type BuildingsWorksheetRow,
 } from '../common/immo-pdf';
+import { sortByNaturalLabel } from '../common/sort.util';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
 import {
@@ -52,6 +55,7 @@ export class BuildingsService {
     const apfMap = await selectApartmentsPerFloorByOrg(this.prisma, organizationId);
     return rows.map((row) => ({
       ...row,
+      units: sortByNaturalLabel(row.units),
       apartmentsPerFloor: apfMap.get(row.id) ?? null,
     }));
   }
@@ -78,9 +82,10 @@ export class BuildingsService {
       },
     });
     if (!b) throw new NotFoundException('Bien introuvable');
+    const withSorted = { ...b, units: sortByNaturalLabel(b.units) };
     const apf = await selectApartmentsPerFloorColumn(this.prisma, b.id);
-    if (apf === undefined) return b;
-    return { ...b, apartmentsPerFloor: apf };
+    if (apf === undefined) return withSorted;
+    return { ...withSorted, apartmentsPerFloor: apf };
   }
 
   async create(dto: CreateBuildingDto, organizationId: string) {
@@ -374,15 +379,11 @@ export class BuildingsService {
   }
 
   private truncPdfCell(s: string, maxChars: number): string {
-    const t = String(s).replace(/\s+/g, ' ').trim();
-    return t.length <= maxChars ? t : `${t.slice(0, Math.max(0, maxChars - 1))}…`;
+    return truncPdfCell(s, maxChars);
   }
 
   private fmtDateFr(d: Date | null | undefined): string {
-    if (d == null) return '—';
-    if (d instanceof Date) return d.toISOString().slice(0, 10);
-    const s = String(d);
-    return s.length >= 10 ? s.slice(0, 10) : s;
+    return formatDatePdfFr(d);
   }
 
   private unitKindLabelFr(kind: UnitKind): string {
@@ -458,9 +459,10 @@ export class BuildingsService {
       },
     });
     if (!b) throw new NotFoundException('Bien introuvable');
+    const sorted = { ...b, units: sortByNaturalLabel(b.units) };
     const apf = await selectApartmentsPerFloorColumn(this.prisma, b.id);
-    if (apf === undefined) return b;
-    return { ...b, apartmentsPerFloor: apf };
+    if (apf === undefined) return sorted;
+    return { ...sorted, apartmentsPerFloor: apf };
   }
 
   /**
@@ -522,20 +524,20 @@ export class BuildingsService {
       if (u.locauxSlot != null) slotBits.push(`Loc. pro ${u.locauxSlot}`);
       const slotStr = slotBits.length ? slotBits.join(' · ') : '—';
       const occ = lease ? 'Loué' : 'Vacant';
-      let tenantRent = '—';
-      let bailStr = '—';
+      let tenantRent = '-';
+      let bailStr = '-';
       if (lease) {
         const tn = `${lease.tenant.firstName} ${lease.tenant.lastName}`.trim();
         const rent = formatFcfaPdf(lease.monthlyRent.toNumber());
-        tenantRent = this.truncPdfCell(`${tn} — ${rent}`, 52);
-        const due = `Échéance le ${lease.rentDueDay}`;
+        tenantRent = this.truncPdfCell(`${tn} - ${rent}`, 40);
         const start = this.fmtDateFr(lease.startDate);
         const end = lease.endDate ? this.fmtDateFr(lease.endDate) : 'sans fin';
-        bailStr = this.truncPdfCell(`${due} · ${start} → ${end}`, 36);
+        // Une seule ligne ASCII : Helvetica + hauteur de ligne fixe (sinon texte illisible).
+        bailStr = this.truncPdfCell(`Ech. j.${lease.rentDueDay} | ${start} - ${end}`, 34);
       }
       rows.push([
-        this.truncPdfCell(u.label, 20),
-        this.truncPdfCell(this.unitKindLabelFr(u.kind), 12),
+        this.truncPdfCell(u.label, 22),
+        this.truncPdfCell(this.unitKindLabelFr(u.kind), 14),
         floorStr,
         surfaceStr,
         roomsStr,
@@ -560,12 +562,12 @@ export class BuildingsService {
         'Étage',
         'm²',
         'Pièces',
-        'N° lot ou logement',
+        'N° lot / logement',
         'Occup.',
         'Locataire & loyer',
-        'Bail (échéance & dates)',
+        'Bail (éch. & dates)',
       ];
-      const colFracs = [0.13, 0.1, 0.07, 0.06, 0.05, 0.11, 0.07, 0.22, 0.19];
+      const colFracs = [0.12, 0.1, 0.07, 0.05, 0.05, 0.1, 0.07, 0.22, 0.22];
       let startY = doc.y + 6;
       if (startY > pageBottom - 80) {
         doc.addPage();

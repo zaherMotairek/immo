@@ -11,14 +11,14 @@ import {
   paymentRemaining,
   type PaymentRow,
 } from '@/lib/paymentRow';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { AmountFcfaInput, Button, Card, HelpHint, Label, Select, StatTile } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, HelpHint, Label, Select } from '@/components/ui';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
 import { shouldDeferEscapeCancel } from '@/lib/useEscapeCancel';
 import { unitKindLabel } from '@/lib/unitKind';
 import { SortableTh } from '@/components/SortableTh';
@@ -696,80 +696,75 @@ export function PaymentsPage() {
           </button>
         </p>
       ) : null}
-      <header className="border-b border-slate-200/90 pb-4 dark:border-slate-700/80">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <AppPageTitle
-              iconTo="/paiements"
-              title="Paiements"
-              hintTitle="Cliquez une ligne pour le détail (bien, mode d’encaissement, fiche bail, actions). La liste ne montre que l’essentiel."
-              titleExtra={
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatTile className="shrink-0" label="Total" value={String(visibleRows.length)} />
-                  <PdfPrintButton
-                    path={worksheetPdfPath}
-                    title="Feuille de route PDF (mêmes filtres que la liste) : cases perçu, notes, puis saisie dans l’app"
-                  />
-                </div>
-              }
+      <AppPageTitle
+        iconTo="/paiements"
+        title="Paiements"
+        hintTitle="Double-cliquez une ligne pour le détail (bien, mode d’encaissement, fiche bail, actions). La liste ne montre que l’essentiel."
+        subtitle={
+          leaseIdFilter ? (
+            <>
+              <strong className="font-semibold text-slate-800 dark:text-slate-200">Ce bail uniquement</strong> — échéances
+              filtrées. La caution se gère sur la fiche location.
+            </>
+          ) : (
+            <>Échéances mensuelles, encaissements et relances.</>
+          )
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <PageHeaderKpi label="Total" value={String(visibleRows.length)} />
+            <PdfPrintButton
+              path={worksheetPdfPath}
+              title="Feuille de route PDF (mêmes filtres que la liste) : cases perçu, notes, puis saisie dans l’app"
             />
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              {leaseIdFilter ? (
-                <>
-                  <strong className="font-semibold text-slate-800 dark:text-slate-200">Ce bail uniquement</strong> — échéances
-                  filtrées. La caution se gère sur la fiche location.
-                </>
-              ) : (
-                <>Échéances mensuelles, encaissements et relances.</>
-              )}
-            </p>
-            {leaseIdFilter ? (
-              <div
-                className="mt-4 max-w-2xl rounded-xl border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3.5 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
-                role="status"
-              >
-                <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">
-                  Paiements / échéances — ce bail seulement
-                </p>
-                {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
-                  <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
-                    <span className="font-semibold text-slate-900 dark:text-slate-50">
-                      {leaseFocusSummary.tenant || 'Locataire'}
-                    </span>
-                    {leaseFocusSummary.place ? (
-                      <>
-                        {' '}
-                        · <span className="font-normal">{leaseFocusSummary.place}</span>
-                      </>
-                    ) : null}
-                  </p>
-                ) : (
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                    Les lignes listées correspondent uniquement à ce bail (identifiant interne). Si la liste est vide, elles ne
-                    sont peut-être pas encore générées pour la période choisie.
-                  </p>
-                )}
-                <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  <SmartLink
-                    to={`/locations/${leaseIdFilter}`}
-                    state={locationSheetState}
-                    className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
-                  >
-                    ← Fiche location de ce bail
-                  </SmartLink>
-                  <button
-                    type="button"
-                    className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
-                    onClick={clearLeaseFilter}
-                  >
-                    Afficher tous les baux
-                  </button>
-                </p>
-              </div>
-            ) : null}
           </div>
-        </div>
-      </header>
+        }
+      >
+        {leaseIdFilter ? (
+          <div
+            className="max-w-2xl rounded-lg border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
+            role="status"
+          >
+            <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">
+              Paiements / échéances — ce bail seulement
+            </p>
+            {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
+              <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
+                <span className="font-semibold text-slate-900 dark:text-slate-50">
+                  {leaseFocusSummary.tenant || 'Locataire'}
+                </span>
+                {leaseFocusSummary.place ? (
+                  <>
+                    {' '}
+                    · <span className="font-normal">{leaseFocusSummary.place}</span>
+                  </>
+                ) : null}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Les lignes listées correspondent uniquement à ce bail (identifiant interne). Si la liste est vide, elles ne
+                sont peut-être pas encore générées pour la période choisie.
+              </p>
+            )}
+            <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <SmartLink
+                to={`/locations/${leaseIdFilter}`}
+                state={locationSheetState}
+                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+              >
+                ← Fiche location de ce bail
+              </SmartLink>
+              <button
+                type="button"
+                className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+                onClick={clearLeaseFilter}
+              >
+                Afficher tous les baux
+              </button>
+            </p>
+          </div>
+        ) : null}
+      </AppPageTitle>
 
       <OdooActionBar
         left={
@@ -1367,15 +1362,12 @@ export function PaymentsPage() {
                       <tr
                         key={p.id}
                         id={`payment-${p.id}`}
-                        onClick={(e) => {
-                          const t = e.target as HTMLElement;
-                          if (t.closest('a, button, input, textarea, select, label')) return;
-                          setZoomPaymentId(p.id);
-                        }}
-                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${paymentRowFlash(flashPaymentRowId === p.id)} ${
+                        title="Double-clic pour ouvrir le détail"
+                        onDoubleClick={(e) => onListRowDoubleClick(e, () => setZoomPaymentId(p.id))}
+                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${paymentRowFlash(flashPaymentRowId === p.id)} ${
                           zoomPaymentId === p.id
                             ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
-                            : 'cursor-pointer'
+                            : ''
                         }`}
                       >
                         <td className={`text-center ${listTableCellClass}`} onClick={(e) => e.stopPropagation()}>

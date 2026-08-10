@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { useFixedPanelPosition } from '@/hooks/useFixedPanelPosition';
+import { useFixedPanelPosition, fixedPanelStyle } from '@/hooks/useFixedPanelPosition';
 import { scrollIntoContainedView } from '@/lib/domScroll';
 import { Input } from '@/components/ui';
 
@@ -284,7 +284,7 @@ export function SearchableSelect({
             <div
               ref={panelRef}
               className="fixed z-[10000] origin-top"
-              style={{ top: panelBox.top, left: panelBox.left, width: panelBox.width }}
+              style={fixedPanelStyle(panelBox)}
               onMouseDown={(e) => {
                 /* Évite le blur du champ (fermeture intempestive) quand on clique dans la liste ou sur la barre de défilement */
                 e.preventDefault();
@@ -316,7 +316,8 @@ export function SearchableSelect({
                   ref={listRef}
                   id={listId}
                   role="listbox"
-                  className="max-h-[min(18rem,50vh)] overflow-y-auto overscroll-contain py-1.5"
+                  className="overflow-y-auto overscroll-contain py-1.5"
+                  style={{ maxHeight: panelBox.maxHeight ? `${panelBox.maxHeight}px` : 'min(18rem, 50vh)' }}
                 >
               {rows.length === 0 ? (
                 <li

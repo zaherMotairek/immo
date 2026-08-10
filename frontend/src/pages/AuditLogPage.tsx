@@ -38,7 +38,12 @@ export function AuditLogPage() {
 
   return (
     <section className="space-y-4">
-      <AppPageTitle iconTo="/journal-securite" title="Journal de sécurité" hintTitle="Traçabilité: qui a fait quoi et quand." />
+      <AppPageTitle
+        iconTo="/journal-securite"
+        title="Journal de sécurité"
+        hintTitle="Traçabilité: qui a fait quoi et quand."
+        subtitle="Historique des actions sensibles sur votre espace."
+      />
       <Card className="space-y-3">
         <div className="grid gap-3 md:grid-cols-3">
           <div>

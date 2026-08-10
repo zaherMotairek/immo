@@ -4,22 +4,21 @@ import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa, formatDateFr, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { BuildingScopeBadge, UnitScopeBadge } from '@/components/BuildingUnitBadges';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
-import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { isMultiLotStructure } from '@/lib/buildingStructure';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { buildReturnToBuildingUrl } from '@/lib/navigation';
 import { UNIT_KIND_OPTIONS, unitKindLabel, type UnitKindCode } from '@/lib/unitKind';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
-import { OdooActionBar } from '@/components/OdooKit';
+import { OdooActionBar, OdooTabBar } from '@/components/OdooKit';
 
 type BuildingOpt = {
   id: string;
@@ -134,12 +133,6 @@ function splitFullName(input: string): { firstName: string; lastName: string } {
   return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
 }
 
-const filterPillBase =
-  'shrink-0 rounded-md border px-2 py-1 text-left text-[11px] font-medium leading-tight whitespace-nowrap transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500';
-const filterPillOn =
-  'border-brand-600/90 bg-brand-50 text-brand-950 shadow-sm dark:border-brand-500/70 dark:bg-brand-950/35 dark:text-brand-100';
-const filterPillOff =
-  'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/75 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800';
 
 function leaseRowFlashClass(active: boolean) {
   return active
@@ -701,83 +694,77 @@ export function LeasesPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <header className="border-b border-slate-200/90 pb-4 dark:border-slate-700/80">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 max-w-2xl">
-            <AppPageTitle
-              iconTo="/baux"
-              title="Baux & locations"
-              hintTitle="À la création, la fin de bail est fixée à un an après la date de début (même jour). Les loyers commencent le mois suivant l’enregistrement du bail (ex. contrat en avril → 1ᵉʳ loyer en mai) ; l’échéance est ce jour dans le mois facturé. Génération jusqu’à la fin de contrat (sauf bail inactif). Le bouton « Générer les échéances » ajoute une autre année civile si besoin. Les filtres ne font que masquer des lignes à l’écran."
-              titleExtra={
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatTile className="shrink-0" label="Total" value={String(leases.length)} />
-                  <PdfPrintButton
-                    path="/reports/table-baux.pdf"
-                    title="Liste de tous les baux en PDF (aperçu comme le tableau)"
-                  />
-                </div>
-              }
-            />
-            {leaseIdFocus ? (
-              <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue guidée :</strong> un bail précis est
-                mis en avant ci-dessous (groupe ouvert, ligne surlignée). Les autres baux restent visibles dans la liste.
+      <AppPageTitle
+        iconTo="/baux"
+        title="Baux & locations"
+        hintTitle="À la création, la fin de bail est fixée à un an après la date de début (même jour). Les loyers commencent le mois suivant l’enregistrement du bail (ex. contrat en avril → 1ᵉʳ loyer en mai) ; l’échéance est ce jour dans le mois facturé. Génération jusqu’à la fin de contrat (sauf bail inactif). Le bouton « Générer les échéances » ajoute une autre année civile si besoin. Les filtres ne font que masquer des lignes à l’écran."
+        subtitle={
+          leaseIdFocus ? (
+            <>
+              <strong className="font-semibold text-slate-800 dark:text-slate-200">Vue guidée :</strong> un bail précis est mis
+              en avant ci-dessous (groupe ouvert, ligne surlignée). Les autres baux restent visibles dans la liste.
+            </>
+          ) : (
+            <>Gestion des contrats de location et génération des échéances de loyer.</>
+          )
+        }
+        actions={
+          <>
+            <PageHeaderKpi label="Total" value={String(leases.length)} />
+            <PdfPrintButton path="/reports/table-baux.pdf" title="Liste de tous les baux en PDF (aperçu comme le tableau)" />
+            <Button type="button" className="h-auto shrink-0 gap-2 py-2.5 text-sm font-semibold shadow-sm" onClick={() => openAddLeaseForm()}>
+              <span className="text-lg leading-none" aria-hidden>
+                +
+              </span>
+              Nouveau bail
+            </Button>
+          </>
+        }
+      >
+        {leaseIdFocus ? (
+          <div
+            className="max-w-2xl rounded-lg border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
+            role="status"
+          >
+            <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">Baux & échéances — ce bail est sélectionné</p>
+            {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
+              <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
+                <span className="font-semibold text-slate-900 dark:text-slate-50">{leaseFocusSummary.tenant}</span>
+                {leaseFocusSummary.place ? (
+                  <>
+                    {' '}
+                    · <span className="font-normal">{leaseFocusSummary.place}</span>
+                  </>
+                ) : null}
               </p>
-            ) : null}
-            {leaseIdFocus ? (
-              <div
-                className="mt-4 max-w-2xl rounded-xl border border-brand-200/90 bg-gradient-to-br from-brand-50/95 to-white px-4 py-3.5 shadow-sm dark:border-brand-500/35 dark:from-brand-950/50 dark:to-slate-900/80"
-                role="status"
+            ) : leaseIdFocus && leases.length > 0 ? (
+              <p className="mt-2 text-sm text-amber-800 dark:text-amber-200/90">
+                Aucun bail avec cet identifiant dans la liste chargée — il a peut-être été supprimé. Vérifiez l’URL ou ouvrez la
+                fiche location.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Chargement du contexte…</p>
+            )}
+            <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <SmartLink
+                to={`/locations/${leaseIdFocus}`}
+                state={locationSheetState}
+                returnFocusId={leaseIdFocus}
+                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
               >
-                <p className="text-sm font-semibold text-brand-950 dark:text-brand-100">
-                  Baux & échéances — ce bail est sélectionné
-                </p>
-                {leaseFocusSummary && (leaseFocusSummary.tenant || leaseFocusSummary.place) ? (
-                  <p className="mt-2 text-sm leading-snug text-slate-800 dark:text-slate-200">
-                    <span className="font-semibold text-slate-900 dark:text-slate-50">{leaseFocusSummary.tenant}</span>
-                    {leaseFocusSummary.place ? (
-                      <>
-                        {' '}
-                        · <span className="font-normal">{leaseFocusSummary.place}</span>
-                      </>
-                    ) : null}
-                  </p>
-                ) : leaseIdFocus && leases.length > 0 ? (
-                  <p className="mt-2 text-sm text-amber-800 dark:text-amber-200/90">
-                    Aucun bail avec cet identifiant dans la liste chargée — il a peut-être été supprimé. Vérifiez l’URL ou
-                    ouvrez la fiche location.
-                  </p>
-                ) : (
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Chargement du contexte…</p>
-                )}
-                <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  <SmartLink
-                    to={`/locations/${leaseIdFocus}`}
-                    state={locationSheetState}
-                    returnFocusId={leaseIdFocus}
-                    className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
-                  >
-                    ← Fiche location de ce bail
-                  </SmartLink>
-                  <button
-                    type="button"
-                    className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
-                    onClick={clearLeaseDeepLink}
-                  >
-                    Afficher la page sans sélection
-                  </button>
-                </p>
-              </div>
-            ) : null}
+                ← Fiche location de ce bail
+              </SmartLink>
+              <button
+                type="button"
+                className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+                onClick={clearLeaseDeepLink}
+              >
+                Afficher la page sans sélection
+              </button>
+            </p>
           </div>
-          <Button type="button" className="h-auto shrink-0 gap-2 py-2.5 text-sm font-semibold shadow-sm sm:mt-1" onClick={() => openAddLeaseForm()}>
-            <span className="text-lg leading-none" aria-hidden>
-              +
-            </span>
-            Nouveau bail
-          </Button>
-        </div>
-      </header>
+        ) : null}
+      </AppPageTitle>
 
       <OdooActionBar
         left={
@@ -1068,32 +1055,17 @@ export function LeasesPage() {
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Statut
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {(
-                  [
-                    { id: 'active' as const, label: 'Actifs', count: leaseStats.active },
-                    { id: 'inactive' as const, label: 'Inactifs', count: leaseStats.inactive },
-                    { id: 'all' as const, label: 'Tous', count: leaseStats.total },
-                  ] as const
-                ).map((t) => {
-                  const on = statusTab === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setStatusTab(t.id)}
-                      className={`${filterPillBase} inline-flex items-center gap-1.5 ${on ? filterPillOn : filterPillOff}`}
-                    >
-                      <span>{t.label}</span>
-                      <span
-                        className={`tabular-nums text-[10px] ${on ? 'text-brand-800/80 dark:text-brand-200/90' : 'text-slate-400 dark:text-slate-500'}`}
-                      >
-                        {t.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <OdooTabBar
+                variant="chip"
+                activeId={statusTab}
+                onChange={(id) => setStatusTab(id as StatusTab)}
+                ariaLabel="Statut du bail"
+                tabs={[
+                  { id: 'active', label: 'Actifs', count: leaseStats.active },
+                  { id: 'inactive', label: 'Inactifs', count: leaseStats.inactive },
+                  { id: 'all', label: 'Tous', count: leaseStats.total },
+                ]}
+              />
             </fieldset>
 
             <fieldset className="min-w-0 border-0 p-0 lg:col-span-6">
@@ -1107,34 +1079,20 @@ export function LeasesPage() {
                   title="Chaque bail est relié à une unité déclarée sur la fiche Bien. Filtrez par type (appartement, maison, bureau…)."
                 />
               </div>
-              <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
-                {[
-                  { id: 'all' as const, label: 'Tous types', countKey: 'all' as const },
+              <OdooTabBar
+                variant="chip"
+                activeId={wellViewFilter}
+                onChange={(id) => setWellViewFilter(id as WellViewFilter)}
+                ariaLabel="Nature du local"
+                tabs={[
+                  { id: 'all', label: 'Tous types', count: wellViewCounts.all },
                   ...UNIT_KIND_OPTIONS.map((o) => ({
-                    id: o.value as WellViewFilter,
+                    id: o.value,
                     label: o.label,
-                    countKey: o.value,
+                    count: wellViewCounts[o.value] ?? 0,
                   })),
-                ].map((t) => {
-                  const on = wellViewFilter === t.id;
-                  const count = wellViewCounts[t.countKey] ?? 0;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setWellViewFilter(t.id)}
-                      className={`${filterPillBase} inline-flex items-center gap-1.5 ${on ? filterPillOn : filterPillOff}`}
-                    >
-                      <span>{t.label}</span>
-                      <span
-                        className={`tabular-nums text-[10px] ${on ? 'text-brand-800/80 dark:text-brand-200/90' : 'text-slate-400 dark:text-slate-500'}`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                ]}
+              />
             </fieldset>
 
             <div className="flex flex-col gap-2 border-t border-slate-100 pt-2 dark:border-slate-800 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between lg:col-span-3 lg:border-t-0 lg:pt-0">
@@ -1292,7 +1250,11 @@ export function LeasesPage() {
                     <tr
                       key={l.id}
                       id={`lease-row-${l.id}`}
-                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${leaseRowFlashClass(flashLeaseRowId === l.id)}`}
+                      title="Double-clic pour ouvrir la fiche location"
+                      onDoubleClick={(e) =>
+                        onListRowDoubleClick(e, () => navigate(`/locations/${l.id}`, { state: locationSheetState }))
+                      }
+                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${leaseRowFlashClass(flashLeaseRowId === l.id)}`}
                     >
                       <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
                         <SmartLink
@@ -1304,34 +1266,28 @@ export function LeasesPage() {
                         </SmartLink>
                       </td>
                       <td className={`${listTableCellClass} text-slate-800 dark:text-slate-200`}>
-                        <div className="flex items-start gap-2">
-                          <BuildingScopeBadge className="mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <SmartLink
-                              to={`/biens/${l.unit.building.id}?returnLocation=${encodeURIComponent('/baux')}`}
-                              returnFocusId={l.id}
-                              className="block font-medium text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
-                            >
-                              {l.unit.building.name}
-                            </SmartLink>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {l.unit.building.commune}, {l.unit.building.city}
-                            </p>
-                          </div>
+                        <div className="min-w-0">
+                          <SmartLink
+                            to={`/biens/${l.unit.building.id}?returnLocation=${encodeURIComponent('/baux')}`}
+                            returnFocusId={l.id}
+                            className="block font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                          >
+                            {l.unit.building.name}
+                          </SmartLink>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {l.unit.building.commune}, {l.unit.building.city}
+                          </p>
                         </div>
                       </td>
                       <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
-                        <div className="flex items-start gap-2">
-                          <UnitScopeBadge className="mt-0.5 shrink-0" />
-                          <SmartLink
-                            to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/baux')}`}
-                            returnFocusId={l.id}
-                            className="min-w-0 block text-brand-800 underline-offset-2 hover:underline dark:text-brand-400"
-                          >
-                            <span className="text-xs text-slate-500 dark:text-slate-400">{unitKindLabel(l.unit.kind)}</span>
-                            <p className="font-medium text-slate-900 dark:text-slate-100">{l.unit.label}</p>
-                          </SmartLink>
-                        </div>
+                        <SmartLink
+                          to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/baux')}`}
+                          returnFocusId={l.id}
+                          className="min-w-0 block underline-offset-2 hover:underline"
+                        >
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">{unitKindLabel(l.unit.kind)}</span>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{l.unit.label}</p>
+                        </SmartLink>
                       </td>
                       <td className={`${listTableCellClass} tabular-nums text-slate-800 dark:text-slate-200`}>
                         <p className="font-semibold">{fcfa(Number(l.monthlyRent))}</p>
@@ -1354,13 +1310,7 @@ export function LeasesPage() {
                         </p>
                       </td>
                       <td className={listTableCellClass}>
-                        <span
-                          className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                            l.active
-                              ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200'
-                              : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                          }`}
-                        >
+                        <span className={`text-xs ${l.active ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500'}`}>
                           {l.active ? 'Actif' : 'Inactif'}
                         </span>
                       </td>

@@ -4,9 +4,9 @@ import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
+import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { chargeCategoryLabel, chargeCategoryOptions } from '@/lib/chargeCategories';
 import { listBlockRowClass } from '@/lib/listTableStyles';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -67,7 +67,7 @@ const MOIS_LONGS = Array.from({ length: 12 }, (_, i) =>
   new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date(2000, i, 1)),
 );
 
-export function ChargesPage() {
+export function ChargesPage({ embedded = false }: { embedded?: boolean }) {
   useRegisterRootSectionFallback();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -233,7 +233,7 @@ export function ChargesPage() {
       : `${MOIS_LONGS[viewMonth - 1].charAt(0).toUpperCase()}${MOIS_LONGS[viewMonth - 1].slice(1)} ${y}`;
 
   return (
-    <div className="space-y-6">
+    <div className={embedded ? 'space-y-4' : 'space-y-6'}>
       {focusChargeId ? (
         <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
           <button
@@ -250,14 +250,15 @@ export function ChargesPage() {
           </button>
         </p>
       ) : null}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className={`flex flex-wrap items-end gap-4 ${embedded ? 'justify-end' : 'justify-between'}`}>
+        {embedded ? null : (
         <AppPageTitle
-          className="max-w-3xl"
           iconTo="/charges"
           title="Charges & impôts"
           hintTitle="Vue normale : un mois précis (salaires, factures mensuelles). Basculer sur « Toute l’année » pour voir toutes les lignes de l’exercice, y compris les charges saisies « année entière » sans mois. Montants en FCFA."
-          titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
+          actions={<PageHeaderKpi label="Total" value={String(rows.length)} />}
         />
+        )}
         <div className="flex flex-wrap items-end gap-4">
           <div>
             <Label htmlFor="charges-filter-year">Année</Label>

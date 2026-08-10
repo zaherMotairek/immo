@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useFixedPanelPosition } from '@/hooks/useFixedPanelPosition';
+import { useFixedPanelPosition, fixedPanelStyle } from '@/hooks/useFixedPanelPosition';
 import { scrollIntoContainedView } from '@/lib/domScroll';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -546,7 +546,7 @@ export function GlobalSearchBar() {
             <div
               ref={panelRef}
               className="fixed z-[10000]"
-              style={{ top: panelBox.top, left: panelBox.left, width: panelBox.width }}
+              style={fixedPanelStyle(panelBox)}
               onMouseDown={(e) => e.preventDefault()}
             >
               {showRecentPanel ? (

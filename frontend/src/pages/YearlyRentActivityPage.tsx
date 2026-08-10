@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { SmartLink } from '@/components/SmartLink';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
 import { statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Button, Card, HelpHint, Label, Select, StatTile } from '@/components/ui';
+import { Button, Card, HelpHint, Label, Select } from '@/components/ui';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -446,11 +446,12 @@ export function YearlyRentActivityPage() {
   return (
     <div className="space-y-6">
       <AppPageTitle
-        className="max-w-3xl print:hidden"
+        className="print:hidden"
         iconTo="/paiements"
         title="Activité loyers (vue annuelle)"
         hintTitle="Une ligne par bail actif : statut et montants (FCFA) mois par mois. Le lien vers Paiements reprend la même année, le même locataire ou le même bien, et tous les mois. Les baux inactifs ne sont pas listés par l’API."
-        titleExtra={<StatTile className="shrink-0 print:hidden" label="Total" value={String(sortedLeaseRows.length)} />}
+        subtitle="Calendrier des encaissements et retards, mois par mois."
+        actions={<PageHeaderKpi label="Total" value={String(sortedLeaseRows.length)} />}
       />
 
       <Card className="space-y-4 p-4 print:hidden sm:p-5">

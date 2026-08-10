@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Card, StatTile } from '@/components/ui';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { Card } from '@/components/ui';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -78,8 +79,11 @@ function compareCautionRows(a: DepositRow, b: DepositRow, key: CautionSortKey, d
   return c * sign;
 }
 
-export function CautionsEncaisséesPage() {
+export function CautionsEncaisséesPage({ embedded = false }: { embedded?: boolean }) {
   useRegisterRootSectionFallback();
+  const routerLocation = useLocation();
+  const navigate = useNavigate();
+  const locationSheetState = useMemo(() => ({ backgroundLocation: routerLocation }), [routerLocation]);
   const [rows, setRows] = useState<DepositRow[]>([]);
   const [listFetched, setListFetched] = useState(false);
   const [cautionSortKey, setCautionSortKey] = useState<CautionSortKey>('date');
@@ -113,14 +117,15 @@ export function CautionsEncaisséesPage() {
   }, [rows, cautionSortKey, cautionSortDir]);
 
   return (
-    <div className="space-y-6">
+    <div className={embedded ? 'space-y-4' : 'space-y-6'}>
+      {embedded ? null : (
       <AppPageTitle
-        className="max-w-3xl"
         iconTo="/cautions"
         title="Cautions encaissées"
         hintTitle="Baux avec dépôt marqué encaissé. Colonne « Mois » : équivalent en mois de loyer (caution ÷ loyer). Échéances : Paiements."
-        titleExtra={<StatTile className="shrink-0" label="Total" value={String(rows.length)} />}
+        actions={<PageHeaderKpi label="Total" value={String(rows.length)} />}
       />
+      )}
 
       {rows.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -211,7 +216,11 @@ export function CautionsEncaisséesPage() {
                   <tr
                     key={r.leaseId}
                     id={`caution-row-${r.leaseId}`}
-                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${cautionRowFlash(flashLeaseId === r.leaseId)}`}
+                    title="Double-clic pour ouvrir la fiche location"
+                    onDoubleClick={(e) =>
+                      onListRowDoubleClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))
+                    }
+                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${cautionRowFlash(flashLeaseId === r.leaseId)}`}
                   >
                     <td className={`${listTableFirstCellClass} whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-200`}>
                       {r.depositPaidAt}

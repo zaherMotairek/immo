@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SmartLink } from '@/components/SmartLink';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { api } from '@/lib/api';
 import { fcfa } from '@/lib/format';
 import { unitKindLabel } from '@/lib/unitKind';
-import { AppPageTitle } from '@/components/AppPageTitle';
+import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
-import { Button, Card, HelpHint, Input, Label, StatTile } from '@/components/ui';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass } from '@/lib/listTableStyles';
+import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -151,6 +151,7 @@ function rowFlashClass(active: boolean) {
 export function LocationsPage() {
   useRegisterRootSectionFallback();
   const routerLocation = useLocation();
+  const navigate = useNavigate();
   const locationSheetState = useMemo(() => ({ backgroundLocation: routerLocation }), [routerLocation]);
   const [rows, setRows] = useState<OverviewRow[]>([]);
   const [listFetched, setListFetched] = useState(false);
@@ -224,30 +225,27 @@ export function LocationsPage() {
 
   return (
     <div id="locations-page-root" className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <AppPageTitle
-          className="max-w-3xl"
-          iconTo="/locations"
-          title="Locations"
-          hintTitle="Pour chaque bail : localisation, locataire, loyer, statut du mois. Fiche = détail. Supprimer = supprime le bail et les paiements (pas le bien ni le locataire)."
-          titleExtra={
-            <div className="flex flex-wrap items-center gap-2">
-              <StatTile className="shrink-0" label="Total" value={String(rows.length)} />
-              <PdfPrintButton
-                path={`/reports/table-locations.pdf${showAll ? '?all=1' : ''}`}
-                title={
-                  showAll
-                    ? 'Liste des locations en PDF (actives et inactives)'
-                    : 'Liste des locations en PDF (baux actifs — comme le filtre ci-dessous)'
-                }
-              />
-            </div>
-          }
-        />
-        <Button variant={showAll ? 'primary' : 'secondary'} className="py-2 text-xs" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? 'Actives seulement' : 'Voir aussi inactives'}
-        </Button>
-      </div>
+      <AppPageTitle
+        iconTo="/locations"
+        title="Locations"
+        hintTitle="Pour chaque bail : localisation, locataire, loyer, statut du mois. Fiche = détail. Supprimer = supprime le bail et les paiements (pas le bien ni le locataire)."
+        actions={
+          <>
+            <PageHeaderKpi label="Total" value={String(rows.length)} />
+            <PdfPrintButton
+              path={`/reports/table-locations.pdf${showAll ? '?all=1' : ''}`}
+              title={
+                showAll
+                  ? 'Liste des locations en PDF (actives et inactives)'
+                  : 'Liste des locations en PDF (baux actifs — comme le filtre ci-dessous)'
+              }
+            />
+            <Button variant={showAll ? 'primary' : 'secondary'} className="py-2 text-xs" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? 'Actives seulement' : 'Voir aussi inactives'}
+            </Button>
+          </>
+        }
+      />
 
       {rows.length > 0 ? (
         <div className="space-y-1">
@@ -326,7 +324,7 @@ export function LocationsPage() {
                       activeKey={tableSortKey}
                       dir={tableSortDir}
                       onSort={toggleTableSort}
-                      thClassName={`${locationSortThBase} border-l-[3px] border-l-brand-500/40 pl-[13px] sm:pl-[17px] dark:border-l-brand-400/35`}
+                      thClassName={locationSortThBase}
                     />
                     <SortableTh
                       label="Bien / unité"
@@ -387,7 +385,11 @@ export function LocationsPage() {
                     <tr
                       key={`table-${r.leaseId}`}
                       id={`loc-row-${r.leaseId}`}
-                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${rowFlashClass(flashLeaseId === r.leaseId)}`}
+                      title="Double-clic pour ouvrir la fiche"
+                      onDoubleClick={(e) =>
+                        onListRowDoubleClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))
+                      }
+                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${rowFlashClass(flashLeaseId === r.leaseId)}`}
                     >
                       <td className={`${listTableFirstCellClass} min-w-0 max-w-0 text-slate-700 dark:text-slate-300`}>
                         <span className="block break-words text-xs leading-snug">{r.localizationLine}</span>

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Button, Card, Input, Label } from '@/components/ui';
-import { AUTH_CARD_CLASS, AUTH_PAGE_SHELL_CLASS, authSafePaddingStyle, authThemeTogglePositionStyle } from '@/lib/authLayout';
+import { AuthShell } from '@/components/AuthShell';
+import { InstallAppButton } from '@/components/InstallAppButton';
+import { Button, Input, Label } from '@/components/ui';
 
 export function LoginPage() {
   const { user, ready, login } = useAuth();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,83 +38,99 @@ export function LoginPage() {
   }
 
   return (
-    <div className={AUTH_PAGE_SHELL_CLASS} style={authSafePaddingStyle}>
-      <div className="absolute sm:right-6 sm:top-6" style={authThemeTogglePositionStyle}>
-        <ThemeToggle tone="onLight" />
+    <AuthShell panelLead="Vos biens, vos locataires et vos loyers — au même endroit.">
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-zinc-50">Connexion</h2>
+        <p className="mt-1.5 text-sm text-slate-600 dark:text-zinc-400">Accédez à votre espace de gestion.</p>
       </div>
-      <div className="mx-auto w-full max-w-lg">
-        <div className="mb-6 text-center sm:mb-8">
-          <div className="mx-auto mb-4 flex justify-center">
-            <span className="h-1 w-14 rounded-sm bg-brand-600" aria-hidden />
-          </div>
-          <p className="mb-2 inline-block rounded-full border border-brand-500/30 bg-brand-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brand-800 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200">
-            Gestion locative
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">ImmoPilot</h1>
-          <p className="mx-auto mt-2 max-w-[24rem] text-base font-medium leading-snug text-slate-800 dark:text-slate-100">
-            Vos biens, vos locataires et vos loyers — au même endroit, sans jargon inutile.
-          </p>
-          <p className="mx-auto mt-2 max-w-[22rem] text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            Connectez-vous : le tableau de bord vous indique quoi encaisser en priorité ; le menu tient en quelques
-            raccourcis.
-          </p>
-          <p className="mx-auto mt-4 max-w-[22rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-            Depuis le téléphone sur le même réseau que le PC : utilisez l’URL affichée au démarrage du front (ex.{' '}
-            <code className="rounded bg-slate-200/80 px-1 dark:bg-slate-700">http://IP:5173</code>).
-          </p>
+
+      <form onSubmit={onSubmit} className="mt-8 space-y-5" autoComplete="on">
+        <div>
+          <Label htmlFor="email">E-mail</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            inputMode="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoFocus
+            spellCheck={false}
+            enterKeyHint="next"
+            className="mt-1.5 min-h-11 rounded-lg border-slate-300/90 bg-white text-base shadow-none dark:border-zinc-500 dark:bg-zinc-800/80"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
-        <Card className={AUTH_CARD_CLASS}>
-          <form onSubmit={onSubmit} className="space-y-4" autoComplete="on">
-            <div>
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                inputMode="email"
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                enterKeyHint="next"
-                className="min-h-11 text-base"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                enterKeyHint="go"
-                className="min-h-11 text-base"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
-            <Button type="submit" className="min-h-11 w-full text-base font-semibold" disabled={loading}>
-              {loading ? 'Connexion…' : 'Se connecter'}
-            </Button>
-            <p className="text-center">
-              <Link
-                to="/mot-de-passe-oubli"
-                className="text-sm font-semibold text-brand-700 underline-offset-[3px] transition hover:text-brand-800 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
-              >
-                Mot de passe oublié ?
-              </Link>
-            </p>
-          </form>
-        </Card>
-        <p className="mt-6 text-center text-xs text-slate-600 dark:text-slate-300">
-          Première installation ? Côté serveur, lancez <code className="rounded bg-slate-200 px-1 font-medium text-slate-900 dark:bg-slate-700 dark:text-slate-100">npm run seed</code> pour créer un compte de démonstration.
-        </p>
+
+        <div>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <Label htmlFor="password" className="mb-0">
+              Mot de passe
+            </Label>
+            <Link
+              to="/mot-de-passe-oubli"
+              className="text-xs font-medium text-slate-600 underline-offset-2 transition hover:text-slate-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              Oublié ?
+            </Link>
+          </div>
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              enterKeyHint="go"
+              className="min-h-11 rounded-lg border-slate-300/90 bg-white pr-16 text-base shadow-none dark:border-zinc-500 dark:bg-zinc-800/80"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+              aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            >
+              {showPassword ? 'Masquer' : 'Voir'}
+            </button>
+          </div>
+        </div>
+
+        {err ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200/90 bg-red-50 px-3 py-2.5 text-sm leading-snug text-red-800 dark:border-red-800/40 dark:bg-red-950/35 dark:text-red-200"
+          >
+            {err}
+          </div>
+        ) : null}
+
+        <Button
+          type="submit"
+          className="min-h-11 w-full rounded-lg text-base font-semibold tracking-wide"
+          disabled={loading}
+        >
+          {loading ? 'Connexion…' : 'Se connecter'}
+        </Button>
+      </form>
+
+      <div className="mt-6">
+        <InstallAppButton variant="auth" />
       </div>
-    </div>
+
+      <details className="mt-6 text-xs text-slate-500 dark:text-zinc-500">
+        <summary className="cursor-pointer list-none font-medium text-slate-600 underline-offset-2 hover:underline dark:text-zinc-400 [&::-webkit-details-marker]:hidden">
+          Accès téléphone (réseau local)
+        </summary>
+        <p className="mt-2 leading-relaxed">
+          Sur le même Wi‑Fi que le PC, ouvrez l’URL affichée au démarrage du front, par ex.{' '}
+          <code className="rounded bg-slate-200/80 px-1 dark:bg-zinc-700">http://IP:5173</code>.
+        </p>
+      </details>
+    </AuthShell>
   );
 }
