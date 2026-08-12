@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-};
-
-function isStandaloneDisplay(): boolean {
-  if (typeof window === 'undefined') return false;
-  const mq = window.matchMedia('(display-mode: standalone)').matches;
-  const iosStandalone = 'standalone' in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-  return mq || iosStandalone;
-}
+import {
+  getDeferredInstallPrompt,
+  isPwaInstalled,
+  subscribePwaInstall,
+  triggerPwaInstall,
+  waitForInstallPrompt,
+} from '@/lib/pwaInstallBridge';
 
 function isIosDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -21,47 +16,33 @@ function isIosDevice(): boolean {
 }
 
 /**
- * Gestion de l’installation PWA (Chrome / Edge / Android + consignes iOS).
+ * Installation PWA : priorise la boîte native du navigateur (Chrome / Edge / Android).
  */
 export function usePwaInstall() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(() => isStandaloneDisplay());
+  const [canPrompt, setCanPrompt] = useState(() => Boolean(getDeferredInstallPrompt()) && !isPwaInstalled());
+  const [installed, setInstalled] = useState(() => isPwaInstalled());
   const [ios] = useState(() => isIosDevice());
 
   useEffect(() => {
-    const onBip = (e: Event) => {
-      e.preventDefault();
-      setDeferred(e as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => {
-      setDeferred(null);
-      setInstalled(true);
-    };
-    window.addEventListener('beforeinstallprompt', onBip);
-    window.addEventListener('appinstalled', onInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBip);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
+    return subscribePwaInstall(() => {
+      setInstalled(isPwaInstalled());
+      setCanPrompt(Boolean(getDeferredInstallPrompt()) && !isPwaInstalled());
+    });
   }, []);
 
-  const promptInstall = useCallback(async () => {
-    if (!deferred) return false;
-    await deferred.prompt();
-    const choice = await deferred.userChoice;
-    setDeferred(null);
-    if (choice.outcome === 'accepted') setInstalled(true);
-    return choice.outcome === 'accepted';
-  }, [deferred]);
+  const promptInstall = useCallback(async (): Promise<'accepted' | 'dismissed' | 'unavailable'> => {
+    if (getDeferredInstallPrompt()) {
+      return triggerPwaInstall();
+    }
+    const ev = await waitForInstallPrompt(2800);
+    if (!ev) return 'unavailable';
+    return triggerPwaInstall();
+  }, []);
 
   return {
-    /** Déjà ouverte comme application (raccourci / PWA). */
     installed,
-    /** Le navigateur peut afficher la boîte d’installation native. */
-    canPrompt: Boolean(deferred) && !installed,
-    /** Safari iOS : pas d’API d’install — guide manuel. */
+    canPrompt,
     needsIosGuide: ios && !installed,
-    /** Afficher un bouton d’aide même sans prompt (Chrome sans critères encore remplis, etc.). */
     showInstallUi: !installed,
     promptInstall,
     isIos: ios,

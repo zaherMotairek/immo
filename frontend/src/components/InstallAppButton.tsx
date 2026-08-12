@@ -9,11 +9,14 @@ type Props = {
 
 /**
  * Bouton pour installer ImmoPilot comme application (ordinateur + téléphone).
+ * Sur Chrome/Edge/Android : ouvre la boîte d’installation native.
+ * Sur iOS Safari : guide court (Apple n’autorise pas l’API d’install).
  */
 export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
-  const { installed, canPrompt, needsIosGuide, showInstallUi, promptInstall, isIos } = usePwaInstall();
+  const { installed, needsIosGuide, showInstallUi, promptInstall, isIos } = usePwaInstall();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -36,16 +39,33 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
   if (!showInstallUi || installed) return null;
 
   async function onClick() {
-    if (canPrompt) {
-      setBusy(true);
-      try {
-        await promptInstall();
-      } finally {
-        setBusy(false);
-      }
+    setHint(null);
+
+    // iOS : pas d’API native — seul Safari « Sur l’écran d’accueil »
+    if (isIos || needsIosGuide) {
+      setOpen((v) => !v);
       return;
     }
-    setOpen((v) => !v);
+
+    setBusy(true);
+    try {
+      const result = await promptInstall();
+      if (result === 'accepted') {
+        setOpen(false);
+        return;
+      }
+      if (result === 'dismissed') {
+        setHint('Installation annulée.');
+        return;
+      }
+      // unavailable : le navigateur n’a pas encore proposé l’install (critères / déjà refusé)
+      setOpen(true);
+      setHint(
+        'Le navigateur n’a pas ouvert la fenêtre d’installation. Utilisez Chrome ou Edge, en HTTPS (site en ligne), puis réessayez. Menu ⋮ → Installer l’application.',
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   const baseBtn =
@@ -72,11 +92,17 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
         {busy ? 'Installation…' : 'Installer l’application'}
       </button>
 
+      {hint && !open ? (
+        <p className="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-zinc-400" role="status">
+          {hint}
+        </p>
+      ) : null}
+
       {open ? (
         <div
           id={panelId}
           role="dialog"
-          aria-label="Comment installer ImmoPilot"
+          aria-label="Installation ImmoPilot"
           className={`absolute z-30 mt-2 w-[min(100%,20rem)] rounded-xl border border-slate-200 bg-white p-3 text-left text-xs leading-relaxed text-slate-700 shadow-lg dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 ${
             variant === 'sidebar' ? 'bottom-full mb-2 mt-0 left-0 right-0 w-auto' : 'left-0 right-0'
           }`}
@@ -84,31 +110,25 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
           {needsIosGuide || isIos ? (
             <ol className="list-decimal space-y-1.5 pl-4">
               <li>
-                Touchez le bouton <strong>Partager</strong> (carré avec flèche) en bas de Safari.
+                Touchez <strong>Partager</strong> (carré avec flèche) dans Safari.
               </li>
               <li>
                 Choisissez <strong>Sur l’écran d’accueil</strong>.
               </li>
               <li>
-                Validez <strong>Ajouter</strong> — ImmoPilot s’ouvre comme une appli.
+                Validez <strong>Ajouter</strong>.
               </li>
             </ol>
           ) : (
-            <div className="space-y-2">
-              <p>
-                Sur <strong>Chrome</strong> ou <strong>Edge</strong> (ordinateur ou Android) : menu ⋮ →{' '}
-                <strong>Installer ImmoPilot</strong> / <strong>Installer l’application</strong>.
-              </p>
-              <p className="text-slate-500 dark:text-zinc-400">
-                Astuce : l’installation fonctionne pleinement en HTTPS (site en ligne) ou via{' '}
-                <code className="rounded bg-slate-100 px-1 dark:bg-zinc-800">npm run preview</code> en local.
-              </p>
-            </div>
+            <p>{hint ?? 'Ouvrez le menu ⋮ du navigateur → Installer l’application.'}</p>
           )}
           <button
             type="button"
             className="mt-3 text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-zinc-400"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              setHint(null);
+            }}
           >
             Fermer
           </button>

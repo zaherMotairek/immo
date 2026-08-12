@@ -6,6 +6,8 @@ import { ThemeProvider } from './theme/ThemeContext';
 import { applyTheme, getStoredTheme } from './theme';
 import App from './App';
 import './index.css';
+/** Capture `beforeinstallprompt` dès le chargement (avant les boutons UI). */
+import './lib/pwaInstallBridge';
 
 applyTheme(getStoredTheme());
 

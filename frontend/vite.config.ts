@@ -14,7 +14,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'pwa-192.png', 'pwa-512.png', 'immopilot-logo.svg'],
       /**
        * Manifeste servi depuis `public/manifest.webmanifest` (dev + build) pour éviter une réponse HTML
        * (fallback SPA / SW) que le navigateur interprète comme JSON invalide.
