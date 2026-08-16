@@ -148,9 +148,7 @@ export function Layout() {
         className={`odoo-sidebar border-b text-slate-100 shadow-[4px_0_24px_-8px_rgb(0_0_0/0.35)] print:hidden lg:h-[100dvh] lg:max-h-[100dvh] lg:w-[15.5rem] lg:shrink-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r lg:sticky lg:top-0 lg:self-start ${
           desktopNavOpen ? 'lg:flex' : 'lg:hidden'
         } ${!mobileNavOpen ? 'max-lg:hidden' : ''} ${
-          mobileNavOpen
-            ? 'max-lg:sticky max-lg:top-0 max-lg:z-40 max-lg:w-full max-lg:shrink-0 max-lg:shadow-[0_8px_30px_rgb(0_0_0/0.35)]'
-            : ''
+          mobileNavOpen ? 'max-lg:relative max-lg:z-auto max-lg:w-full max-lg:shrink-0' : ''
         }`}
         aria-label="Navigation principale"
       >
@@ -351,7 +349,7 @@ export function Layout() {
         className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 outline-none print:bg-white print:text-black dark:text-slate-100"
       >
         {!mobileNavOpen ? (
-          <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-zinc-800/90 bg-zinc-950 px-3 py-2.5 print:hidden lg:hidden">
+          <div className="relative z-20 flex items-center gap-2 border-b border-zinc-800/90 bg-zinc-950 px-3 py-2.5 print:hidden lg:hidden">
             <button
               type="button"
               className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/90 text-slate-100 transition hover:bg-slate-700"
