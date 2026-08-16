@@ -17,7 +17,7 @@ import {
   listTableFirstCellClass,
   listTableRowEditingClass,
   listTableRowOpenableClass,
-  onListRowDoubleClick,
+  onListRowClick,
 } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
@@ -644,8 +644,8 @@ export function TenantsPage() {
                   <tr
                     key={t.id}
                     id={`tenant-row-${t.id}`}
-                    title="Double-clic pour modifier"
-                    onDoubleClick={(e) => onListRowDoubleClick(e, () => beginEdit(t))}
+                    title="Clic pour modifier"
+                    onClick={(e) => onListRowClick(e, () => beginEdit(t))}
                     className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${tenantRowFlash(flashTenantId === t.id)}`}
                   >
                     <td className={listTableFirstCellClass}>

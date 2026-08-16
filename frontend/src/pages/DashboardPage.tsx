@@ -20,7 +20,7 @@ import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { Button, Card, HelpHint } from '@/components/ui';
 import { unitKindLabel } from '@/lib/unitKind';
-import { listBlockRowClass, listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
+import { listBlockRowClass, listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -593,8 +593,8 @@ export function DashboardPage() {
                     <tr
                       key={row.paymentId}
                       id={`dashboard-upcoming-${row.paymentId}`}
-                      title="Double-clic pour ouvrir le détail"
-                      onDoubleClick={(e) => onListRowDoubleClick(e, () => setZoomAlertPaymentId(row.paymentId))}
+                      title="Clic pour ouvrir le détail"
+                      onClick={(e) => onListRowClick(e, () => setZoomAlertPaymentId(row.paymentId))}
                       className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${
                         zoomAlertPaymentId === row.paymentId
                           ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
@@ -927,8 +927,8 @@ export function DashboardPage() {
                         <li
                           key={a.paymentId}
                           id={`dashboard-alert-${a.paymentId}`}
-                          title="Double-clic pour ouvrir le détail"
-                          onDoubleClick={(e) => onListRowDoubleClick(e, () => setZoomAlertPaymentId(a.paymentId))}
+                          title="Clic pour ouvrir le détail"
+                          onClick={(e) => onListRowClick(e, () => setZoomAlertPaymentId(a.paymentId))}
                           className={`scroll-mt-28 ${listBlockRowClass(rowIdx)} sm:items-start ${listTableRowOpenableClass} ${
                             zoomAlertPaymentId === a.paymentId
                               ? '!bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:!bg-brand-950/40 dark:ring-brand-500/30'

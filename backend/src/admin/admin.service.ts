@@ -2,20 +2,15 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { InviteOrganizationUserDto } from './dto/invite-organization-user.dto';
+import { ResetOrganizationUserPasswordDto } from './dto/reset-organization-user-password.dto';
 import { UpdateOrganizationBillingDto } from './dto/update-organization-billing.dto';
 
 @Injectable()
 export class AdminService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly mail: MailService,
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /** Liste des organisations (clients) pour le back-office plateforme. */
   async listOrganizations() {
@@ -91,7 +86,7 @@ export class AdminService {
   }
 
   /**
-   * Nouvelle organisation + utilisateur `USER` (le client change le mot de passe depuis Profil ou « oubli »).
+   * Nouvelle organisation + utilisateur `USER` (le client change le mot de passe depuis Profil).
    */
   async createClientOrganization(dto: CreateClientDto) {
     const email = dto.email.trim().toLowerCase();
@@ -144,7 +139,9 @@ export class AdminService {
     }
   }
 
-  /** Invite un utilisateur existant au sens business (nouveau compte USER) dans une organisation cliente. */
+  /**
+   * Nouveau compte USER dans une organisation : mot de passe provisoire communiqué par l’admin (pas d’e-mail).
+   */
   async inviteOrganizationUser(organizationId: string, dto: InviteOrganizationUserDto) {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
@@ -161,32 +158,22 @@ export class AdminService {
       throw new ConflictException('Un compte existe déjà avec cet e-mail.');
     }
 
-    const tempPassword = randomBytes(18).toString('base64url');
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
-    const resetToken = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    const temporaryPassword =
+      dto.password?.trim() && dto.password.trim().length >= 8
+        ? dto.password.trim()
+        : randomBytes(9).toString('base64url');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({
-        data: {
-          email,
-          passwordHash,
-          name: dto.name?.trim() || null,
-          organizationId,
-          role: 'USER',
-        },
-        select: { id: true, email: true, name: true },
-      });
-      await tx.passwordResetToken.deleteMany({ where: { userId: created.id } });
-      await tx.passwordResetToken.create({
-        data: { userId: created.id, token: resetToken, expiresAt },
-      });
-      return created;
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name: dto.name?.trim() || null,
+        organizationId,
+        role: 'USER',
+      },
+      select: { id: true, email: true, name: true },
     });
-
-    const base = (this.config.get<string>('PUBLIC_APP_URL') ?? 'http://localhost:5173').replace(/\/$/, '');
-    const resetUrl = `${base}/reinitialiser-mot-de-passe?token=${encodeURIComponent(resetToken)}`;
-    const mailResult = await this.mail.sendPasswordResetEmail(user.email, resetUrl);
 
     return {
       ok: true,
@@ -195,8 +182,49 @@ export class AdminService {
       userId: user.id,
       email: user.email,
       name: user.name,
-      resetMailSimulated: mailResult.simulated,
-      devResetUrl: process.env.NODE_ENV !== 'production' && mailResult.simulated ? resetUrl : undefined,
+      temporaryPassword,
+    };
+  }
+
+  /**
+   * L’admin plateforme fixe un nouveau mot de passe provisoire pour un utilisateur client (rôle USER).
+   */
+  async resetOrganizationUserPassword(
+    organizationId: string,
+    userId: string,
+    dto: ResetOrganizationUserPasswordDto,
+  ) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, name: true },
+    });
+    if (!org) throw new NotFoundException('Organisation introuvable.');
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      select: { id: true, email: true, name: true, role: true },
+    });
+    if (!user) throw new NotFoundException('Utilisateur introuvable dans cette organisation.');
+    if (user.role === 'PLATFORM_ADMIN') {
+      throw new BadRequestException('Impossible de réinitialiser un administrateur plateforme depuis ici.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
+    ]);
+
+    return {
+      ok: true,
+      organizationId: org.id,
+      organizationName: org.name,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
     };
   }
 }

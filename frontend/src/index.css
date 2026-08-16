@@ -18,19 +18,19 @@
   --color-brand-900: #000000;
   --color-brand-950: #000000;
   --color-odoo-teal: #27272a;
-  --color-odoo-teal-light: #f4f4f5;
-  --color-app-bg: #f4f4f5;
-  --color-app-bg-deep: #ececee;
-  --color-surface: #ffffff;
+  --color-odoo-teal-light: #f0f0f2;
+  --color-app-bg: #ececee;
+  --color-app-bg-deep: #e4e4e8;
+  --color-surface: #f7f7f8;
   --color-ink: #0a0a0a;
   --color-muted: #4b4b55;
-  --odoo-border: #c8c8d0;
-  --odoo-border-subtle: #d8d8de;
-  --odoo-border-strong: #a8a8b2;
+  --odoo-border: #c4c4cc;
+  --odoo-border-subtle: #d2d2d8;
+  --odoo-border-strong: #a4a4ae;
   --odoo-sidebar-top: #121212;
   --odoo-sidebar-bottom: #050505;
-  --odoo-table-head-bg: #f8f9fa;
-  --odoo-row-hover: #f5f5f5;
+  --odoo-table-head-bg: #efeff2;
+  --odoo-row-hover: #ebebec;
   --radius-card: 0.25rem;
   --radius-input: 0.25rem;
 }

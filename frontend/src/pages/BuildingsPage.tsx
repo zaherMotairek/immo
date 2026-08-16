@@ -32,7 +32,7 @@ import {
   listTableDataRowClass,
   listTableFirstCellClass,
   listTableRowOpenableClass,
-  onListRowDoubleClick,
+  onListRowClick,
 } from '@/lib/listTableStyles';
 
 type BuildingRow = {
@@ -857,8 +857,8 @@ export function BuildingsPage() {
                     <tr
                       key={b.id}
                       id={`bien-row-${b.id}`}
-                      title="Double-clic pour ouvrir la fiche"
-                      onDoubleClick={(e) => onListRowDoubleClick(e, () => navigate(`/biens/${b.id}`))}
+                      title="Clic pour ouvrir la fiche"
+                      onClick={(e) => onListRowClick(e, () => navigate(`/biens/${b.id}`))}
                       className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${bienRowFlashClass(flashBuildingId === b.id)}`}
                     >
                       <td className={listTableFirstCellClass}>

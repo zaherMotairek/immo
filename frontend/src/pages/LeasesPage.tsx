@@ -11,7 +11,7 @@ import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
 import { isMultiLotStructure } from '@/lib/buildingStructure';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { buildReturnToBuildingUrl } from '@/lib/navigation';
 import { UNIT_KIND_OPTIONS, unitKindLabel, type UnitKindCode } from '@/lib/unitKind';
@@ -1250,9 +1250,9 @@ export function LeasesPage() {
                     <tr
                       key={l.id}
                       id={`lease-row-${l.id}`}
-                      title="Double-clic pour ouvrir la fiche location"
-                      onDoubleClick={(e) =>
-                        onListRowDoubleClick(e, () => navigate(`/locations/${l.id}`, { state: locationSheetState }))
+                      title="Clic pour ouvrir la fiche location"
+                      onClick={(e) =>
+                        onListRowClick(e, () => navigate(`/locations/${l.id}`, { state: locationSheetState }))
                       }
                       className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${leaseRowFlashClass(flashLeaseRowId === l.id)}`}
                     >

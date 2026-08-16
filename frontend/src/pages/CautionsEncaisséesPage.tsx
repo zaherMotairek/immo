@@ -8,7 +8,7 @@ import { fcfa } from '@/lib/format';
 import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Card } from '@/components/ui';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -216,9 +216,9 @@ export function CautionsEncaisséesPage({ embedded = false }: { embedded?: boole
                   <tr
                     key={r.leaseId}
                     id={`caution-row-${r.leaseId}`}
-                    title="Double-clic pour ouvrir la fiche location"
-                    onDoubleClick={(e) =>
-                      onListRowDoubleClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))
+                    title="Clic pour ouvrir la fiche location"
+                    onClick={(e) =>
+                      onListRowClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))
                     }
                     className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${cautionRowFlash(flashLeaseId === r.leaseId)}`}
                   >

@@ -45,9 +45,15 @@ export function AdminClientsPage() {
   const [editErr, setEditErr] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteErr, setInviteErr] = useState<string | null>(null);
   const [inviteOk, setInviteOk] = useState<string | null>(null);
+
+  const [resetPwdByUser, setResetPwdByUser] = useState<Record<string, string>>({});
+  const [resetSavingUserId, setResetSavingUserId] = useState<string | null>(null);
+  const [resetErr, setResetErr] = useState<string | null>(null);
+  const [resetOk, setResetOk] = useState<string | null>(null);
 
   const loadOrganizations = useCallback(async () => {
     setListErr(null);
@@ -55,6 +61,7 @@ export function AdminClientsPage() {
     try {
       const rows = await api<AdminOrgRow[]>('/admin/organizations');
       setOrganizations(rows);
+      setEditOrg((prev) => (prev ? rows.find((r) => r.id === prev.id) ?? prev : null));
     } catch (e) {
       setListErr(e instanceof Error ? e.message : 'Liste indisponible');
       setOrganizations([]);
@@ -74,8 +81,12 @@ export function AdminClientsPage() {
     setEditErr(null);
     setInviteEmail('');
     setInviteName('');
+    setInvitePassword('');
     setInviteErr(null);
     setInviteOk(null);
+    setResetPwdByUser({});
+    setResetErr(null);
+    setResetOk(null);
   }
 
   function closeEdit() {
@@ -83,6 +94,8 @@ export function AdminClientsPage() {
     setEditErr(null);
     setInviteErr(null);
     setInviteOk(null);
+    setResetErr(null);
+    setResetOk(null);
   }
 
   async function submitInvite(e: React.FormEvent) {
@@ -94,26 +107,51 @@ export function AdminClientsPage() {
     try {
       const res = await api<{
         email: string;
-        devResetUrl?: string;
+        temporaryPassword: string;
       }>(`/admin/organizations/${editOrg.id}/users/invite`, {
         method: 'POST',
         json: {
           email: inviteEmail.trim(),
           name: inviteName.trim() || undefined,
+          password: invitePassword.trim() || undefined,
         },
       });
       setInviteOk(
-        res.devResetUrl
-          ? `Invitation créée pour ${res.email}. Lien (dev): ${res.devResetUrl}`
-          : `Invitation créée pour ${res.email}. E-mail de définition du mot de passe envoyé.`,
+        `Compte créé pour ${res.email}. Mot de passe provisoire à lui communiquer : ${res.temporaryPassword}`,
       );
       setInviteEmail('');
       setInviteName('');
+      setInvitePassword('');
       await loadOrganizations();
     } catch (e2) {
       setInviteErr(e2 instanceof Error ? e2.message : 'Invitation impossible');
     } finally {
       setInviteSaving(false);
+    }
+  }
+
+  async function submitResetPassword(userId: string, email: string) {
+    if (!editOrg) return;
+    const pwd = (resetPwdByUser[userId] ?? '').trim();
+    if (pwd.length < 8) {
+      setResetErr('Mot de passe : au moins 8 caractères.');
+      setResetOk(null);
+      return;
+    }
+    setResetErr(null);
+    setResetOk(null);
+    setResetSavingUserId(userId);
+    try {
+      await api(`/admin/organizations/${editOrg.id}/users/${userId}/reset-password`, {
+        method: 'POST',
+        json: { password: pwd },
+      });
+      setResetOk(`Mot de passe réinitialisé pour ${email}. Communiquez-lui : ${pwd}`);
+      setResetPwdByUser((prev) => ({ ...prev, [userId]: '' }));
+    } catch (e2) {
+      setResetErr(e2 instanceof Error ? e2.message : 'Réinitialisation impossible');
+    } finally {
+      setResetSavingUserId(null);
     }
   }
 
@@ -287,7 +325,7 @@ export function AdminClientsPage() {
           </h3>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Dernier jour <strong>inclus</strong> avec accès. Le lendemain, les utilisateurs de cette organisation ne
-            pourront plus se connecter ni utiliser l’API (sauf mot de passe oublié). Laissez vide pour ne pas limiter
+            pourront plus se connecter ni utiliser l’API. Laissez vide pour ne pas limiter
             par date.
           </p>
           <form onSubmit={saveEdit} className="mt-4 space-y-4">
@@ -325,9 +363,69 @@ export function AdminClientsPage() {
             </div>
           </form>
           <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Réinitialiser un mot de passe</h4>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              Définissez un mot de passe provisoire et communiquez-le au client (WhatsApp, etc.). Aucun e-mail n’est
+              envoyé.
+            </p>
+            <ul className="mt-3 space-y-3">
+              {editOrg.users
+                .filter((u) => u.role !== 'PLATFORM_ADMIN')
+                .map((u) => (
+                  <li
+                    key={u.id}
+                    className="rounded-lg border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-900/40"
+                  >
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{u.email}</p>
+                    {u.name ? <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.name}</p> : null}
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="min-w-0 flex-1">
+                        <Label htmlFor={`reset-pwd-${u.id}`}>Nouveau provisoire</Label>
+                        <Input
+                          id={`reset-pwd-${u.id}`}
+                          type="text"
+                          autoComplete="off"
+                          value={resetPwdByUser[u.id] ?? ''}
+                          onChange={(e) =>
+                            setResetPwdByUser((prev) => ({ ...prev, [u.id]: e.target.value }))
+                          }
+                          minLength={8}
+                          placeholder="Au moins 8 caractères"
+                          className="mt-1"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="shrink-0"
+                        disabled={resetSavingUserId === u.id}
+                        onClick={() => void submitResetPassword(u.id, u.email)}
+                      >
+                        {resetSavingUserId === u.id ? '…' : 'Réinitialiser'}
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+            {editOrg.users.every((u) => u.role === 'PLATFORM_ADMIN') ? (
+              <p className="mt-2 text-xs text-slate-500">Aucun compte client dans cette organisation.</p>
+            ) : null}
+            {resetErr ? (
+              <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400" role="alert">
+                {resetErr}
+              </p>
+            ) : null}
+            {resetOk ? (
+              <p className="mt-2 text-sm font-medium text-emerald-800 dark:text-emerald-300" role="status">
+                {resetOk}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
             <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Inviter un utilisateur</h4>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              Le nouvel utilisateur reçoit un lien pour définir son mot de passe et accéder uniquement à cette organisation.
+              Crée un compte pour cette organisation. Vous communiquez le mot de passe provisoire au client.
             </p>
             <form onSubmit={submitInvite} className="mt-3 space-y-3">
               <div>
@@ -346,6 +444,18 @@ export function AdminClientsPage() {
                   id="invite-name"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="invite-pwd">Mot de passe provisoire (optionnel)</Label>
+                <Input
+                  id="invite-pwd"
+                  type="text"
+                  autoComplete="off"
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                  minLength={8}
+                  placeholder="Laisser vide = généré automatiquement"
                 />
               </div>
               {inviteErr ? (
@@ -420,7 +530,7 @@ export function AdminClientsPage() {
               autoComplete="new-password"
             />
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Au moins 8 caractères. Le client le remplacera depuis Profil ou « mot de passe oublié ».
+              Au moins 8 caractères. Communiquez-le au client ; il pourra le changer dans Profil.
             </p>
           </div>
           {err ? (

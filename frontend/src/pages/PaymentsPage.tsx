@@ -18,7 +18,7 @@ import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { AmountFcfaInput, Button, Card, HelpHint, Label, Select } from '@/components/ui';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { shouldDeferEscapeCancel } from '@/lib/useEscapeCancel';
 import { unitKindLabel } from '@/lib/unitKind';
 import { SortableTh } from '@/components/SortableTh';
@@ -1362,8 +1362,8 @@ export function PaymentsPage() {
                       <tr
                         key={p.id}
                         id={`payment-${p.id}`}
-                        title="Double-clic pour ouvrir le détail"
-                        onDoubleClick={(e) => onListRowDoubleClick(e, () => setZoomPaymentId(p.id))}
+                        title="Clic pour ouvrir le détail"
+                        onClick={(e) => onListRowClick(e, () => setZoomPaymentId(p.id))}
                         className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${paymentRowFlash(flashPaymentRowId === p.id)} ${
                           zoomPaymentId === p.id
                             ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'

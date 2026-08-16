@@ -9,7 +9,7 @@ import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
-import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowDoubleClick } from '@/lib/listTableStyles';
+import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -385,9 +385,9 @@ export function LocationsPage() {
                     <tr
                       key={`table-${r.leaseId}`}
                       id={`loc-row-${r.leaseId}`}
-                      title="Double-clic pour ouvrir la fiche"
-                      onDoubleClick={(e) =>
-                        onListRowDoubleClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))
+                      title="Clic pour ouvrir la fiche"
+                      onClick={(e) =>
+                        onListRowClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))
                       }
                       className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${rowFlashClass(flashLeaseId === r.leaseId)}`}
                     >
