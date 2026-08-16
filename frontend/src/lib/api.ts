@@ -544,9 +544,19 @@ export async function saveDrawnReceiptSignature(dataUrl: string): Promise<Receip
 }
 
 export async function createPaymentReceiptShareLink(paymentId: string): Promise<{ shareUrl: string; expiresAt: string }> {
-  return api<{ ok: boolean; shareUrl: string; expiresAt: string }>(`/payments/${paymentId}/receipt-share-link`, {
-    method: 'POST',
-  });
+  const r = await api<{ ok: boolean; shareUrl: string; expiresAt: string }>(
+    `/payments/${paymentId}/receipt-share-link`,
+    {
+      method: 'POST',
+    },
+  );
+  /** Si l’API a encore généré un lien localhost, le réécrire vers l’API de prod (VITE_API_URL). */
+  let shareUrl = r.shareUrl;
+  const api = apiBaseUrl();
+  if (api && /localhost|127\.0\.0\.1/i.test(shareUrl)) {
+    shareUrl = shareUrl.replace(/^https?:\/\/[^/]+/i, api.replace(/\/$/, ''));
+  }
+  return { shareUrl, expiresAt: r.expiresAt };
 }
 
 /** Importe un classeur au même format que l’export (feuilles Biens, Baux, Paiements, Charges, etc.). */

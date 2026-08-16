@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -126,8 +126,8 @@ export class PaymentsController {
   }
 
   @Post(':id/receipt-share-link')
-  createReceiptShareLink(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
-    return this.payments.createReceiptShareLink(id, user.organizationId, user);
+  createReceiptShareLink(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Req() req: Request) {
+    return this.payments.createReceiptShareLink(id, user.organizationId, user, req);
   }
 
   /** Reçu PDF unique pour plusieurs loyers payés (même bail), ex. après prépaiement de plusieurs mois. */

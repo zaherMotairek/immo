@@ -1369,7 +1369,12 @@ export class PaymentsService {
     return Buffer.concat(chunks);
   }
 
-  async createReceiptShareLink(paymentId: string, organizationId: string, actor: JwtAuthUser) {
+  async createReceiptShareLink(
+    paymentId: string,
+    organizationId: string,
+    actor: JwtAuthUser,
+    req?: { protocol?: string; get?: (name: string) => string | undefined; headers?: Record<string, unknown> },
+  ) {
     await this.ensure(paymentId, organizationId);
     const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
@@ -1386,7 +1391,7 @@ export class PaymentsService {
       actor.id,
       expiresAt,
     );
-    const apiBase = (this.config.get<string>('PUBLIC_API_URL') ?? 'http://localhost:4000').replace(/\/$/, '');
+    const apiBase = this.resolvePublicApiBase(req);
     const shareUrl = `${apiBase}/public/payments/receipts/${encodeURIComponent(token)}`;
     await this.audit.log({
       organizationId,
@@ -1398,6 +1403,34 @@ export class PaymentsService {
       metadata: { expiresAt: expiresAt.toISOString() },
     });
     return { ok: true, shareUrl, expiresAt: expiresAt.toISOString() };
+  }
+
+  /**
+   * Base URL publique de l’API pour les liens quittance (WhatsApp).
+   * Préfère PUBLIC_API_URL si ce n’est pas localhost ; sinon l’hôte de la requête (Render).
+   */
+  private resolvePublicApiBase(req?: {
+    protocol?: string;
+    get?: (name: string) => string | undefined;
+    headers?: Record<string, unknown>;
+  }): string {
+    const envRaw = (this.config.get<string>('PUBLIC_API_URL') ?? '').trim().replace(/\/$/, '');
+    const envIsLocal = !envRaw || /localhost|127\.0\.0\.1/i.test(envRaw);
+
+    const xfProto = String(req?.headers?.['x-forwarded-proto'] ?? '')
+      .split(',')[0]
+      ?.trim();
+    const xfHost = String(req?.headers?.['x-forwarded-host'] ?? '')
+      .split(',')[0]
+      ?.trim();
+    const host = xfHost || req?.get?.('host') || '';
+    const proto = xfProto || req?.protocol || 'https';
+    const fromReq = host ? `${proto}://${host}`.replace(/\/$/, '') : '';
+
+    if (envRaw && !envIsLocal) return envRaw;
+    if (fromReq) return fromReq;
+    if (envRaw) return envRaw;
+    return 'http://localhost:4000';
   }
 
   async buildReceiptPdfFromShareToken(token: string): Promise<Buffer | null> {
