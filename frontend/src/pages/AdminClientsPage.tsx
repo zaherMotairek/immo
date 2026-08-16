@@ -227,7 +227,7 @@ export function AdminClientsPage() {
             Comptes clients — contrôle d’accès selon la facturation mensuelle que vous enregistrez ici.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="table-scroll overflow-x-auto">
           {listLoading ? (
             <p className="px-4 py-8 text-sm text-slate-600 dark:text-slate-400">Chargement…</p>
           ) : listErr ? (
@@ -237,7 +237,7 @@ export function AdminClientsPage() {
           ) : organizations.length === 0 ? (
             <p className="px-4 py-8 text-sm text-slate-600 dark:text-slate-400">Aucune organisation.</p>
           ) : (
-            <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[28rem] md:min-w-[720px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
                   <th className="px-4 py-2.5 sm:px-5">Organisation</th>

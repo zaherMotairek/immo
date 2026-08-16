@@ -63,4 +63,7 @@ export function listBlockRowClass(rowIndex: number): string {
 
 /** En-tête de tableau : appliquer sur `<table className="odoo-list-table w-full ...">`. */
 export const listTableClassName = 'odoo-list-table w-full text-[0.875rem]';
+
+/** Wrapper scroll horizontal contrôlé pour tableaux larges. */
+export const tableScrollWrapClass = 'table-scroll min-w-0';
 

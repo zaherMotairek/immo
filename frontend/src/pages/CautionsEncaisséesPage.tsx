@@ -141,8 +141,8 @@ export function CautionsEncaisséesPage({ embedded = false }: { embedded?: boole
       ) : null}
 
       <Card className="!overflow-hidden !p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+        <div className="table-scroll overflow-x-auto">
+          <table className="w-full min-w-[28rem] md:min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/95 dark:border-slate-700 dark:bg-slate-800/60">
                 <SortableTh

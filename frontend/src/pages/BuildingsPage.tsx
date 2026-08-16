@@ -824,89 +824,137 @@ export function BuildingsPage() {
         ) : null}
 
         {filteredRows.length > 0 && viewMode === 'list' ? (
-          <div className="min-w-0 overflow-x-auto">
-            <table className={`${listTableClassName} min-w-[720px]`}>
-              <thead>
-                <tr className="border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)]">
-                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
-                    Bien
-                  </th>
-                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
-                    Localisation
-                  </th>
-                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
-                    Type
-                  </th>
-                  <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
-                    Détails
-                  </th>
-                  <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
-                    Unités
-                  </th>
-                  <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((b, rowIndex) => {
-                  const details = buildingDetailsText(b);
-                  const place = [b.commune ?? '—', b.city].filter(Boolean).join(' · ');
-                  const placeFull = b.postalCode ? `${place} · ${b.postalCode}` : place;
-                  return (
-                    <tr
-                      key={b.id}
-                      id={`bien-row-${b.id}`}
-                      title="Clic pour ouvrir la fiche"
-                      onClick={(e) => onListRowClick(e, () => navigate(`/biens/${b.id}`))}
-                      className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${bienRowFlashClass(flashBuildingId === b.id)}`}
-                    >
-                      <td className={listTableFirstCellClass}>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <BuildingCardIcon structureKind={b.structureKind} />
-                          <SmartLink
-                            to={`/biens/${b.id}`}
-                            returnFocusId={b.id}
-                            className="truncate text-sm font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
-                          >
-                            {b.name}
-                          </SmartLink>
+          <>
+            <ul className="divide-y divide-[var(--odoo-border)] md:hidden">
+              {filteredRows.map((b) => {
+                const details = buildingDetailsText(b);
+                const place = [b.commune ?? '—', b.city].filter(Boolean).join(' · ');
+                const placeFull = b.postalCode ? `${place} · ${b.postalCode}` : place;
+                return (
+                  <li
+                    key={b.id}
+                    id={`bien-row-${b.id}`}
+                    className={`scroll-mt-28 space-y-2 p-3.5 ${bienRowFlashClass(flashBuildingId === b.id)}`}
+                  >
+                    <button type="button" className="w-full text-left" onClick={() => navigate(`/biens/${b.id}`)}>
+                      <div className="flex items-start gap-2">
+                        <BuildingCardIcon structureKind={b.structureKind} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{b.name}</p>
+                          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{placeFull}</p>
+                          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            {structureKindShort(b.structureKind)}
+                            {details ? ` · ${details}` : ''}
+                            {' · '}
+                            {b._count.units} unité{b._count.units !== 1 ? 's' : ''}
+                          </p>
                         </div>
-                      </td>
-                      <td className={`${listTableCellClass} text-slate-600 dark:text-slate-300`}>
-                        <span className="block text-xs leading-snug sm:text-sm">{placeFull}</span>
-                      </td>
-                      <td className={`${listTableCellClass} text-xs text-slate-600 dark:text-slate-300`}>
-                        {structureKindShort(b.structureKind)}
-                      </td>
-                      <td className={`${listTableCellClass} text-xs text-slate-600 dark:text-slate-400`}>{details}</td>
-                      <td className={`${listTableCellClass} text-right tabular-nums text-slate-800 dark:text-slate-200`}>
-                        {b._count.units}
-                      </td>
-                      <td className={`${listTableCellClass} text-right`}>
-                        <div className="inline-flex items-center gap-2.5">
-                          <SmartLink
-                            to={`/biens/${b.id}`}
-                            returnFocusId={b.id}
-                            className="text-xs font-medium text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
-                          >
-                            Ouvrir
-                          </SmartLink>
-                          <button
-                            type="button"
-                            className="text-xs font-medium text-red-600/90 hover:underline dark:text-red-400"
-                            onClick={() => void requestDeleteBuilding(b)}
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </button>
+                    <div className="flex flex-wrap gap-2 pl-8">
+                      <SmartLink
+                        to={`/biens/${b.id}`}
+                        returnFocusId={b.id}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        Ouvrir
+                      </SmartLink>
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-xs font-medium text-red-600/90 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                        onClick={() => void requestDeleteBuilding(b)}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="table-scroll hidden min-w-0 overflow-x-auto md:block">
+              <table className={`${listTableClassName} min-w-[720px]`}>
+                <thead>
+                  <tr className="border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)]">
+                    <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                      Bien
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                      Localisation
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                      Type
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                      Détails
+                    </th>
+                    <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                      Unités
+                    </th>
+                    <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:px-4 dark:text-slate-400">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((b, rowIndex) => {
+                    const details = buildingDetailsText(b);
+                    const place = [b.commune ?? '—', b.city].filter(Boolean).join(' · ');
+                    const placeFull = b.postalCode ? `${place} · ${b.postalCode}` : place;
+                    return (
+                      <tr
+                        key={b.id}
+                        id={`bien-row-d-${b.id}`}
+                        title="Clic pour ouvrir la fiche"
+                        onClick={(e) => onListRowClick(e, () => navigate(`/biens/${b.id}`))}
+                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${bienRowFlashClass(flashBuildingId === b.id)}`}
+                      >
+                        <td className={listTableFirstCellClass}>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <BuildingCardIcon structureKind={b.structureKind} />
+                            <SmartLink
+                              to={`/biens/${b.id}`}
+                              returnFocusId={b.id}
+                              className="truncate text-sm font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                            >
+                              {b.name}
+                            </SmartLink>
+                          </div>
+                        </td>
+                        <td className={`${listTableCellClass} text-slate-600 dark:text-slate-300`}>
+                          <span className="block text-xs leading-snug sm:text-sm">{placeFull}</span>
+                        </td>
+                        <td className={`${listTableCellClass} text-xs text-slate-600 dark:text-slate-300`}>
+                          {structureKindShort(b.structureKind)}
+                        </td>
+                        <td className={`${listTableCellClass} text-xs text-slate-600 dark:text-slate-400`}>{details}</td>
+                        <td className={`${listTableCellClass} text-right tabular-nums text-slate-800 dark:text-slate-200`}>
+                          {b._count.units}
+                        </td>
+                        <td className={`${listTableCellClass} text-right`}>
+                          <div className="inline-flex items-center gap-2.5">
+                            <SmartLink
+                              to={`/biens/${b.id}`}
+                              returnFocusId={b.id}
+                              className="text-xs font-medium text-slate-700 underline-offset-2 hover:underline dark:text-slate-300"
+                            >
+                              Ouvrir
+                            </SmartLink>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-red-600/90 hover:underline dark:text-red-400"
+                              onClick={() => void requestDeleteBuilding(b)}
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : null}
 
         {rows.length > 0 && filteredRows.length === 0 && listSearch.trim() && !listErr ? (

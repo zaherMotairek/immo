@@ -273,8 +273,7 @@ export function LocationsPage() {
                   <div className="min-w-0">
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Liste des locations</h2>
                     <p className="mt-0.5 min-h-[2.5rem] text-xs leading-snug text-slate-600 dark:text-slate-400">
-                      Vue unique en tableau, plus dense et professionnelle. Tri : cliquez sur les en-têtes
-                      (↑ croissant, ↓ décroissant, reclic pour inverser).
+                      Sur téléphone : fiches empilées. Sur grand écran : tableau triable (clic sur les en-têtes).
                     </p>
                     <p className="mt-2 min-h-[1.25rem] text-xs font-medium tabular-nums text-slate-700 dark:text-slate-300">
                       <span className="inline-block min-w-[8rem]">
@@ -304,18 +303,63 @@ export function LocationsPage() {
                 </div>
               </div>
             </div>
-            <div className="min-w-0 overflow-x-auto bg-white dark:bg-slate-950/30">
-              <table className="w-full min-w-0 table-fixed border-collapse text-left text-sm">
-                <colgroup>
-                  <col className="w-[11%]" />
-                  <col className="w-[19%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[17%]" />
-                </colgroup>
+            {/* Mobile : fiches lisibles (évite table-fixed compressée) */}
+            <ul className="divide-y divide-slate-200 bg-white dark:divide-slate-700 dark:bg-slate-950/30 md:hidden">
+              {sortedTableRows.map((r) => (
+                <li
+                  key={`card-${r.leaseId}`}
+                  id={`loc-row-${r.leaseId}`}
+                  className={`scroll-mt-28 space-y-2.5 p-3.5 ${rowFlashClass(flashLeaseId === r.leaseId)}`}
+                >
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => navigate(`/locations/${r.leaseId}`, { state: locationSheetState })}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-50">
+                          {r.buildingName} — {r.unitLabel}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{unitKindLabel(r.unitKind)}</p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusClass(r.currentMonthStatusFr)}`}
+                      >
+                        {r.currentMonthStatusFr}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{r.localizationLine}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">{r.tenantFullName}</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-50">
+                      {fcfa(r.monthlyRent)}
+                      <span className="ml-2 text-xs font-normal text-slate-500">échéance le {r.rentDueDay}</span>
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">{r.active ? 'Actif' : 'Inactif'}</p>
+                  </button>
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    <SmartLink
+                      to={`/locations/${r.leaseId}`}
+                      state={locationSheetState}
+                      returnFocusId={r.leaseId}
+                      className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
+                    >
+                      Fiche
+                    </SmartLink>
+                    <button
+                      type="button"
+                      className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                      onClick={() => void requestDeleteLocation(r)}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="table-scroll hidden min-w-0 overflow-x-auto bg-white dark:bg-slate-950/30 md:block">
+              <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                     <SortableTh
@@ -384,7 +428,7 @@ export function LocationsPage() {
                   {sortedTableRows.map((r, rowIndex) => (
                     <tr
                       key={`table-${r.leaseId}`}
-                      id={`loc-row-${r.leaseId}`}
+                      id={`loc-row-d-${r.leaseId}`}
                       title="Clic pour ouvrir la fiche"
                       onClick={(e) =>
                         onListRowClick(e, () => navigate(`/locations/${r.leaseId}`, { state: locationSheetState }))

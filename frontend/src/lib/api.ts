@@ -552,9 +552,9 @@ export async function createPaymentReceiptShareLink(paymentId: string): Promise<
   );
   /** Si l’API a encore généré un lien localhost, le réécrire vers l’API de prod (VITE_API_URL). */
   let shareUrl = r.shareUrl;
-  const api = apiBaseUrl();
-  if (api && /localhost|127\.0\.0\.1/i.test(shareUrl)) {
-    shareUrl = shareUrl.replace(/^https?:\/\/[^/]+/i, api.replace(/\/$/, ''));
+  const apiRoot = apiBaseUrl();
+  if (apiRoot && /localhost|127\.0\.0\.1/i.test(shareUrl)) {
+    shareUrl = shareUrl.replace(/^https?:\/\/[^/]+/i, apiRoot.replace(/\/$/, ''));
   }
   return { shareUrl, expiresAt: r.expiresAt };
 }

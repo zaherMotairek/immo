@@ -1185,8 +1185,8 @@ export function LeasesPage() {
             </div>
 
             {leases.length > 0 && filteredLeases.length > 0 && leasesForTable.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+            <div className="table-scroll overflow-x-auto">
+              <table className="w-full min-w-[36rem] md:min-w-[1120px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                     <SortableTh

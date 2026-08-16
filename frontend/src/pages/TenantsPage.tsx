@@ -540,206 +540,313 @@ export function TenantsPage() {
         ) : null}
 
         {rows.length > 0 && viewMode === 'list' ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-                <SortableTh
-                  label="Locataire"
-                  columnKey="tenant"
-                  activeKey={tenantSortKey}
-                  dir={tenantSortDir}
-                  onSort={toggleTenantSort}
-                />
-                <SortableTh
-                  label="Contact"
-                  columnKey="contact"
-                  activeKey={tenantSortKey}
-                  dir={tenantSortDir}
-                  onSort={toggleTenantSort}
-                />
-                <SortableTh
-                  label="Bien & unité"
-                  columnKey="place"
-                  activeKey={tenantSortKey}
-                  dir={tenantSortDir}
-                  onSort={toggleTenantSort}
-                  thClassName="min-w-[10rem] whitespace-nowrap px-3 py-2 sm:px-3.5"
-                />
-                <th className="w-[1%] whitespace-nowrap px-3 py-2 text-right sm:px-3.5">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedFilteredRows.map((t, rowIndex) => {
+          <>
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700 md:hidden">
+              {sortedFilteredRows.map((t) => {
                 const l = t.leases[0];
                 const isEditing = editingId === t.id;
                 if (isEditing) {
                   return (
-                    <tr
+                    <li
                       key={t.id}
                       id={`tenant-row-${t.id}`}
-                      className={`scroll-mt-28 ${listTableRowEditingClass} ${tenantRowFlash(flashTenantId === t.id)}`}
+                      className={`scroll-mt-28 space-y-3 bg-slate-50/80 p-3.5 dark:bg-slate-900/50 ${tenantRowFlash(flashTenantId === t.id)}`}
                     >
-                      <td colSpan={4} className={listTableEditingFirstCellClass}>
-                        <div className="space-y-3 rounded-lg border border-slate-200 bg-white/90 p-3 dark:border-slate-600 dark:bg-slate-900/80">
-                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div>
-                              <Label htmlFor={`ef-${t.id}`}>Prénom</Label>
-                              <Input id={`ef-${t.id}`} value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
-                            </div>
-                            <div>
-                              <Label htmlFor={`el-${t.id}`}>Nom</Label>
-                              <Input id={`el-${t.id}`} value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
-                            </div>
-                            <div>
-                              <Label htmlFor={`ep-${t.id}`}>Téléphone</Label>
-                              <Input id={`ep-${t.id}`} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
-                            </div>
-                            <div>
-                              <Label htmlFor={`ee-${t.id}`}>E-mail</Label>
-                              <Input
-                                id={`ee-${t.id}`}
-                                value={editEmail}
-                                onChange={(e) => setEditEmail(e.target.value)}
-                                type="email"
-                                autoComplete="email"
-                              />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <Label htmlFor={`en-${t.id}`}>Notes (optionnel)</Label>
-                              <Input
-                                id={`en-${t.id}`}
-                                value={editNotes}
-                                onChange={(e) => setEditNotes(e.target.value)}
-                                placeholder="Rappels internes…"
-                              />
-                            </div>
-                          </div>
-                          {editErr && <p className="text-sm text-red-600">{editErr}</p>}
-                          <TenantIdDocumentSection tenantId={t.id} idDocument={idDocumentMeta(t)} onChanged={load} />
-                          <div className="flex flex-wrap items-center gap-2">
-                            <SmartLink
-                              to={`/activite-loyers?scope=tenant&tenantId=${encodeURIComponent(t.id)}&year=${new Date().getFullYear()}`}
-                              returnFocusId={t.id}
-                              className="text-xs font-medium text-slate-600 underline-offset-2 hover:underline dark:text-slate-300"
-                            >
-                              Activité loyers sur l’année
-                            </SmartLink>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button type="button" className="py-1.5 text-xs" onClick={() => saveEdit(t.id)}>
-                              Enregistrer
-                            </Button>
-                            <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={cancelEdit}>
-                              Annuler
-                            </Button>
-                          </div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
+                      <div className="grid gap-3">
+                        <div>
+                          <Label htmlFor={`ef-m-${t.id}`}>Prénom</Label>
+                          <Input id={`ef-m-${t.id}`} value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
                         </div>
-                      </td>
-                    </tr>
+                        <div>
+                          <Label htmlFor={`el-m-${t.id}`}>Nom</Label>
+                          <Input id={`el-m-${t.id}`} value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
+                        </div>
+                        <div>
+                          <Label htmlFor={`ep-m-${t.id}`}>Téléphone</Label>
+                          <Input id={`ep-m-${t.id}`} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                        </div>
+                        <div>
+                          <Label htmlFor={`ee-m-${t.id}`}>E-mail</Label>
+                          <Input
+                            id={`ee-m-${t.id}`}
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            type="email"
+                            autoComplete="email"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`en-m-${t.id}`}>Notes (optionnel)</Label>
+                          <Input
+                            id={`en-m-${t.id}`}
+                            value={editNotes}
+                            onChange={(e) => setEditNotes(e.target.value)}
+                            placeholder="Rappels internes…"
+                          />
+                        </div>
+                      </div>
+                      {editErr && <p className="text-sm text-red-600">{editErr}</p>}
+                      <TenantIdDocumentSection tenantId={t.id} idDocument={idDocumentMeta(t)} onChanged={load} />
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" className="py-1.5 text-xs" onClick={() => saveEdit(t.id)}>
+                          Enregistrer
+                        </Button>
+                        <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={cancelEdit}>
+                          Annuler
+                        </Button>
+                      </div>
+                    </li>
                   );
                 }
                 return (
-                  <tr
+                  <li
                     key={t.id}
                     id={`tenant-row-${t.id}`}
-                    title="Clic pour modifier"
-                    onClick={(e) => onListRowClick(e, () => beginEdit(t))}
-                    className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${tenantRowFlash(flashTenantId === t.id)}`}
+                    className={`scroll-mt-28 space-y-2 p-3.5 ${tenantRowFlash(flashTenantId === t.id)}`}
                   >
-                    <td className={listTableFirstCellClass}>
-                      <div className="min-w-0">
-                        <SmartLink
-                          to={`/locataires?edit=${encodeURIComponent(t.id)}`}
-                          returnFocusId={t.id}
-                          className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
-                        >
-                          {t.firstName} {t.lastName}
-                        </SmartLink>
-                        {t.idDocFileKey ? (
-                          <button
-                            type="button"
-                            className="mt-0.5 block text-left text-[11px] text-slate-500 hover:underline dark:text-slate-400"
-                            onClick={() => openTenantIdDocumentPreview(t.id)}
-                          >
-                            Pièce d’identité
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className={`${listTableCellClass} text-slate-600 dark:text-slate-300`}>
-                      <div className="max-w-[12rem] space-y-0.5">
-                        <p className="tabular-nums text-sm">
-                          {t.phone?.trim() ? (
-                            <a
-                              href={`tel:${t.phone.replace(/\s/g, '')}`}
-                              className="hover:underline"
-                            >
-                              {t.phone}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </p>
-                        {t.email?.trim() ? (
-                          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-                            <a href={`mailto:${t.email}`} className="hover:underline">
-                              {t.email}
-                            </a>
-                          </p>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
+                    <button type="button" className="w-full text-left" onClick={() => beginEdit(t)}>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                        {t.firstName} {t.lastName}
+                      </p>
+                      {t.phone?.trim() ? (
+                        <p className="mt-1 tabular-nums text-sm text-slate-600 dark:text-slate-300">{t.phone}</p>
+                      ) : null}
+                      {t.email?.trim() ? (
+                        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{t.email}</p>
+                      ) : null}
                       {l ? (
-                        <BuildingUnitStack
-                          buildingName={
-                            <SmartLink
-                              to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/locataires')}`}
-                              returnFocusId={t.id}
-                              className="underline-offset-2 hover:underline"
-                            >
-                              {l.unit.building.name}
-                            </SmartLink>
-                          }
-                          buildingSubline={
-                            <>
-                              {l.unit.building.commune}, {l.unit.building.city}
-                            </>
-                          }
-                          unitKindLabel={unitKindLabel(l.unit.kind)}
-                          unitLabel={l.unit.label}
-                        />
+                        <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-300">
+                          {l.unit.building.name} · {l.unit.label}
+                          <span className="text-slate-400">
+                            {' '}
+                            · {l.unit.building.commune}, {l.unit.building.city}
+                          </span>
+                        </p>
                       ) : (
-                        <span className="text-slate-400">Sans bail actif</span>
+                        <p className="mt-1.5 text-xs text-slate-400">Sans bail actif</p>
                       )}
-                    </td>
-                    <td className={`whitespace-nowrap text-right ${listTableCellClass}`}>
-                      <div className="inline-flex items-center gap-2.5">
-                        {l ? <FicheLocationLink leaseId={l.id} returnFocusRowId={t.id} /> : null}
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-300 dark:hover:text-slate-100"
-                          onClick={() => beginEdit(t)}
-                        >
-                          Modifier
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-red-600/90 hover:underline dark:text-red-400"
-                          onClick={() => remove(t.id)}
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {l ? <FicheLocationLink leaseId={l.id} returnFocusRowId={t.id} /> : null}
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                        onClick={() => beginEdit(t)}
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-xs font-medium text-red-600/90 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                        onClick={() => remove(t.id)}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </li>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </ul>
+
+            <div className="table-scroll hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                    <SortableTh
+                      label="Locataire"
+                      columnKey="tenant"
+                      activeKey={tenantSortKey}
+                      dir={tenantSortDir}
+                      onSort={toggleTenantSort}
+                    />
+                    <SortableTh
+                      label="Contact"
+                      columnKey="contact"
+                      activeKey={tenantSortKey}
+                      dir={tenantSortDir}
+                      onSort={toggleTenantSort}
+                    />
+                    <SortableTh
+                      label="Bien & unité"
+                      columnKey="place"
+                      activeKey={tenantSortKey}
+                      dir={tenantSortDir}
+                      onSort={toggleTenantSort}
+                      thClassName="min-w-[10rem] whitespace-nowrap px-3 py-2 sm:px-3.5"
+                    />
+                    <th className="w-[1%] whitespace-nowrap px-3 py-2 text-right sm:px-3.5">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedFilteredRows.map((t, rowIndex) => {
+                    const l = t.leases[0];
+                    const isEditing = editingId === t.id;
+                    if (isEditing) {
+                      return (
+                        <tr
+                          key={t.id}
+                          id={`tenant-row-d-${t.id}`}
+                          className={`scroll-mt-28 ${listTableRowEditingClass} ${tenantRowFlash(flashTenantId === t.id)}`}
+                        >
+                          <td colSpan={4} className={listTableEditingFirstCellClass}>
+                            <div className="space-y-3 rounded-lg border border-slate-200 bg-white/90 p-3 dark:border-slate-600 dark:bg-slate-900/80">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Modifier le locataire</p>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label htmlFor={`ef-${t.id}`}>Prénom</Label>
+                                  <Input id={`ef-${t.id}`} value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`el-${t.id}`}>Nom</Label>
+                                  <Input id={`el-${t.id}`} value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`ep-${t.id}`}>Téléphone</Label>
+                                  <Input id={`ep-${t.id}`} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`ee-${t.id}`}>E-mail</Label>
+                                  <Input
+                                    id={`ee-${t.id}`}
+                                    value={editEmail}
+                                    onChange={(e) => setEditEmail(e.target.value)}
+                                    type="email"
+                                    autoComplete="email"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <Label htmlFor={`en-${t.id}`}>Notes (optionnel)</Label>
+                                  <Input
+                                    id={`en-${t.id}`}
+                                    value={editNotes}
+                                    onChange={(e) => setEditNotes(e.target.value)}
+                                    placeholder="Rappels internes…"
+                                  />
+                                </div>
+                              </div>
+                              {editErr && <p className="text-sm text-red-600">{editErr}</p>}
+                              <TenantIdDocumentSection tenantId={t.id} idDocument={idDocumentMeta(t)} onChanged={load} />
+                              <div className="flex flex-wrap items-center gap-2">
+                                <SmartLink
+                                  to={`/activite-loyers?scope=tenant&tenantId=${encodeURIComponent(t.id)}&year=${new Date().getFullYear()}`}
+                                  returnFocusId={t.id}
+                                  className="text-xs font-medium text-slate-600 underline-offset-2 hover:underline dark:text-slate-300"
+                                >
+                                  Activité loyers sur l’année
+                                </SmartLink>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button type="button" className="py-1.5 text-xs" onClick={() => saveEdit(t.id)}>
+                                  Enregistrer
+                                </Button>
+                                <Button type="button" variant="secondary" className="py-1.5 text-xs" onClick={cancelEdit}>
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return (
+                      <tr
+                        key={t.id}
+                        id={`tenant-row-d-${t.id}`}
+                        title="Clic pour modifier"
+                        onClick={(e) => onListRowClick(e, () => beginEdit(t))}
+                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${tenantRowFlash(flashTenantId === t.id)}`}
+                      >
+                        <td className={listTableFirstCellClass}>
+                          <div className="min-w-0">
+                            <SmartLink
+                              to={`/locataires?edit=${encodeURIComponent(t.id)}`}
+                              returnFocusId={t.id}
+                              className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
+                            >
+                              {t.firstName} {t.lastName}
+                            </SmartLink>
+                            {t.idDocFileKey ? (
+                              <button
+                                type="button"
+                                className="mt-0.5 block text-left text-[11px] text-slate-500 hover:underline dark:text-slate-400"
+                                onClick={() => openTenantIdDocumentPreview(t.id)}
+                              >
+                                Pièce d’identité
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className={`${listTableCellClass} text-slate-600 dark:text-slate-300`}>
+                          <div className="max-w-[12rem] space-y-0.5">
+                            <p className="tabular-nums text-sm">
+                              {t.phone?.trim() ? (
+                                <a href={`tel:${t.phone.replace(/\s/g, '')}`} className="hover:underline">
+                                  {t.phone}
+                                </a>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </p>
+                            {t.email?.trim() ? (
+                              <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                <a href={`mailto:${t.email}`} className="hover:underline">
+                                  {t.email}
+                                </a>
+                              </p>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className={`${listTableCellClass} text-slate-700 dark:text-slate-300`}>
+                          {l ? (
+                            <BuildingUnitStack
+                              buildingName={
+                                <SmartLink
+                                  to={`/biens/${l.unit.building.id}?unitId=${encodeURIComponent(l.unit.id)}&hintUnitLabel=${encodeURIComponent(l.unit.label)}&returnLocation=${encodeURIComponent('/locataires')}`}
+                                  returnFocusId={t.id}
+                                  className="underline-offset-2 hover:underline"
+                                >
+                                  {l.unit.building.name}
+                                </SmartLink>
+                              }
+                              buildingSubline={
+                                <>
+                                  {l.unit.building.commune}, {l.unit.building.city}
+                                </>
+                              }
+                              unitKindLabel={unitKindLabel(l.unit.kind)}
+                              unitLabel={l.unit.label}
+                            />
+                          ) : (
+                            <span className="text-slate-400">Sans bail actif</span>
+                          )}
+                        </td>
+                        <td className={`whitespace-nowrap text-right ${listTableCellClass}`}>
+                          <div className="inline-flex items-center gap-2.5">
+                            {l ? <FicheLocationLink leaseId={l.id} returnFocusRowId={t.id} /> : null}
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-300 dark:hover:text-slate-100"
+                              onClick={() => beginEdit(t)}
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-red-600/90 hover:underline dark:text-red-400"
+                              onClick={() => remove(t.id)}
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : null}
 
         {rows.length === 0 && (

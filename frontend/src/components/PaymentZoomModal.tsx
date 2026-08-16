@@ -491,8 +491,8 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
           onClick={closeAnimated}
         />
         <div
-          className={`payment-detail-sheet absolute inset-y-0 right-0 z-10 flex w-full max-w-lg flex-col border-l border-neutral-200 bg-neutral-100 shadow-[-8px_0_40px_-12px_rgba(0,0,0,0.25)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 ${
-            sheetEntered ? 'translate-x-0' : 'translate-x-full'
+          className={`payment-detail-sheet absolute inset-x-0 bottom-0 z-10 flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-neutral-200 bg-neutral-100 shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:max-w-lg sm:rounded-none sm:border-l sm:border-t-0 sm:shadow-[-8px_0_40px_-12px_rgba(0,0,0,0.25)] ${
+            sheetEntered ? 'translate-y-0 sm:translate-x-0' : 'translate-y-full sm:translate-y-0 sm:translate-x-full'
           }`}
         >
           <OdooSheetHeader

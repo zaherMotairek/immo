@@ -1903,7 +1903,7 @@ export function BuildingDetailPage() {
                         placeholder="Ex. Lot, Appartement, Local…"
                       />
                     </div>
-                    <div className="overflow-x-auto rounded-lg border border-slate-200/90 dark:border-slate-600">
+                    <div className="table-scroll overflow-x-auto rounded-lg border border-slate-200/90 dark:border-slate-600">
                       <table className="w-full min-w-[42rem] text-sm">
                         <thead className="bg-slate-100/90 dark:bg-slate-800/80">
                           <tr>
@@ -2445,8 +2445,8 @@ export function BuildingDetailPage() {
         </div>
 
         {b.units.length > 0 && tableUnits.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+          <div className="table-scroll overflow-x-auto">
+            <table className="w-full min-w-[32rem] md:min-w-[880px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
                   <SortableTh

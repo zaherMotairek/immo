@@ -527,7 +527,7 @@ export function DashboardPage() {
               </SmartLink>
             </div>
           </div>
-          <div className="overflow-x-auto bg-white dark:bg-slate-950/25">
+          <div className="table-scroll overflow-x-auto bg-white dark:bg-slate-950/25">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">

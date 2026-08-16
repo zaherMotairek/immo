@@ -149,7 +149,7 @@ export function PaymentLineActions({
     );
   }
   if (compact) {
-    return <div className="flex min-w-0 flex-nowrap items-center gap-1">{nodes}</div>;
+    return <div className="flex min-w-0 flex-wrap items-center gap-1 sm:flex-nowrap">{nodes}</div>;
   }
   return nodes;
 }

@@ -71,7 +71,7 @@ export function AuditLogPage() {
       </Card>
 
       <Card>
-        <div className="overflow-x-auto">
+        <div className="table-scroll overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr>

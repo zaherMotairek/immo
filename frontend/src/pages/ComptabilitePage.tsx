@@ -160,7 +160,7 @@ export function ComptabilitePage() {
             />
             <div className="space-y-3 p-3 sm:p-4">
             {tab === 'resume' ? (
-              <div className="overflow-x-auto">
+              <div className="table-scroll overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
@@ -206,7 +206,7 @@ export function ComptabilitePage() {
                     Export CSV grand livre
                   </Button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="table-scroll overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr>
@@ -244,7 +244,7 @@ export function ComptabilitePage() {
                     Export CSV créances
                   </Button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="table-scroll overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr>

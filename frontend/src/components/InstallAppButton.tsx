@@ -8,12 +8,13 @@ type Props = {
 };
 
 /**
- * Bouton pour installer ImmoPilot comme application (ordinateur + téléphone).
- * Sur Chrome/Edge/Android : ouvre la boîte d’installation native.
- * Sur iOS Safari : guide court (Apple n’autorise pas l’API d’install).
+ * Bouton pour installer ImmoPilot comme application (ordinateur + téléphone + tablette).
+ * Sur Chrome/Edge/Android (HTTPS) : ouvre la boîte d’installation native.
+ * Sur iOS Safari : Apple n’autorise pas l’API — guide court uniquement.
  */
 export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
-  const { installed, needsIosGuide, showInstallUi, promptInstall, isIos } = usePwaInstall();
+  const { installed, canPrompt, needsIosGuide, showInstallUi, promptInstall, isIos, isSecureContext } =
+    usePwaInstall();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -47,6 +48,14 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
       return;
     }
 
+    if (!isSecureContext) {
+      setOpen(true);
+      setHint(
+        'L’installation automatique nécessite HTTPS (site en ligne) ou localhost. Avec une adresse du type 192.168.x.x en HTTP, le navigateur refuse le prompt natif.',
+      );
+      return;
+    }
+
     setBusy(true);
     try {
       const result = await promptInstall();
@@ -58,10 +67,11 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
         setHint('Installation annulée.');
         return;
       }
-      // unavailable : le navigateur n’a pas encore proposé l’install (critères / déjà refusé)
       setOpen(true);
       setHint(
-        'Le navigateur n’a pas ouvert la fenêtre d’installation. Utilisez Chrome ou Edge, en HTTPS (site en ligne), puis réessayez. Menu ⋮ → Installer l’application.',
+        canPrompt
+          ? 'Le navigateur n’a pas ouvert la fenêtre. Réessayez depuis Chrome ou Edge.'
+          : 'Ouvrez le site en HTTPS (version déployée), puis réessayez : le navigateur affichera alors « Installer ImmoPilot ». En local de développement (npm run dev), le service worker est désactivé — utilisez un build preview ou la prod.',
       );
     } finally {
       setBusy(false);
@@ -84,7 +94,7 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
         className={`inline-flex items-center ${baseBtn}`}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        title="Installer ImmoPilot sur cet appareil"
+        title="Installer ImmoPilot comme application"
       >
         <svg className="size-4 shrink-0 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
           <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" strokeLinecap="round" strokeLinejoin="round" />
@@ -108,19 +118,25 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
           }`}
         >
           {needsIosGuide || isIos ? (
-            <ol className="list-decimal space-y-1.5 pl-4">
-              <li>
-                Touchez <strong>Partager</strong> (carré avec flèche) dans Safari.
-              </li>
-              <li>
-                Choisissez <strong>Sur l’écran d’accueil</strong>.
-              </li>
-              <li>
-                Validez <strong>Ajouter</strong>.
-              </li>
-            </ol>
+            <div className="space-y-2">
+              <p className="font-semibold text-slate-800 dark:text-zinc-100">iPhone / iPad (Safari)</p>
+              <p>
+                Apple n’autorise pas l’installation en un clic. Ajoutez ImmoPilot à l’écran d’accueil :
+              </p>
+              <ol className="list-decimal space-y-1.5 pl-4">
+                <li>
+                  Touchez <strong>Partager</strong> (carré avec flèche).
+                </li>
+                <li>
+                  Choisissez <strong>Sur l’écran d’accueil</strong>.
+                </li>
+                <li>
+                  Validez <strong>Ajouter</strong>.
+                </li>
+              </ol>
+            </div>
           ) : (
-            <p>{hint ?? 'Ouvrez le menu ⋮ du navigateur → Installer l’application.'}</p>
+            <p>{hint ?? 'Sur Chrome ou Edge en HTTPS, le bouton ouvre la fenêtre d’installation native.'}</p>
           )}
           <button
             type="button"

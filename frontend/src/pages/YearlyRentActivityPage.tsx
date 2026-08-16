@@ -626,8 +626,8 @@ export function YearlyRentActivityPage() {
               </SmartLink>
             </div>
           </div>
-          <div className="overflow-x-auto print:overflow-visible print:max-w-none">
-            <table className="w-full min-w-[1100px] border-collapse text-left text-sm print:min-w-0 print:table-fixed print:w-full print:text-[10px] print:text-black">
+          <div className="table-scroll overflow-x-auto print:overflow-visible print:max-w-none">
+            <table className="w-full min-w-[36rem] md:min-w-[1100px] border-collapse text-left text-sm print:min-w-0 print:table-fixed print:w-full print:text-[10px] print:text-black">
               <colgroup>
                 <col className="print:w-[22%]" />
                 {MONTHS.map((m) => (

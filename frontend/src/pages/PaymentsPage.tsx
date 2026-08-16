@@ -1298,8 +1298,8 @@ export function PaymentsPage() {
                   </button>
                 </div>
               </div>
-              <div id={`payments-month-body-${key}`} className="overflow-x-auto bg-white dark:bg-slate-950/30" hidden={monthCollapsed}>
-                <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <div id={`payments-month-body-${key}`} className="table-scroll overflow-x-auto bg-white dark:bg-slate-950/30" hidden={monthCollapsed}>
+                <table className="w-full min-w-[24rem] md:min-w-[640px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
                       <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-center sm:px-5">

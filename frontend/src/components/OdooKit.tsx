@@ -12,10 +12,10 @@ export function OdooActionBar({
 }) {
   return (
     <div
-      className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)] dark:border-zinc-600 dark:bg-zinc-900 ${className}`}
+      className={`mb-3 flex flex-col gap-2 rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2 shadow-[0_1px_2px_rgb(0_0_0/0.04)] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between dark:border-zinc-600 dark:bg-zinc-900 ${className}`}
     >
-      <div className="min-w-0 flex-1">{left}</div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">{right}</div>
+      {left ? <div className="min-w-0 sm:flex-1">{left}</div> : null}
+      {right ? <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{right}</div> : null}
     </div>
   );
 }
@@ -307,27 +307,29 @@ export function OdooListToolbar({
   showViewToggle?: boolean;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+    <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
       {search !== undefined && onSearchChange ? (
-        <OdooSearchInput
-          value={search}
-          onChange={onSearchChange}
-          placeholder={searchPlaceholder}
-          ariaLabel={searchAriaLabel}
-        />
+        <div className="min-w-0 flex-[1_1_12rem]">
+          <OdooSearchInput
+            value={search}
+            onChange={onSearchChange}
+            placeholder={searchPlaceholder}
+            ariaLabel={searchAriaLabel}
+          />
+        </div>
       ) : null}
       {filters}
       {showViewToggle && viewMode !== undefined && onViewModeChange ? (
         <OdooViewToggle value={viewMode} onChange={onViewModeChange} />
       ) : null}
-      {exports}
+      {exports ? <div className="shrink-0">{exports}</div> : null}
     </div>
   );
 }
 
 export function OdooKanbanBoard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`flex gap-3 overflow-x-auto pb-1 ${className}`}>
+    <div className={`flex flex-col gap-3 pb-1 md:flex-row md:overflow-x-auto ${className}`}>
       {children}
     </div>
   );
@@ -346,7 +348,7 @@ export function OdooKanbanColumn({
 }) {
   return (
     <div
-      className={`flex w-[min(100%,18rem)] shrink-0 flex-col rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] dark:border-zinc-600 dark:bg-zinc-800/50 ${className}`}
+      className={`flex w-full shrink-0 flex-col rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] md:w-[min(100%,18rem)] dark:border-zinc-600 dark:bg-zinc-800/50 ${className}`}
     >
       <div className="flex items-center justify-between gap-2 border-b border-[var(--odoo-border)] px-3 py-2 dark:border-zinc-700">
         <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-ink)] dark:text-zinc-100">{title}</p>
