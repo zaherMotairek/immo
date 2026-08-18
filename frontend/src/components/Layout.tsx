@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { saveScrollForPath } from '@/lib/navigation';
 import { useAuth } from '@/auth/AuthContext';
@@ -83,6 +84,20 @@ export function Layout() {
   });
 
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const sync = () => {
+      setShowMobileNav(mq.matches);
+      if (!mq.matches) setMobileMoreOpen(false);
+    };
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   useEffect(() => {
     try {
@@ -299,108 +314,115 @@ export function Layout() {
         </div>
       </main>
 
-      {/* ——— Bottom nav mobile ——— */}
-      <nav
-        className="mobile-bottom-nav print:hidden lg:hidden"
-        aria-label="Navigation principale mobile"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' } as CSSProperties}
-      >
-        {mobileBottomTabs.map((l) => (
-          <NavLink
-            key={l.to}
-            to={l.to}
-            end={l.end}
-            onClick={saveScrollBeforeMenuNav}
-            className={({ isActive }) => `mobile-bottom-nav__item ${isActive ? 'is-active' : ''}`}
+      {/* ——— Bottom nav + tiroir Plus : mobile / tablette uniquement ——— */}
+      {showMobileNav ? (
+        <>
+          <nav
+            className="mobile-bottom-nav print:hidden"
+            aria-label="Navigation principale mobile"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' } as CSSProperties}
           >
-            <SidebarNavIcon to={l.to} className="size-5" />
-            <span>{l.short ?? l.label}</span>
-          </NavLink>
-        ))}
-        <button
-          type="button"
-          className={`mobile-bottom-nav__item ${moreIsActive || mobileMoreOpen ? 'is-active' : ''}`}
-          aria-expanded={mobileMoreOpen}
-          aria-controls="mobile-more-sheet"
-          onClick={() => setMobileMoreOpen((o) => !o)}
-        >
-          <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
-            <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-            <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
-          <span>Plus</span>
-        </button>
-      </nav>
-
-      {/* ——— Tiroir « Plus » mobile ——— */}
-      {mobileMoreOpen ? (
-        <div className="mobile-more-root print:hidden lg:hidden" role="presentation">
-          <button
-            type="button"
-            className="mobile-more-backdrop"
-            aria-label="Fermer le menu"
-            onClick={() => setMobileMoreOpen(false)}
-          />
-          <div
-            id="mobile-more-sheet"
-            className="mobile-more-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Plus d’outils"
-            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' } as CSSProperties}
-          >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />
-            <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Navigation</p>
-            <div className="grid grid-cols-2 gap-2">
+            {mobileBottomTabs.map((l) => (
               <NavLink
-                to="/baux"
-                className="mobile-more-link"
+                key={l.to}
+                to={l.to}
+                end={l.end}
                 onClick={saveScrollBeforeMenuNav}
+                className={({ isActive }) => `mobile-bottom-nav__item ${isActive ? 'is-active' : ''}`}
               >
-                <SidebarNavIcon to="/baux" />
-                Baux
+                <SidebarNavIcon to={l.to} className="size-5" />
+                <span>{l.short ?? l.label}</span>
               </NavLink>
-              {navSecondary.map((l) => (
-                <NavLink key={l.to} to={l.to} className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
-                  <SidebarNavIcon to={l.to} />
-                  {l.label}
-                </NavLink>
-              ))}
-            </div>
-            <p className="mb-2 mt-4 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Compte</p>
-            <div className="flex flex-col gap-1.5">
-              {navAccount.map((l) => (
-                <NavLink key={l.to} to={l.to} className="mobile-more-link mobile-more-link--row" onClick={saveScrollBeforeMenuNav}>
-                  <SidebarNavIcon to={l.to} />
-                  {l.label}
-                </NavLink>
-              ))}
-              {adminItem ? (
-                <NavLink
-                  to={adminItem.to}
-                  className="mobile-more-link mobile-more-link--row"
-                  onClick={saveScrollBeforeMenuNav}
-                >
-                  <SidebarNavIcon to={adminItem.to} />
-                  {adminItem.label}
-                </NavLink>
-              ) : null}
-              <p className="truncate px-2 pt-1 text-[11px] text-zinc-500">{user?.email}</p>
-              <InstallAppButton variant="auth" className="mt-1" />
-              <Button
-                variant="secondary"
-                className="mt-2 w-full justify-center rounded-xl border-red-200 bg-red-50 py-3 text-sm font-semibold text-red-800 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
-                onClick={() => {
-                  setMobileMoreOpen(false);
-                  logout();
-                }}
-              >
-                Déconnexion
-              </Button>
-            </div>
-          </div>
-        </div>
+            ))}
+            <button
+              type="button"
+              className={`mobile-bottom-nav__item ${moreIsActive || mobileMoreOpen ? 'is-active' : ''}`}
+              aria-expanded={mobileMoreOpen}
+              aria-controls="mobile-more-sheet"
+              onClick={() => setMobileMoreOpen((o) => !o)}
+            >
+              <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+              </svg>
+              <span>Plus</span>
+            </button>
+          </nav>
+
+          {mobileMoreOpen && typeof document !== 'undefined'
+            ? createPortal(
+                <div className="mobile-more-root print:hidden" role="presentation">
+                  <button
+                    type="button"
+                    className="mobile-more-backdrop"
+                    aria-label="Fermer le menu"
+                    onClick={() => setMobileMoreOpen(false)}
+                  />
+                  <div
+                    id="mobile-more-sheet"
+                    className="mobile-more-sheet"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Plus d’outils"
+                    style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' } as CSSProperties}
+                  >
+                    <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />
+                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Navigation</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <NavLink to="/baux" className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
+                        <SidebarNavIcon to="/baux" />
+                        Baux
+                      </NavLink>
+                      {navSecondary.map((l) => (
+                        <NavLink key={l.to} to={l.to} className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
+                          <SidebarNavIcon to={l.to} />
+                          {l.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                    <p className="mb-2 mt-4 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Compte</p>
+                    <div className="flex flex-col gap-1.5">
+                      {navAccount.map((l) => (
+                        <NavLink
+                          key={l.to}
+                          to={l.to}
+                          className="mobile-more-link mobile-more-link--row"
+                          onClick={saveScrollBeforeMenuNav}
+                        >
+                          <SidebarNavIcon to={l.to} />
+                          {l.label}
+                        </NavLink>
+                      ))}
+                      {adminItem ? (
+                        <NavLink
+                          to={adminItem.to}
+                          className="mobile-more-link mobile-more-link--row"
+                          onClick={saveScrollBeforeMenuNav}
+                        >
+                          <SidebarNavIcon to={adminItem.to} />
+                          {adminItem.label}
+                        </NavLink>
+                      ) : null}
+                      <p className="truncate px-2 pt-1 text-[11px] text-zinc-500">{user?.email}</p>
+                      <InstallAppButton variant="auth" className="mt-1" />
+                      <Button
+                        variant="secondary"
+                        className="mt-2 w-full justify-center rounded-xl border-red-200 bg-red-50 py-3 text-sm font-semibold text-red-800 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
+                        onClick={() => {
+                          setMobileMoreOpen(false);
+                          logout();
+                        }}
+                      >
+                        Déconnexion
+                      </Button>
+                    </div>
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null}
+        </>
       ) : null}
     </div>
   );

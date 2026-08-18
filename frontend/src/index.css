@@ -233,23 +233,36 @@ main a:focus-visible {
   }
 }
 
-/* ——— Bottom navigation mobile ——— */
+/* ——— Bottom navigation : mobile / tablette uniquement (< 1024px) ——— */
 .mobile-bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  display: flex;
-  align-items: stretch;
-  justify-content: space-around;
-  gap: 0.15rem;
-  min-height: 3.65rem;
-  padding: 0.35rem 0.25rem 0.4rem;
-  border-top: 1px solid rgb(39 39 42 / 0.95);
-  background: rgb(9 9 11 / 0.97);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 -8px 28px -16px rgb(0 0 0 / 0.55);
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0.15rem;
+    min-height: 3.65rem;
+    padding: 0.35rem 0.25rem 0.4rem;
+    border-top: 1px solid rgb(39 39 42 / 0.95);
+    background: rgb(9 9 11 / 0.97);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 -8px 28px -16px rgb(0 0 0 / 0.55);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-bottom-nav,
+  .mobile-more-root {
+    display: none !important;
+  }
 }
 
 .mobile-bottom-nav__item {
