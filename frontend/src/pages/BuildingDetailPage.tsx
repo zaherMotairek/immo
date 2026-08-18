@@ -306,29 +306,38 @@ export function BuildingDetailPage() {
     });
   }
 
-  const load = useCallback(() => {
-    if (!id) return;
-    setLoading(true);
-    setLoadError(null);
-    api<Building>(`/buildings/${id}`)
+  const load = useCallback((opts?: { silent?: boolean }) => {
+    if (!id) return Promise.resolve();
+    const silent = Boolean(opts?.silent);
+    if (!silent) {
+      setLoading(true);
+      setLoadError(null);
+    }
+    return api<Building>(`/buildings/${id}`)
       .then((data) => {
         setB(data);
-        setStructureKindDraft(data.structureKind ?? 'MONO_LOT');
-        setFloorCountDraft(data.floorCount != null ? String(data.floorCount) : '');
-        setHasRezDeChausseeDraft(data.hasRezDeChaussee !== false);
-        setApartmentCountDraft(data.apartmentCount != null ? String(data.apartmentCount) : '');
-        setApartmentsPerFloorDraft(
-          data.apartmentsPerFloor != null ? String(data.apartmentsPerFloor) : '',
-        );
-        setRezApartmentCountDraft(data.rezApartmentCount != null ? String(data.rezApartmentCount) : '');
-        setTerrainLotCountDraft(data.terrainLotCount != null ? String(data.terrainLotCount) : '');
+        if (!silent) {
+          setStructureKindDraft(data.structureKind ?? 'MONO_LOT');
+          setFloorCountDraft(data.floorCount != null ? String(data.floorCount) : '');
+          setHasRezDeChausseeDraft(data.hasRezDeChaussee !== false);
+          setApartmentCountDraft(data.apartmentCount != null ? String(data.apartmentCount) : '');
+          setApartmentsPerFloorDraft(
+            data.apartmentsPerFloor != null ? String(data.apartmentsPerFloor) : '',
+          );
+          setRezApartmentCountDraft(data.rezApartmentCount != null ? String(data.rezApartmentCount) : '');
+          setTerrainLotCountDraft(data.terrainLotCount != null ? String(data.terrainLotCount) : '');
+        }
         setLoadError(null);
       })
       .catch((e) => {
-        setB(null);
-        setLoadError(e instanceof Error ? e.message : 'Impossible de charger ce bien.');
+        if (!silent) {
+          setB(null);
+          setLoadError(e instanceof Error ? e.message : 'Impossible de charger ce bien.');
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   }, [id]);
 
   useEffect(() => {
@@ -343,7 +352,7 @@ export function BuildingDetailPage() {
     void (async () => {
       try {
         await api(`/buildings/${id}`, { method: 'PATCH', json: { locauxSlotCount: null } });
-        if (!cancelled) load();
+        if (!cancelled) void load({ silent: true });
       } catch {
         /* ignore */
       }
@@ -933,7 +942,7 @@ export function BuildingDetailPage() {
       setKind('APARTMENT');
       setDescription('');
       setAddUnitFormOpen(false);
-      load();
+      await load({ silent: true });
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
     }
@@ -998,7 +1007,7 @@ export function BuildingDetailPage() {
       setDescription('');
       setSurfaceM2('');
       setRooms('');
-      await load();
+      await load({ silent: true });
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
     } finally {
@@ -1063,7 +1072,7 @@ export function BuildingDetailPage() {
       for (const json of payloads) {
         await api(`/buildings/${id}/units`, { method: 'POST', json });
       }
-      await load();
+      await load({ silent: true });
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Génération automatique impossible.');
     } finally {
@@ -1075,17 +1084,24 @@ export function BuildingDetailPage() {
     if (!confirm('Supprimer cette unité ? Les baux et loyers liés seront aussi supprimés.')) return;
     try {
       await api(`/units/${unitId}`, { method: 'DELETE' });
-      load();
+      await load({ silent: true });
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Suppression impossible.');
     }
   }
 
   async function updateUnitKind(unitId: string, newKind: string) {
+    const snapshot = b;
+    setB((cur) =>
+      cur
+        ? { ...cur, units: cur.units.map((u) => (u.id === unitId ? { ...u, kind: newKind } : u)) }
+        : cur,
+    );
     try {
       await api(`/units/${unitId}`, { method: 'PATCH', json: { kind: newKind } });
-      load();
+      await load({ silent: true });
     } catch (e) {
+      setB(snapshot);
       alert(e instanceof Error ? e.message : 'Modification impossible.');
     }
   }
@@ -1113,7 +1129,7 @@ export function BuildingDetailPage() {
           rooms: roomsVal ? Number(roomsVal) : null,
         },
       });
-      load();
+      await load({ silent: true });
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Modification impossible.');
     }
@@ -1220,7 +1236,7 @@ export function BuildingDetailPage() {
         json.terrainLotCount = null;
       }
       await api(`/buildings/${id}`, { method: 'PATCH', json });
-      await load();
+      await load({ silent: true });
     } catch (e2) {
       setStructureErr(e2 instanceof Error ? e2.message : 'Enregistrement impossible.');
     } finally {

@@ -24,7 +24,8 @@ function isInstallableContext(): boolean {
 }
 
 /**
- * Installation PWA : priorise la boîte native du navigateur (Chrome / Edge / Android).
+ * Installation PWA : boîte native du navigateur (Chrome / Edge / Android / desktop).
+ * iOS Safari : pas d’API d’installation programmatique — le bouton reste masqué.
  */
 export function usePwaInstall() {
   const [canPrompt, setCanPrompt] = useState(() => Boolean(getDeferredInstallPrompt()) && !isPwaInstalled());
@@ -43,18 +44,19 @@ export function usePwaInstall() {
     if (getDeferredInstallPrompt()) {
       return triggerPwaInstall();
     }
-    const ev = await waitForInstallPrompt(3200);
+    const ev = await waitForInstallPrompt(6000);
     if (!ev) return 'unavailable';
     return triggerPwaInstall();
   }, []);
 
+  /** Afficher le bouton seulement si l’install native est possible (pas iOS, HTTPS/localhost, pas déjà installé). */
+  const showInstallUi = !installed && !ios && secure;
+
   return {
     installed,
     canPrompt,
-    /** Contexte HTTPS / localhost : l’API d’install peut fonctionner. */
     isSecureContext: secure,
-    needsIosGuide: ios && !installed,
-    showInstallUi: !installed,
+    showInstallUi,
     promptInstall,
     isIos: ios,
   };
