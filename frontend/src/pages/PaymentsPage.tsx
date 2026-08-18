@@ -1192,262 +1192,257 @@ export function PaymentsPage() {
           </Card>
         ) : null}
         {monthGroups.length > 0 ? (
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-            Détail des échéances (par mois de facturation)
-          </p>
-        ) : null}
-        {monthGroups.length > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-600/80 dark:bg-slate-900/40">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              <span className="font-semibold text-slate-900 dark:text-slate-50">{monthGroups.length} mois</span>
-              {' · '}
-              <span className="text-slate-600 dark:text-slate-400">Les détails sont affichés ci-dessous. Vous pouvez masquer un mois pour gagner de la place.</span>
-            </p>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
-                onClick={() => setCollapsedMonthKeys(new Set(monthGroups.map(([k]) => k)))}
-              >
-                Masquer tous les détails
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-900 shadow-sm transition hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-100 dark:hover:bg-brand-900/40"
-                onClick={() => setCollapsedMonthKeys(new Set())}
-              >
-                Afficher tous les détails
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {monthGroups.map(([key, items]) => {
-          const [yStr, mStr] = key.split('-');
-          const py = Number(yStr);
-          const pm = Number(mStr);
-          const monthDue = items.reduce((acc, p) => acc + Number(p.amountDue), 0);
-          const monthPending = items.filter((p) => p.status === 'PENDING' || p.status === 'LATE');
-          const monthPendingSum = monthPending.reduce((acc, p) => acc + paymentRemaining(p), 0);
-          const overdueInMonth = items.filter((p) => isOverduePayment(p)).length;
-          const monthCollapsed = collapsedMonthKeys.has(key);
-
-          return (
-            <Card key={key} className="!p-0 overflow-hidden shadow-md ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
-              <div
-                id={`payments-month-head-${key}`}
-                className="relative flex flex-col gap-3 border-b border-slate-200/90 bg-white px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5 dark:border-slate-700 dark:bg-slate-900/85"
-              >
-                <span
-                  className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-brand-500/90 dark:bg-brand-500/80"
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1 pl-2 sm:pl-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-                      {monthTitle(py, pm)}
-                    </h2>
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600">
-                      {String(pm).padStart(2, '0')}/{py}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                    {items.length} échéance{items.length !== 1 ? 's' : ''} · {fcfa(monthDue)} au total
-                    {monthPending.length > 0 && (
-                      <span className="font-medium text-amber-900 dark:text-amber-300">
-                        {' '}
-                        · {fcfa(monthPendingSum)} encore dû{monthPending.length !== 1 ? 'es' : ''}
-                      </span>
-                    )}
-                    {overdueInMonth > 0 && (
-                      <span className="font-medium text-red-700 dark:text-red-400"> · {overdueInMonth} en retard</span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 self-stretch sm:self-start sm:pt-0.5">
+          <Card className="!overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/90 bg-slate-50/90 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                  Détail des échéances (par mois de facturation)
+                </p>
+                <p className="mt-0.5 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-400">
+                  {monthGroups.length} mois · {rows.length} échéance{rows.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              {monthGroups.length > 1 ? (
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    aria-expanded={!monthCollapsed}
-                    aria-controls={`payments-month-body-${key}`}
-                    onClick={() =>
-                      setCollapsedMonthKeys((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(key)) next.delete(key);
-                        else next.add(key);
-                        return next;
-                      })
-                    }
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-700/80"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
+                    onClick={() => setCollapsedMonthKeys(new Set(monthGroups.map(([k]) => k)))}
                   >
-                    {monthCollapsed ? (
-                      <>
-                        <svg className="size-4 text-brand-600 dark:text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                          <path d="M15 12H9M12 9v6" strokeLinecap="round" />
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                        </svg>
-                        Afficher le tableau
-                      </>
-                    ) : (
-                      <>
-                        <svg className="size-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                          <path d="M9 12h6M12 3v18" strokeLinecap="round" />
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                        </svg>
-                        Masquer le tableau
-                      </>
-                    )}
+                    Tout replier
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
+                    onClick={() => setCollapsedMonthKeys(new Set())}
+                  >
+                    Tout déplier
                   </button>
                 </div>
-              </div>
-              <div id={`payments-month-body-${key}`} className="table-scroll overflow-x-auto bg-white dark:bg-slate-950/30" hidden={monthCollapsed}>
-                <table className="w-full min-w-[24rem] md:min-w-[640px] border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
-                      <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-center sm:px-5">
-                        <input
-                          type="checkbox"
-                          checked={items.every((p) => selectedPaymentIds.includes(p.id))}
-                          onChange={(e) => toggleAllInMonth(items, e.target.checked)}
-                          aria-label={`Sélectionner toutes les lignes de ${monthTitle(py, pm)}`}
-                        />
-                      </th>
-                      <SortableTh
-                        label="Locataire"
-                        columnKey="tenant"
-                        activeKey={paySortKey}
-                        dir={paySortDir}
-                        onSort={togglePaySort}
-                        thClassName="px-4 py-2.5 sm:px-5"
-                      />
-                      <SortableTh
-                        label="Lieu"
-                        columnKey="place"
-                        activeKey={paySortKey}
-                        dir={paySortDir}
-                        onSort={togglePaySort}
-                        thClassName="px-4 py-2.5 sm:px-5"
-                      />
-                      <SortableTh
-                        label="Montant"
-                        columnKey="amount"
-                        activeKey={paySortKey}
-                        dir={paySortDir}
-                        onSort={togglePaySort}
-                        align="end"
-                        thClassName="px-4 py-2.5 sm:px-5"
-                      />
-                      <SortableTh
-                        label="Période · échéance"
-                        columnKey="schedule"
-                        activeKey={paySortKey}
-                        dir={paySortDir}
-                        onSort={togglePaySort}
-                        thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
-                      />
-                      <SortableTh
-                        label="Statut"
-                        columnKey="status"
-                        activeKey={paySortKey}
-                        dir={paySortDir}
-                        onSort={togglePaySort}
-                        thClassName="px-4 py-2.5 sm:px-5"
-                      />
-                      <th
-                        className="w-[1%] whitespace-nowrap px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-3 dark:text-slate-400"
-                        aria-label="Détail"
-                      />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((p, rowIndex) => (
-                      <tr
-                        key={p.id}
-                        id={`payment-${p.id}`}
-                        title="Clic pour ouvrir le détail"
-                        onClick={(e) => onListRowClick(e, () => setZoomPaymentId(p.id))}
-                        className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${paymentRowFlash(flashPaymentRowId === p.id)} ${
-                          zoomPaymentId === p.id
-                            ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
-                            : ''
-                        }`}
+              ) : null}
+            </div>
+
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+              {monthGroups.map(([key, items]) => {
+                const [yStr, mStr] = key.split('-');
+                const py = Number(yStr);
+                const pm = Number(mStr);
+                const monthDue = items.reduce((acc, p) => acc + Number(p.amountDue), 0);
+                const monthPending = items.filter((p) => p.status === 'PENDING' || p.status === 'LATE');
+                const monthPendingSum = monthPending.reduce((acc, p) => acc + paymentRemaining(p), 0);
+                const overdueInMonth = items.filter((p) => isOverduePayment(p)).length;
+                const monthCollapsed = collapsedMonthKeys.has(key);
+
+                return (
+                  <li key={key} className="bg-white dark:bg-slate-950/30">
+                    <button
+                      type="button"
+                      id={`payments-month-head-${key}`}
+                      aria-expanded={!monthCollapsed}
+                      aria-controls={`payments-month-body-${key}`}
+                      onClick={() =>
+                        setCollapsedMonthKeys((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key);
+                          else next.add(key);
+                          return next;
+                        })
+                      }
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-slate-50 sm:px-5 dark:hover:bg-slate-900/60"
+                    >
+                      <span className="w-[7.5rem] shrink-0 sm:w-[9.5rem]">
+                        <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {monthTitle(py, pm)}
+                        </span>
+                        <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                          {String(pm).padStart(2, '0')}/{py}
+                        </span>
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                        <span className="tabular-nums text-slate-600 dark:text-slate-300">
+                          {items.length} échéance{items.length !== 1 ? 's' : ''}
+                        </span>
+                        <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(monthDue)}</span>
+                        {monthPending.length > 0 ? (
+                          <span className="font-medium tabular-nums text-amber-800 dark:text-amber-300">
+                            {fcfa(monthPendingSum)} dû
+                          </span>
+                        ) : null}
+                        {overdueInMonth > 0 ? (
+                          <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800 dark:bg-red-950/60 dark:text-red-200">
+                            {overdueInMonth} retard
+                          </span>
+                        ) : null}
+                      </span>
+                      <svg
+                        className={`size-4 shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500 ${monthCollapsed ? '' : 'rotate-180'}`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        aria-hidden
                       >
-                        <td className={`text-center ${listTableCellClass}`} onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedPaymentIds.includes(p.id)}
-                            onChange={() => togglePaymentSelection(p.id)}
-                            aria-label={`Sélectionner le paiement de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
-                          />
-                        </td>
-                        <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
-                          {p.lease.tenant.id ? (
-                            <SmartLink
-                              to={`/locataires?edit=${encodeURIComponent(p.lease.tenant.id)}`}
-                              returnFocusId={p.id}
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                        <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+
+                    <div
+                      id={`payments-month-body-${key}`}
+                      className="table-scroll overflow-x-auto border-t border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/40"
+                      hidden={monthCollapsed}
+                    >
+                      <table className="w-full min-w-[24rem] md:min-w-[640px] border-collapse text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40">
+                            <th className="w-[1%] whitespace-nowrap px-4 py-2.5 text-center sm:px-5">
+                              <input
+                                type="checkbox"
+                                checked={items.every((p) => selectedPaymentIds.includes(p.id))}
+                                onChange={(e) => toggleAllInMonth(items, e.target.checked)}
+                                aria-label={`Sélectionner toutes les lignes de ${monthTitle(py, pm)}`}
+                              />
+                            </th>
+                            <SortableTh
+                              label="Locataire"
+                              columnKey="tenant"
+                              activeKey={paySortKey}
+                              dir={paySortDir}
+                              onSort={togglePaySort}
+                              thClassName="px-4 py-2.5 sm:px-5"
+                            />
+                            <SortableTh
+                              label="Lieu"
+                              columnKey="place"
+                              activeKey={paySortKey}
+                              dir={paySortDir}
+                              onSort={togglePaySort}
+                              thClassName="px-4 py-2.5 sm:px-5"
+                            />
+                            <SortableTh
+                              label="Montant"
+                              columnKey="amount"
+                              activeKey={paySortKey}
+                              dir={paySortDir}
+                              onSort={togglePaySort}
+                              align="end"
+                              thClassName="px-4 py-2.5 sm:px-5"
+                            />
+                            <SortableTh
+                              label="Période · échéance"
+                              columnKey="schedule"
+                              activeKey={paySortKey}
+                              dir={paySortDir}
+                              onSort={togglePaySort}
+                              thClassName="whitespace-nowrap px-4 py-2.5 sm:px-5"
+                            />
+                            <SortableTh
+                              label="Statut"
+                              columnKey="status"
+                              activeKey={paySortKey}
+                              dir={paySortDir}
+                              onSort={togglePaySort}
+                              thClassName="px-4 py-2.5 sm:px-5"
+                            />
+                            <th
+                              className="w-[1%] whitespace-nowrap px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 sm:px-3 dark:text-slate-400"
+                              aria-label="Détail"
+                            />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((p, rowIndex) => (
+                            <tr
+                              key={p.id}
+                              id={`payment-${p.id}`}
+                              title="Clic pour ouvrir le détail"
+                              onClick={(e) => onListRowClick(e, () => setZoomPaymentId(p.id))}
+                              className={`scroll-mt-28 ${listTableDataRowClass(rowIndex)} ${listTableRowOpenableClass} ${paymentRowFlash(flashPaymentRowId === p.id)} ${
+                                zoomPaymentId === p.id
+                                  ? 'bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:bg-brand-950/40 dark:ring-brand-500/30'
+                                  : ''
+                              }`}
                             >
-                              {p.lease.tenant.firstName} {p.lease.tenant.lastName}
-                            </SmartLink>
-                          ) : (
-                            <span>
-                              {p.lease.tenant.firstName} {p.lease.tenant.lastName}
-                            </span>
-                          )}
-                        </td>
-                        <td
-                          className={`max-w-[14rem] truncate ${listTableCellClass} text-slate-800 dark:text-slate-200`}
-                          title={`${p.lease.unit.building.name} — ${unitKindLabel(p.lease.unit.kind)} ${p.lease.unit.label} · ${p.lease.unit.building.commune}`}
-                        >
-                          <span className="font-medium text-slate-900 dark:text-slate-100">{p.lease.unit.building.name}</span>
-                          <span className="text-slate-400 dark:text-slate-500"> · </span>
-                          <span className="text-xs text-slate-700 dark:text-slate-300">{p.lease.unit.label}</span>
-                        </td>
-                        <td className={`whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200 ${listTableCellClass}`}>
-                          <span className="font-semibold">{fcfa(Number(p.amountDue))}</span>
-                          {(p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0 ? (
-                            <span className="mt-0.5 block text-[11px] font-medium tabular-nums text-emerald-800 dark:text-emerald-300">
-                              Reste {fcfa(paymentRemaining(p))}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
-                          <p className="text-xs font-semibold">
-                            {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateFr(p.dueDate)}</p>
-                        </td>
-                        <td className={listTableCellClass}>
-                          <div className="flex flex-col items-start gap-1">
-                            <span
-                              className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(p.status)}`}
-                            >
-                              {statusLabel(p.status)}
-                            </span>
-                            {(() => {
-                              const b = collectionCollectBadge(p.collectionTask);
-                              return b ? (
-                                <span
-                                  className={`inline-block max-w-full rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case leading-tight ${b.className}`}
-                                >
-                                  {b.label}
-                                </span>
-                              ) : null;
-                            })()}
-                          </div>
-                        </td>
-                        <td className={`w-10 text-center align-middle ${listTableCellClass} text-neutral-400 dark:text-zinc-500`} aria-hidden>
-                          <svg className="mx-auto size-5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                            <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          );
-        })}
+                              <td className={`text-center ${listTableCellClass}`} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPaymentIds.includes(p.id)}
+                                  onChange={() => togglePaymentSelection(p.id)}
+                                  aria-label={`Sélectionner le paiement de ${p.lease.tenant.firstName} ${p.lease.tenant.lastName}`}
+                                />
+                              </td>
+                              <td className={`${listTableFirstCellClass} font-medium text-slate-900 dark:text-slate-100`}>
+                                {p.lease.tenant.id ? (
+                                  <SmartLink
+                                    to={`/locataires?edit=${encodeURIComponent(p.lease.tenant.id)}`}
+                                    returnFocusId={p.id}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                                  >
+                                    {p.lease.tenant.firstName} {p.lease.tenant.lastName}
+                                  </SmartLink>
+                                ) : (
+                                  <span>
+                                    {p.lease.tenant.firstName} {p.lease.tenant.lastName}
+                                  </span>
+                                )}
+                              </td>
+                              <td
+                                className={`max-w-[14rem] truncate ${listTableCellClass} text-slate-800 dark:text-slate-200`}
+                                title={`${p.lease.unit.building.name} — ${unitKindLabel(p.lease.unit.kind)} ${p.lease.unit.label} · ${p.lease.unit.building.commune}`}
+                              >
+                                <span className="font-medium text-slate-900 dark:text-slate-100">{p.lease.unit.building.name}</span>
+                                <span className="text-slate-400 dark:text-slate-500"> · </span>
+                                <span className="text-xs text-slate-700 dark:text-slate-300">{p.lease.unit.label}</span>
+                              </td>
+                              <td className={`whitespace-nowrap text-right tabular-nums text-slate-800 dark:text-slate-200 ${listTableCellClass}`}>
+                                <span className="font-semibold">{fcfa(Number(p.amountDue))}</span>
+                                {(p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0 ? (
+                                  <span className="mt-0.5 block text-[11px] font-medium tabular-nums text-emerald-800 dark:text-emerald-300">
+                                    Reste {fcfa(paymentRemaining(p))}
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className={`whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-300 ${listTableCellClass}`}>
+                                <p className="text-xs font-semibold">
+                                  {String(p.periodMonth).padStart(2, '0')}/{p.periodYear}
+                                </p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateFr(p.dueDate)}</p>
+                              </td>
+                              <td className={listTableCellClass}>
+                                <div className="flex flex-col items-start gap-1">
+                                  <span
+                                    className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(p.status)}`}
+                                  >
+                                    {statusLabel(p.status)}
+                                  </span>
+                                  {(() => {
+                                    const b = collectionCollectBadge(p.collectionTask);
+                                    return b ? (
+                                      <span
+                                        className={`inline-block max-w-full rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case leading-tight ${b.className}`}
+                                      >
+                                        {b.label}
+                                      </span>
+                                    ) : null;
+                                  })()}
+                                </div>
+                              </td>
+                              <td className={`w-10 text-center align-middle ${listTableCellClass} text-neutral-400 dark:text-zinc-500`} aria-hidden>
+                                <svg className="mx-auto size-5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                  <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ) : null}
       </div>
 
       <PaymentZoomModal
