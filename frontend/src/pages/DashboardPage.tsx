@@ -830,7 +830,7 @@ export function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Alertes loyers</h2>
             <HelpHint
               className="align-middle"
-              title="Comme sur la page Paiements : regroupement par mois, liste compacte ; double-cliquer une ligne ouvre le panneau à droite (encaissement, versement partiel, relances, fiche location)."
+              title="Liste des mois en alerte. Clic sur un mois pour voir les échéances ; clic sur une ligne pour ouvrir le détail (encaissement, relances, fiche location)."
             />
           </div>
           <LinkButton to="/paiements?overdue=1&year=all&month=all" variant="secondary" className="py-2 text-xs">
@@ -842,67 +842,79 @@ export function DashboardPage() {
             <p className="text-sm text-slate-600 dark:text-slate-400">Aucune alerte : tous les loyers suivis sont à jour.</p>
           </Card>
         ) : (
-          <div className="space-y-4">
-            <div className="mobile-secondary flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
-                onClick={() => setCollapsedAlertMonths(new Set(alertMonthGroups.map(([k]) => k)))}
-              >
-                Tout replier
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
-                onClick={() => setCollapsedAlertMonths(new Set())}
-              >
-                Tout déplier
-              </button>
+          <Card className="!overflow-hidden !p-0 shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/90 bg-slate-50/90 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
+              <p className="text-xs font-medium tabular-nums text-slate-600 dark:text-slate-400">
+                {alertMonthGroups.length} mois · {alerts.length} échéance{alerts.length !== 1 ? 's' : ''}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
+                  onClick={() => setCollapsedAlertMonths(new Set(alertMonthGroups.map(([k]) => k)))}
+                >
+                  Tout replier
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
+                  onClick={() => setCollapsedAlertMonths(new Set())}
+                >
+                  Tout déplier
+                </button>
+              </div>
             </div>
-            {alertMonthGroups.map(([key, items]) => {
-              const [yStr, mStr] = key.split('-');
-              const py = Number(yStr);
-              const pm = Number(mStr);
-              const monthDue = items.reduce((acc, a) => acc + a.amountDue, 0);
-              const monthRemaining = items.reduce((acc, a) => acc + alertRemaining(a), 0);
-              const overdueInMonth = items.filter((a) => dashboardAlertOverdue(a)).length;
-              const monthCollapsed = collapsedAlertMonths.has(key);
 
-              return (
-                <Card key={key} className="!p-0 overflow-hidden shadow-sm ring-1 ring-slate-900/[0.04] dark:ring-slate-600/35">
-                  <button
-                    type="button"
-                    aria-expanded={!monthCollapsed}
-                    aria-controls={`dashboard-alerts-month-${key}`}
-                    onClick={() =>
-                      setCollapsedAlertMonths((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(key)) next.delete(key);
-                        else next.add(key);
-                        return next;
-                      })
-                    }
-                    className="relative z-10 flex w-full items-start gap-3 border-b border-slate-200/90 bg-gradient-to-r from-slate-100/90 to-slate-50/95 px-4 py-3 text-left transition hover:from-slate-100 hover:to-slate-50/90 sm:px-5 dark:border-slate-700 dark:from-slate-800/95 dark:to-slate-900/98 dark:hover:from-slate-800 dark:hover:to-slate-900/95"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{monthTitle(py, pm)}</h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
-                        {items.length} échéance{items.length !== 1 ? 's' : ''} en alerte · {fcfa(monthDue)} loyer dû au total
-                        <span className="font-medium text-amber-900 dark:text-amber-300">
-                          {' '}
-                          · {fcfa(monthRemaining)} encore dû{items.length !== 1 ? 'es' : ''}
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+              {alertMonthGroups.map(([key, items]) => {
+                const [yStr, mStr] = key.split('-');
+                const py = Number(yStr);
+                const pm = Number(mStr);
+                const monthDue = items.reduce((acc, a) => acc + a.amountDue, 0);
+                const monthRemaining = items.reduce((acc, a) => acc + alertRemaining(a), 0);
+                const overdueInMonth = items.filter((a) => dashboardAlertOverdue(a)).length;
+                const monthCollapsed = collapsedAlertMonths.has(key);
+
+                return (
+                  <li key={key} className="bg-white dark:bg-slate-950/30">
+                    <button
+                      type="button"
+                      aria-expanded={!monthCollapsed}
+                      aria-controls={`dashboard-alerts-month-${key}`}
+                      onClick={() =>
+                        setCollapsedAlertMonths((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key);
+                          else next.add(key);
+                          return next;
+                        })
+                      }
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-slate-50 sm:px-5 dark:hover:bg-slate-900/60"
+                    >
+                      <span className="w-[7.5rem] shrink-0 sm:w-[9.5rem]">
+                        <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {monthTitle(py, pm)}
                         </span>
-                        {overdueInMonth > 0 && (
-                          <span className="font-medium text-red-800 dark:text-red-300"> · {overdueInMonth} en retard</span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2 self-start">
-                      <span className="rounded-lg bg-slate-100/95 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600">
-                        Période {String(pm).padStart(2, '0')}/{py}
+                        <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                          {String(pm).padStart(2, '0')}/{py}
+                        </span>
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                        <span className="tabular-nums text-slate-600 dark:text-slate-300">
+                          {items.length} alerte{items.length !== 1 ? 's' : ''}
+                        </span>
+                        <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">{fcfa(monthDue)}</span>
+                        <span className="font-medium tabular-nums text-amber-800 dark:text-amber-300">
+                          {fcfa(monthRemaining)} dû
+                        </span>
+                        {overdueInMonth > 0 ? (
+                          <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800 dark:bg-red-950/60 dark:text-red-200">
+                            {overdueInMonth} retard
+                          </span>
+                        ) : null}
                       </span>
                       <svg
-                        className={`size-5 shrink-0 text-slate-500 transition-transform duration-200 dark:text-slate-400 ${monthCollapsed ? '' : 'rotate-180'}`}
+                        className={`size-4 shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500 ${monthCollapsed ? '' : 'rotate-180'}`}
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -911,100 +923,97 @@ export function DashboardPage() {
                       >
                         <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    </div>
-                  </button>
-                  <ul id={`dashboard-alerts-month-${key}`} className="list-none" hidden={monthCollapsed}>
-                    {items.map((a, rowIdx) => {
-                      const [pY, pM] = a.period.split('-');
-                      const periodCompact =
-                        pY && pM && !Number.isNaN(Number(pY)) && !Number.isNaN(Number(pM))
-                          ? `${String(pM).padStart(2, '0')}/${pY}`
-                          : a.period;
-                      const lieuTitle = a.building
-                        ? `${a.building} — ${unitKindLabel(a.unitKind)} ${a.unit ?? '—'} · ${[a.commune, a.city].filter(Boolean).join(', ') || '—'}`
-                        : '';
-                      return (
-                        <li
-                          key={a.paymentId}
-                          id={`dashboard-alert-${a.paymentId}`}
-                          title="Clic pour ouvrir le détail"
-                          onClick={(e) => onListRowClick(e, () => setZoomAlertPaymentId(a.paymentId))}
-                          className={`scroll-mt-28 ${listBlockRowClass(rowIdx)} sm:items-start ${listTableRowOpenableClass} ${
-                            zoomAlertPaymentId === a.paymentId
-                              ? '!bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:!bg-brand-950/40 dark:ring-brand-500/30'
-                              : ''
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <SmartLink
-                                to={`/locataires?edit=${encodeURIComponent(a.tenantId)}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
-                              >
-                                {a.tenant || 'Locataire'}
-                              </SmartLink>
-                              <span
-                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(a.status)}`}
-                              >
-                                {statusLabel(a.status)}
-                              </span>
-                              {(() => {
-                                const b = collectionCollectBadge(a.collectionTask);
-                                return b ? (
-                                  <span
-                                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case ${b.className}`}
-                                  >
-                                    {b.label}
-                                  </span>
-                                ) : null;
-                              })()}
-                            </div>
-                            <p
-                              className="max-w-[min(100%,28rem)] truncate text-xs text-slate-600 dark:text-slate-400"
-                              title={lieuTitle}
-                            >
-                              {a.building ? (
-                                <>
-                                  <span className="font-medium text-slate-800 dark:text-slate-200">{a.building}</span>
-                                  <span className="text-slate-400 dark:text-slate-500"> · </span>
-                                  <span>{a.unit ?? '—'}</span>
-                                  {[a.commune, a.city].filter(Boolean).length ? (
-                                    <>
-                                      <span className="text-slate-400 dark:text-slate-500"> · </span>
-                                      <span>{[a.commune, a.city].filter(Boolean).join(', ')}</span>
-                                    </>
-                                  ) : null}
-                                </>
-                              ) : (
-                                '—'
-                              )}
-                            </p>
-                            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm tabular-nums">
-                              <span className="font-semibold text-slate-900 dark:text-slate-100">{fcfa(a.amountDue)}</span>
-                              {(a.status === 'PENDING' || a.status === 'LATE') && (a.amountPaid ?? 0) > 0 ? (
-                                <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
-                                  Reste {fcfa(alertRemaining(a))}
+                    </button>
+
+                    <ul id={`dashboard-alerts-month-${key}`} className="list-none border-t border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/40" hidden={monthCollapsed}>
+                      {items.map((a, rowIdx) => {
+                        const [pY, pM] = a.period.split('-');
+                        const periodCompact =
+                          pY && pM && !Number.isNaN(Number(pY)) && !Number.isNaN(Number(pM))
+                            ? `${String(pM).padStart(2, '0')}/${pY}`
+                            : a.period;
+                        const lieuTitle = a.building
+                          ? `${a.building} — ${unitKindLabel(a.unitKind)} ${a.unit ?? '—'} · ${[a.commune, a.city].filter(Boolean).join(', ') || '—'}`
+                          : '';
+                        return (
+                          <li
+                            key={a.paymentId}
+                            id={`dashboard-alert-${a.paymentId}`}
+                            title="Clic pour ouvrir le détail"
+                            onClick={(e) => onListRowClick(e, () => setZoomAlertPaymentId(a.paymentId))}
+                            className={`scroll-mt-28 ${listBlockRowClass(rowIdx)} sm:items-center ${listTableRowOpenableClass} ${
+                              zoomAlertPaymentId === a.paymentId
+                                ? '!bg-brand-50/95 ring-1 ring-inset ring-brand-500/25 dark:!bg-brand-950/40 dark:ring-brand-500/30'
+                                : ''
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <SmartLink
+                                  to={`/locataires?edit=${encodeURIComponent(a.tenantId)}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-brand-300"
+                                >
+                                  {a.tenant || 'Locataire'}
+                                </SmartLink>
+                                <span
+                                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyle(a.status)}`}
+                                >
+                                  {statusLabel(a.status)}
                                 </span>
-                              ) : null}
-                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                {periodCompact} · {formatDateFr(a.dueDate)}
-                              </span>
-                            </p>
-                          </div>
-                          <div className="shrink-0 self-center text-neutral-400 dark:text-zinc-500 sm:pt-0.5" aria-hidden>
-                            <svg className="size-5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                              <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </Card>
-              );
-            })}
-          </div>
+                                {(() => {
+                                  const b = collectionCollectBadge(a.collectionTask);
+                                  return b ? (
+                                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold normal-case ${b.className}`}>
+                                      {b.label}
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
+                              <p className="truncate text-xs text-slate-600 dark:text-slate-400" title={lieuTitle}>
+                                {a.building ? (
+                                  <>
+                                    <span className="font-medium text-slate-800 dark:text-slate-200">{a.building}</span>
+                                    <span className="text-slate-400 dark:text-slate-500"> · </span>
+                                    <span>{a.unit ?? '—'}</span>
+                                    {[a.commune, a.city].filter(Boolean).length ? (
+                                      <>
+                                        <span className="text-slate-400 dark:text-slate-500"> · </span>
+                                        <span>{[a.commune, a.city].filter(Boolean).join(', ')}</span>
+                                      </>
+                                    ) : null}
+                                  </>
+                                ) : (
+                                  '—'
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3">
+                              <p className="text-right text-sm tabular-nums">
+                                <span className="block font-semibold text-slate-900 dark:text-slate-100">{fcfa(a.amountDue)}</span>
+                                {(a.status === 'PENDING' || a.status === 'LATE') && (a.amountPaid ?? 0) > 0 ? (
+                                  <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                                    Reste {fcfa(alertRemaining(a))}
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    {periodCompact} · {formatDateFr(a.dueDate)}
+                                  </span>
+                                )}
+                              </p>
+                              <svg className="size-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
         )}
       </div>
 
