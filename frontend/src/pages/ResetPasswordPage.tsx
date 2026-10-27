@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AuthShell } from '@/components/AuthShell';
 import { api } from '@/lib/api';
-import { Button, Input, Label } from '@/components/ui';
-
-const inputClass =
-  'auth-field mt-2 min-h-12 rounded-xl border-zinc-300/80 bg-white/90 text-base shadow-none dark:border-zinc-500 dark:bg-zinc-800/90';
+import { Button, Callout, Field, Input } from '@/components/ui/index';
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -50,73 +47,70 @@ export function ResetPasswordPage() {
       <div className="auth-panel">
         <div className="auth-panel__accent" aria-hidden />
         <div className="relative">
-          <h2 className="auth-shell__wordmark text-[1.85rem] font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h2 className="auth-shell__wordmark text-[1.85rem] font-bold tracking-tight text-[var(--color-ink)]">
             Nouveau mot de passe
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm leading-relaxed text-[var(--color-muted)]">
             Au moins 8 caractères. Le lien reçu expire au bout d’une heure.
           </p>
         </div>
 
         {ok ? (
           <div className="relative mt-8 space-y-4">
-            <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300" role="status">
-              Mot de passe mis à jour. Vous pouvez vous connecter.
-            </p>
-            <Link to="/login" className="auth-submit inline-flex min-h-12 w-full items-center justify-center text-base font-semibold">
+            <Callout variant="success">
+              <span role="status">Mot de passe mis à jour. Vous pouvez vous connecter.</span>
+            </Callout>
+            <Link
+              to="/login"
+              className="auth-submit inline-flex min-h-12 w-full items-center justify-center text-base font-semibold"
+            >
               Aller à la connexion
             </Link>
           </div>
         ) : (
           <form onSubmit={onSubmit} className="relative mt-8 space-y-5" autoComplete="on">
             {!token ? (
-              <p
-                className="rounded-xl border border-amber-300/80 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/35 dark:text-amber-100"
-                role="alert"
-              >
+              <Callout variant="warning" title="Lien incomplet">
                 Aucun jeton dans l’URL. Utilisez le lien reçu par e-mail, ou refaites une demande.
-              </p>
+              </Callout>
             ) : null}
-            <div>
-              <Label htmlFor="reset-new">Nouveau mot de passe</Label>
+            <Field label="Nouveau mot de passe" htmlFor="reset-new" required>
               <Input
                 id="reset-new"
                 type="password"
                 name="newPassword"
                 autoComplete="new-password"
-                className={inputClass}
+                className="auth-field mt-0 min-h-12 text-base"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 minLength={8}
               />
-            </div>
-            <div>
-              <Label htmlFor="reset-confirm">Confirmer</Label>
+            </Field>
+            <Field label="Confirmer" htmlFor="reset-confirm" required>
               <Input
                 id="reset-confirm"
                 type="password"
                 name="confirmPassword"
                 autoComplete="new-password"
-                className={inputClass}
+                className="auth-field mt-0 min-h-12 text-base"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
                 minLength={8}
               />
-            </div>
+            </Field>
             {err ? (
-              <div
-                role="alert"
-                className="rounded-xl border border-red-200/90 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-950/35 dark:text-red-200"
-              >
+              <Callout variant="danger" title="Réinitialisation impossible">
                 {err}
-              </div>
+              </Callout>
             ) : null}
             <Button
               type="submit"
-              className="auth-submit min-h-12 w-full text-base font-semibold"
-              disabled={loading || !token}
+              size="lg"
+              loading={loading}
+              className="auth-submit w-full text-base font-semibold"
+              disabled={!token}
             >
               {loading ? 'Enregistrement…' : 'Enregistrer le mot de passe'}
             </Button>
@@ -126,7 +120,7 @@ export function ResetPasswordPage() {
         <p className="relative mt-6">
           <Link
             to="/login"
-            className="text-sm font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
+            className="text-sm font-medium text-[var(--color-muted)] underline-offset-2 hover:text-[var(--color-ink)] hover:underline"
           >
             ← Connexion
           </Link>

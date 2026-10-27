@@ -10,7 +10,7 @@ type Props = {
 };
 
 /**
- * Coquille auth : panneau marque immersif + zone formulaire.
+ * Coquille auth : panneau marque immersif + zone formulaire (Calm ledger Option B).
  */
 export function AuthShell({
   children,
@@ -47,13 +47,16 @@ export function AuthShell({
           <div className="auth-shell__logo-mark inline-flex rounded-[1.25rem] p-0.5">
             <ImmoPilotLogo className="[&>svg]:size-[3.75rem] sm:[&>svg]:size-[4.5rem]" />
           </div>
-          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-200/75">
+          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-200/80">
             Gestion locative
           </p>
           <h1 className="auth-shell__wordmark mt-3 text-[2.85rem] font-extrabold leading-[0.92] tracking-tight sm:text-5xl lg:text-[3.5rem]">
-            Immo<span className="text-amber-300">Pilot</span>
+            Immo<span className="text-brand-300">Pilot</span>
           </h1>
-          <span className="auth-shell__rule mt-6 block h-[3px] w-14 rounded-full bg-gradient-to-r from-amber-400 to-amber-200/40" aria-hidden />
+          <span
+            className="auth-shell__rule mt-6 block h-[3px] w-14 rounded-full bg-gradient-to-r from-brand-400 to-brand-200/40"
+            aria-hidden
+          />
           <p className="mt-6 max-w-[20rem] text-[1.02rem] font-medium leading-relaxed text-zinc-300/95 lg:max-w-[22rem]">
             {panelLead}
           </p>
