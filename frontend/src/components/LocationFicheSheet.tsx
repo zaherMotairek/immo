@@ -10,7 +10,10 @@ type Props = {
   children?: ReactNode;
 };
 
-/** Coquille panneau droit pour la fiche location (même animation que le détail paiement). */
+/**
+ * Coquille panneau droit pour la fiche location (même animation que le détail paiement).
+ * Conservée en panneau latéral (BottomSheet kit = feuille basse mobile — comportement différent).
+ */
 export function LocationFicheSheet({ children }: Props) {
   const navigate = useNavigate();
   const [sheetEntered, setSheetEntered] = useState(false);
@@ -66,7 +69,7 @@ export function LocationFicheSheet({ children }: Props) {
         onClick={closeAnimated}
       />
       <div
-        className={`payment-detail-sheet absolute inset-y-0 right-0 z-10 flex w-full max-w-3xl flex-col border-l border-neutral-200 bg-neutral-100 shadow-[-8px_0_40px_-12px_rgba(0,0,0,0.25)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 ${
+        className={`payment-detail-sheet absolute inset-y-0 right-0 z-10 flex w-full max-w-3xl flex-col border-l border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] shadow-[var(--shadow-lift)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 ${
           sheetEntered ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
