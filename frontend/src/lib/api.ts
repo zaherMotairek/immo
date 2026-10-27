@@ -1,3 +1,5 @@
+import { toast } from '@/components/ui/Toast';
+
 const TOKEN_KEY = 'immopilot_token';
 const USER_KEY = 'immopilot_user';
 
@@ -222,7 +224,7 @@ export function openTenantIdDocumentPreview(tenantId: string, fileKey?: string):
       window.open(blobUrl, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120_000);
     })
-    .catch(() => alert('Impossible d’afficher la pièce d’identité.'));
+    .catch(() => toast('Impossible d’afficher la pièce d’identité.', { variant: 'error' }));
 }
 
 export function downloadTenantIdDocumentFile(tenantId: string, suggestedName: string, fileKey?: string): void {
@@ -245,7 +247,7 @@ export function downloadTenantIdDocumentFile(tenantId: string, suggestedName: st
       a.click();
       URL.revokeObjectURL(a.href);
     })
-    .catch(() => alert('Impossible de télécharger le fichier.'));
+    .catch(() => toast('Impossible de télécharger le fichier.', { variant: 'error' }));
 }
 
 /** Ouvre le contrat dans un nouvel onglet (session requise). */
@@ -264,7 +266,7 @@ export function openLeaseContractPreview(leaseId: string, fileKey?: string): voi
       window.open(blobUrl, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120_000);
     })
-    .catch(() => alert('Impossible d’afficher le contrat.'));
+    .catch(() => toast('Impossible d’afficher le contrat.', { variant: 'error' }));
 }
 
 export function downloadLeaseContractFile(leaseId: string, suggestedName: string, fileKey?: string): void {
@@ -287,14 +289,14 @@ export function downloadLeaseContractFile(leaseId: string, suggestedName: string
       a.click();
       URL.revokeObjectURL(a.href);
     })
-    .catch(() => alert('Impossible de télécharger le contrat.'));
+    .catch(() => toast('Impossible de télécharger le contrat.', { variant: 'error' }));
 }
 
 /** Télécharge le reçu PDF d’une échéance (acompte ou solde, session JWT). */
 export function downloadPaymentReceipt(paymentId: string) {
   const token = getToken();
   if (!token) {
-    alert('Connectez-vous pour télécharger le reçu.');
+    toast('Connectez-vous pour télécharger le reçu.', { variant: 'warning' });
     return;
   }
   const url = `${baseUrl()}/payments/${encodeURIComponent(paymentId)}/receipt`;
@@ -311,7 +313,9 @@ export function downloadPaymentReceipt(paymentId: string) {
       URL.revokeObjectURL(a.href);
     })
     .catch(() =>
-      alert('Impossible de télécharger le reçu (vérifiez qu’au moins un versement est enregistré sur l’échéance).'),
+      toast('Impossible de télécharger le reçu (vérifiez qu’au moins un versement est enregistré sur l’échéance).', {
+        variant: 'error',
+      }),
     );
 }
 
@@ -319,7 +323,7 @@ export function downloadPaymentReceipt(paymentId: string) {
 export function downloadBulkPaymentReceipts(paymentIds: string[]) {
   const token = getToken();
   if (!token) {
-    alert('Connectez-vous pour télécharger le reçu.');
+    toast('Connectez-vous pour télécharger le reçu.', { variant: 'warning' });
     return;
   }
   if (!paymentIds.length) return;
@@ -340,7 +344,9 @@ export function downloadBulkPaymentReceipts(paymentIds: string[]) {
       URL.revokeObjectURL(a.href);
     })
     .catch(() =>
-      alert('Impossible de générer le reçu groupé (même bail, échéances déjà payées uniquement).'),
+      toast('Impossible de générer le reçu groupé (même bail, échéances déjà payées uniquement).', {
+        variant: 'error',
+      }),
     );
 }
 
@@ -363,7 +369,7 @@ export function downloadReport(kind: 'pdf' | 'xlsx', year: number) {
         a.click();
         URL.revokeObjectURL(a.href);
       })
-      .catch(() => alert('Export impossible. Vérifiez la connexion et votre session.'));
+      .catch(() => toast('Export impossible. Vérifiez la connexion et votre session.', { variant: 'error' }));
   } else {
     a.click();
   }
@@ -387,7 +393,7 @@ export function openPrintablePdf(path: string) {
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
     })
-    .catch(() => alert('Impossible d’ouvrir le PDF. Vérifiez la connexion et votre session.'));
+    .catch(() => toast('Impossible d’ouvrir le PDF. Vérifiez la connexion et votre session.', { variant: 'error' }));
 }
 
 export type ExcelImportResult = {

@@ -10,6 +10,8 @@ import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import {
   listTableCellClass,
   listTableDataRowClass,
@@ -348,12 +350,18 @@ export function TenantsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Supprimer ce locataire ? (impossible s’il a encore un bail.)')) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer le locataire',
+      message: 'Supprimer ce locataire ? (impossible s’il a encore un bail.)',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api(`/tenants/${id}`, { method: 'DELETE' });
       load();
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Suppression impossible.');
+      toast(e2 instanceof Error ? e2.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 

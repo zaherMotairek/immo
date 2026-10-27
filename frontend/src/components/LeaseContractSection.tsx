@@ -10,6 +10,8 @@ import {
 } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
 import { Button } from './ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 
 function formatBytes(n: number | null | undefined) {
   if (n == null) return '—';
@@ -52,14 +54,20 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
       await loadContracts();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible.');
+      toast(e instanceof Error ? e.message : 'Envoi impossible.', { variant: 'error' });
     } finally {
       setBusy(false);
     }
   }
 
   async function onRemove(fileKey?: string) {
-    if (!confirm('Supprimer le fichier de contrat enregistré ?')) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer le contrat',
+      message: 'Supprimer le fichier de contrat enregistré ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       if (fileKey) {
@@ -70,7 +78,7 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
       await loadContracts();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Suppression impossible.');
+      toast(e instanceof Error ? e.message : 'Suppression impossible.', { variant: 'error' });
     } finally {
       setBusy(false);
     }

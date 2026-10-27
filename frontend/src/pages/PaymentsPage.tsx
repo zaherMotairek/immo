@@ -17,6 +17,8 @@ import { PaymentZoomModal } from '@/components/PaymentZoomModal';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { AmountFcfaInput, Button, Card, HelpHint, Label, Select } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { shouldDeferEscapeCancel } from '@/lib/useEscapeCancel';
@@ -643,13 +645,15 @@ export function PaymentsPage() {
 
   async function markSelectedPaid() {
     if (selectableRows.length === 0) {
-      alert('Aucune ligne sélectionnée payable (en attente / en retard).');
+      toast('Aucune ligne sélectionnée payable (en attente / en retard).', { variant: 'warning' });
       return;
     }
     const count = selectableRows.length;
-    const ok = confirm(
-      `Marquer ${count} paiement${count > 1 ? 's' : ''} comme payé${count > 1 ? 's' : ''} ?`,
-    );
+    const ok = await confirmDialog({
+      title: 'Marquer comme payé',
+      message: `Marquer ${count} paiement${count > 1 ? 's' : ''} comme payé${count > 1 ? 's' : ''} ?`,
+      confirmLabel: 'Marquer payé',
+    });
     if (!ok) return;
     setBulkSubmitting(true);
     try {
@@ -668,7 +672,7 @@ export function PaymentsPage() {
       setSelectedPaymentIds([]);
       load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Action groupée impossible.');
+      toast(e instanceof Error ? e.message : 'Action groupée impossible.', { variant: 'error' });
     } finally {
       setBulkSubmitting(false);
     }

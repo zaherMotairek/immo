@@ -10,6 +10,7 @@ import { FicheLocationLink } from '@/components/FicheLocationLink';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { toast } from '@/components/ui/Toast';
 import { isMultiLotStructure } from '@/lib/buildingStructure';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
@@ -642,10 +643,10 @@ export function LeasesPage() {
         method: 'POST',
         json: { year },
       });
-      alert(`${res.createdCount} échéance(s) créée(s) ou déjà existantes pour ${year}.`);
+      toast(`${res.createdCount} échéance(s) créée(s) ou déjà existantes pour ${year}.`, { variant: 'success' });
       load();
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Erreur');
+      toast(e2 instanceof Error ? e2.message : 'Erreur', { variant: 'error' });
     }
   }
 

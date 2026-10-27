@@ -1,3 +1,7 @@
+/**
+ * Kit « Odoo » historique — conservé tel quel pour ne casser aucun consommateur.
+ * Phase 4 : migrer OdooActionBar → `Toolbar` et OdooTabBar → `Tabs` (`@/components/ui/*`), puis retirer ce fichier.
+ */
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 

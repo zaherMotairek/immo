@@ -4,7 +4,92 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Tokens + options A/B : voir theme/tokens.css (Calm ledger). */
+/* Tokens Calm ledger Option B — voir theme/tokens.css.
+   Surcharges sidebar après odoo.css (sinon le kit Odoo sombre gagne). */
+
+.odoo-sidebar {
+  border-color: var(--odoo-border);
+  box-shadow: 4px 0 24px -12px rgb(28 25 23 / 0.12);
+  color: var(--color-ink);
+}
+
+.odoo-sidebar-brand {
+  color: var(--color-ink);
+}
+
+.odoo-nav-item {
+  color: rgb(68 64 60 / 0.92);
+}
+
+.odoo-nav-item:hover {
+  background-color: rgb(4 120 87 / 0.08);
+  color: var(--color-ink);
+}
+
+.odoo-nav-item-active {
+  background-color: rgb(4 120 87 / 0.12);
+  border-left-color: var(--color-brand-600);
+  color: var(--color-brand-800);
+  box-shadow: none;
+}
+
+.odoo-page-header {
+  box-shadow:
+    var(--shadow-soft),
+    inset 3px 0 0 var(--color-brand-600);
+  background: linear-gradient(180deg, var(--color-surface) 0%, rgb(243 242 239 / 0.95) 100%);
+}
+
+html.dark .odoo-sidebar-brand {
+  color: #fafaf9;
+}
+
+html.dark .odoo-nav-item {
+  color: rgb(231 229 228 / 0.88);
+}
+
+html.dark .odoo-nav-item:hover {
+  background-color: rgb(16 185 129 / 0.12);
+  color: #fff;
+}
+
+html.dark .odoo-nav-item-active {
+  background-color: rgb(16 185 129 / 0.18);
+  border-left-color: var(--color-brand-400);
+  color: #ecfdf5;
+}
+
+html.dark .odoo-page-header {
+  background: linear-gradient(180deg, var(--color-surface) 0%, rgb(28 25 23 / 0.95) 100%);
+  box-shadow:
+    var(--shadow-soft),
+    inset 3px 0 0 var(--color-brand-400);
+}
+
+html[data-ds-option='a'] .odoo-sidebar {
+  color: #f4f4f5;
+  box-shadow: 4px 0 24px -8px rgb(0 0 0 / 0.35);
+}
+
+html[data-ds-option='a'] .odoo-sidebar-brand {
+  color: #fff;
+}
+
+html[data-ds-option='a'] .odoo-nav-item {
+  color: rgb(226 232 240 / 0.88);
+}
+
+html[data-ds-option='a'] .odoo-nav-item:hover {
+  background-color: rgb(255 255 255 / 0.06);
+  color: #fff;
+}
+
+html[data-ds-option='a'] .odoo-nav-item-active {
+  background-color: rgb(255 255 255 / 0.1);
+  border-left-color: var(--color-brand-400);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
 
 html {
   color-scheme: light;
@@ -41,20 +126,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-html.dark {
-  --color-app-bg: #1a1a1c;
-  --color-app-bg-deep: #121214;
-  --color-surface: #242427;
-  --color-ink: #f4f4f5;
-  --color-muted: #d4d4d8;
-  --odoo-border: #52525b;
-  --odoo-border-subtle: #4b4b55;
-  --odoo-border-strong: #71717a;
-  --odoo-table-head-bg: #2d2d30;
-  --odoo-row-hover: #2a2a2e;
-  --odoo-sidebar-top: #0a0a0a;
-  --odoo-sidebar-bottom: #000000;
-}
+/* Variables dark : définies dans theme/tokens.css (Option B). */
 
 html.dark body,
 html.dark .app-mesh-fullscreen {
@@ -63,15 +135,15 @@ html.dark .app-mesh-fullscreen {
 }
 
 html.dark body {
-  color: #f4f4f5;
+  color: var(--color-ink);
 }
 
 ::selection {
-  background-color: rgb(24 24 27 / 0.22);
+  background-color: color-mix(in srgb, var(--color-brand-600) 28%, transparent);
 }
 
 html.dark ::selection {
-  background-color: rgb(255 255 255 / 0.18);
+  background-color: color-mix(in srgb, var(--color-brand-400) 35%, transparent);
 }
 
 /* Page Locations : le filtre change la hauteur du document ; évite les sauts de scroll automatiques */

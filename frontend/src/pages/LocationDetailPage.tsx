@@ -11,6 +11,8 @@ import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { OdooNotebook } from '@/components/OdooKit';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import { inferBackLabelFromPath, resolveReturnTarget, type AppNavigateState } from '@/lib/navigation';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { monthTitle, statusLabel, statusStyle } from '@/lib/paymentStatusUi';
@@ -324,7 +326,7 @@ export function LocationDetailPage() {
       await api(`/leases/${data.leaseId}`, { method: 'PATCH', json: { depositPaidAt: todayIsoDate } });
       await reload();
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Action impossible.');
+      toast(e2 instanceof Error ? e2.message : 'Action impossible.', { variant: 'error' });
     } finally {
       setDepositActBusy(false);
     }
@@ -337,7 +339,7 @@ export function LocationDetailPage() {
       await api(`/leases/${data.leaseId}`, { method: 'PATCH', json: { depositPaidAt: null } });
       await reload();
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Action impossible.');
+      toast(e2 instanceof Error ? e2.message : 'Action impossible.', { variant: 'error' });
     } finally {
       setDepositActBusy(false);
     }
@@ -380,8 +382,9 @@ export function LocationDetailPage() {
         periods: string[];
         paymentIds: string[];
       }>(`/leases/${data.leaseId}/prepay-months`, { method: 'POST', json: { months: n } });
-      alert(
+      toast(
         `${res.monthsPaid} mois enregistré(s) comme payés (${res.periods.join(', ')}) — total ${fcfa(res.totalFcfa)}. Téléchargez le reçu PDF depuis Paiements (bouton Reçu PDF) si besoin.`,
+        { variant: 'success', duration: 10000 },
       );
       await reload();
     } catch (e2) {
@@ -428,12 +431,18 @@ export function LocationDetailPage() {
   async function requestDeleteLocation() {
     if (!data) return;
     const msg = `Supprimer définitivement ce bail (${tenant.fullName} — ${locationHeadline}) ? Les paiements, échéances et le fichier de contrat seront supprimés. Le bien, l’unité et le locataire ne sont pas supprimés. Irréversible.`;
-    if (!window.confirm(msg)) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer le bail',
+      message: msg,
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api(`/leases/${data.leaseId}`, { method: 'DELETE' });
       navigate('/locations', { replace: true });
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Suppression impossible.');
+      toast(e2 instanceof Error ? e2.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 

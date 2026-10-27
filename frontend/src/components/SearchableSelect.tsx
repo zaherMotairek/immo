@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useFixedPanelPosition, fixedPanelStyle } from '@/hooks/useFixedPanelPosition';
 import { scrollIntoContainedView } from '@/lib/domScroll';
-import { Input } from '@/components/ui';
+import { Input } from '@/components/ui/Input';
 
 export type SearchableSelectOption = { id: string; label: string };
 

@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui';
+import { toast } from '@/components/ui/Toast';
 import { createPaymentReceiptShareLink, downloadPaymentReceipt } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
 import { isOverduePayment, paymentRemaining, type PaymentRow } from '@/lib/paymentRow';
@@ -131,7 +132,7 @@ export function PaymentLineActions({
                       ].join('\n');
                       window.open(whatsAppWebUrl(waDigits, msg), '_blank', 'noopener,noreferrer');
                     })
-                    .catch(() => alert('Lien de quittance indisponible.'));
+                    .catch(() => toast('Lien de quittance indisponible.', { variant: 'error' }));
                 }}
               >
                 {compact && !stacked ? 'WA reçu' : 'WhatsApp reçu'}

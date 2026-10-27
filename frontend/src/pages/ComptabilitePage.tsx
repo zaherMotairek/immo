@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { OdooTabBar } from '@/components/OdooKit';
 import { Button, Card, Label, Select, StatTile } from '@/components/ui';
+import { toast } from '@/components/ui/Toast';
 import {
   closeAccountingPeriod,
   downloadReport,
@@ -49,7 +50,7 @@ export function ComptabilitePage() {
       const ws = await getAccountingWorkspace(year);
       setData(ws);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Action impossible');
+      toast(e instanceof Error ? e.message : 'Action impossible', { variant: 'error' });
     }
   }
 

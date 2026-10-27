@@ -163,7 +163,7 @@ export function Layout() {
       {/* ——— Sidebar desktop (≥ lg) ——— */}
       <aside
         id="navigation-desktop-aside"
-        className={`odoo-sidebar hidden border-r text-slate-100 shadow-[4px_0_24px_-8px_rgb(0_0_0/0.35)] print:hidden lg:h-[100dvh] lg:max-h-[100dvh] lg:w-[15.5rem] lg:shrink-0 lg:flex-col lg:overflow-hidden lg:sticky lg:top-0 lg:self-start ${
+        className={`odoo-sidebar hidden border-r text-[var(--color-ink)] print:hidden lg:h-[100dvh] lg:max-h-[100dvh] lg:w-[15.5rem] lg:shrink-0 lg:flex-col lg:overflow-hidden lg:sticky lg:top-0 lg:self-start ${
           desktopNavOpen ? 'lg:flex' : 'lg:hidden'
         }`}
         aria-label="Navigation principale"
@@ -173,14 +173,14 @@ export function Layout() {
             <span className="h-8 w-1 shrink-0 rounded-sm bg-brand-600" aria-hidden />
             <div className="min-w-0">
               <div className="odoo-sidebar-brand truncate text-[15px] font-semibold">ImmoPilot</div>
-              <p className="mt-0.5 text-[11px] font-medium leading-tight text-slate-400">Gestion locative</p>
+              <p className="mt-0.5 text-[11px] font-medium leading-tight text-[var(--color-muted)]">Gestion locative</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <ThemeToggle className="shrink-0" />
             <button
               type="button"
-              className="flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-600/90 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-700"
+              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-ink)] transition hover:bg-[var(--odoo-row-hover)]"
               onClick={() => setDesktopNavOpenPersist(false)}
               aria-label="Masquer le menu latéral"
               title="Masquer le menu"

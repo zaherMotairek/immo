@@ -11,6 +11,8 @@ import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { SidebarNavIcon } from '@/components/SidebarNavIcons';
 import { OdooNotebook } from '@/components/OdooKit';
 import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import {
   BUILDING_STRUCTURE_OPTIONS,
   IMMEUBLE_LOGEMENT_TOTAL_HINT,
@@ -1023,7 +1025,7 @@ export function BuildingDetailPage() {
   async function autoGenerateUnitsFromStructure() {
     if (!id || !b) return;
     if (!canAutoGenerateUnits) {
-      alert('Génération auto disponible pour immeuble en grille ou terrain multi-lots.');
+      toast('Génération auto disponible pour immeuble en grille ou terrain multi-lots.', { variant: 'warning' });
       return;
     }
     const payloads: Array<Record<string, unknown>> = [];
@@ -1060,10 +1062,14 @@ export function BuildingDetailPage() {
     }
 
     if (payloads.length === 0) {
-      alert('Aucune unité manquante à générer.');
+      toast('Aucune unité manquante à générer.', { variant: 'info' });
       return;
     }
-    const ok = window.confirm(`Créer automatiquement ${payloads.length} unité(s) manquante(s) ?`);
+    const ok = await confirmDialog({
+      title: 'Générer les unités',
+      message: `Créer automatiquement ${payloads.length} unité(s) manquante(s) ?`,
+      confirmLabel: 'Créer',
+    });
     if (!ok) return;
 
     setAutoGenBusy(true);
@@ -1081,12 +1087,18 @@ export function BuildingDetailPage() {
   }
 
   async function removeUnit(unitId: string) {
-    if (!confirm('Supprimer cette unité ? Les baux et loyers liés seront aussi supprimés.')) return;
+    const okDelete = await confirmDialog({
+      title: 'Supprimer l’unité',
+      message: 'Supprimer cette unité ? Les baux et loyers liés seront aussi supprimés.',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!okDelete) return;
     try {
       await api(`/units/${unitId}`, { method: 'DELETE' });
       await load({ silent: true });
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Suppression impossible.');
+      toast(e instanceof Error ? e.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 
@@ -1102,7 +1114,7 @@ export function BuildingDetailPage() {
       await load({ silent: true });
     } catch (e) {
       setB(snapshot);
-      alert(e instanceof Error ? e.message : 'Modification impossible.');
+      toast(e instanceof Error ? e.message : 'Modification impossible.', { variant: 'error' });
     }
   }
 
@@ -1114,11 +1126,11 @@ export function BuildingDetailPage() {
     const surfaceVal = draft.surfaceM2.trim();
     const roomsVal = draft.rooms.trim();
     if (surfaceVal && (!Number.isFinite(Number(surfaceVal)) || Number(surfaceVal) < 0)) {
-      alert('Surface invalide.');
+      toast('Surface invalide.', { variant: 'error' });
       return;
     }
     if (roomsVal && (!Number.isInteger(Number(roomsVal)) || Number(roomsVal) < 0)) {
-      alert('Nombre de pièces invalide.');
+      toast('Nombre de pièces invalide.', { variant: 'error' });
       return;
     }
     try {
@@ -1131,7 +1143,7 @@ export function BuildingDetailPage() {
       });
       await load({ silent: true });
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Modification impossible.');
+      toast(e instanceof Error ? e.message : 'Modification impossible.', { variant: 'error' });
     }
   }
 
@@ -1320,11 +1332,13 @@ export function BuildingDetailPage() {
   });
 
   async function removeBuilding() {
-    if (
-      !confirm(
-        'Supprimer ce bien et toutes ses unités, baux et loyers associés ? Cette action est définitive.',
-      )
-    ) {
+    const okDelete = await confirmDialog({
+      title: 'Supprimer le bien',
+      message: 'Supprimer ce bien et toutes ses unités, baux et loyers associés ? Cette action est définitive.',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!okDelete) {
       return;
     }
     if (!id) return;
@@ -1332,7 +1346,7 @@ export function BuildingDetailPage() {
       await api(`/buildings/${id}`, { method: 'DELETE' });
       navigate('/biens', { replace: true });
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Suppression impossible.');
+      toast(e instanceof Error ? e.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 

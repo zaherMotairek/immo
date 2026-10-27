@@ -9,6 +9,8 @@ import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import { listTableCellClass, listTableDataRowClass, listTableFirstCellClass, listTableRowOpenableClass, onListRowClick } from '@/lib/listTableStyles';
 import { SortableTh } from '@/components/SortableTh';
 import { toggleTableSortColumn } from '@/lib/tableSort';
@@ -214,12 +216,18 @@ export function LocationsPage() {
 
   async function requestDeleteLocation(r: OverviewRow) {
     const msg = `Supprimer la location « ${r.buildingName} — ${r.unitLabel} » (${r.tenantFullName}) ? Le bail, l’historique des loyers et le contrat joint seront supprimés. L’unité et le locataire ne sont pas supprimés. Action irréversible.`;
-    if (!window.confirm(msg)) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer la location',
+      message: msg,
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api(`/leases/${r.leaseId}`, { method: 'DELETE' });
       load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Suppression impossible.');
+      toast(e instanceof Error ? e.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 

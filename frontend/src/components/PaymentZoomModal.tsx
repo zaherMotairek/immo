@@ -8,6 +8,7 @@ import { unitKindLabel } from '@/lib/unitKind';
 import { PaymentLineActions } from '@/components/PaymentLineActions';
 import { OdooSheetHeader } from '@/components/OdooKit';
 import { AmountFcfaInput, Button, Card, Input, Label } from '@/components/ui';
+import { toast } from '@/components/ui/Toast';
 import { COLLECTION_METHOD_OPTIONS, reminderChannelLabel } from '@/lib/collectionMethodUi';
 import { formatPhoneForWhatsApp } from '@/lib/whatsappReminder';
 
@@ -156,7 +157,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       await reloadRow();
       onUpdated?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Enregistrement impossible.');
+      toast(e instanceof Error ? e.message : 'Enregistrement impossible.', { variant: 'error' });
     } finally {
       setSavingCollection(false);
     }
@@ -172,7 +173,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       await reloadRow();
       onUpdated?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Enregistrement impossible.');
+      toast(e instanceof Error ? e.message : 'Enregistrement impossible.', { variant: 'error' });
     } finally {
       setLoggingWa(false);
     }
@@ -222,11 +223,11 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       const res = await api<{ ok: boolean; message?: string }>(`/payments/${p.id}/send-reminder`, {
         method: 'POST',
       });
-      alert(res.message ?? 'Relance envoyée.');
+      toast(res.message ?? 'Relance envoyée.', { variant: 'success' });
       await reloadRow();
       onUpdated?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible.');
+      toast(e instanceof Error ? e.message : 'Envoi impossible.', { variant: 'error' });
     } finally {
       setSendingId(null);
     }
@@ -248,7 +249,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       await reloadRow();
       onUpdated?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Mise à jour collecte impossible.');
+      toast(e instanceof Error ? e.message : 'Mise à jour collecte impossible.', { variant: 'error' });
     } finally {
       setSavingTask(false);
     }

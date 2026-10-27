@@ -10,6 +10,8 @@ import {
 } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
 import { Button } from './ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 
 function formatBytes(n: number | null | undefined) {
   if (n == null) return '—';
@@ -51,14 +53,20 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
       await loadDocuments();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Envoi impossible.');
+      toast(e instanceof Error ? e.message : 'Envoi impossible.', { variant: 'error' });
     } finally {
       setBusy(false);
     }
   }
 
   async function onRemove(fileKey?: string) {
-    if (!confirm('Supprimer la pièce d’identité enregistrée ?')) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer la pièce d’identité',
+      message: 'Supprimer la pièce d’identité enregistrée ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       if (fileKey) {
@@ -69,7 +77,7 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
       await loadDocuments();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Suppression impossible.');
+      toast(e instanceof Error ? e.message : 'Suppression impossible.', { variant: 'error' });
     } finally {
       setBusy(false);
     }

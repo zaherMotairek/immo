@@ -5,6 +5,8 @@ import { AuthProvider } from './auth/AuthContext';
 import { ThemeProvider } from './theme/ThemeContext';
 import { applyTheme, getStoredTheme } from './theme';
 import { bootstrapDesignPreview } from './theme/designPreview';
+import { ConfirmProvider } from './components/ui/ConfirmDialog';
+import { ToastProvider } from './components/ui/Toast';
 import App from './App';
 import './index.css';
 /** Capture `beforeinstallprompt` dès le chargement (avant les boutons UI). */
@@ -17,9 +19,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </ConfirmProvider>
+        </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,

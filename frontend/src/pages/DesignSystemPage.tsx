@@ -1,7 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AmountFcfaInput, Button, Card, Input, Label, StatTile } from '@/components/ui';
-import { OdooActionBar, OdooFormSection, OdooFieldRow, OdooTabBar } from '@/components/OdooKit';
+import {
+  BottomSheet,
+  Button,
+  Callout,
+  Card,
+  CardList,
+  Checkbox,
+  CollectionMethodBadge,
+  DataTable,
+  DateInput,
+  EmptyState,
+  Field,
+  IconButton,
+  Input,
+  ListRow,
+  Modal,
+  MoneyInput,
+  PageHeader,
+  SegmentedControl,
+  Select,
+  Skeleton,
+  StatTile,
+  StatusBadge,
+  Stepper,
+  StickyActionBar,
+  Switch,
+  Tabs,
+  Textarea,
+  Toolbar,
+  confirmDialog,
+  toast,
+} from '@/components/ui/index';
 import { useTheme } from '@/theme/ThemeContext';
 import {
   DESIGN_OPTIONS,
@@ -11,49 +41,24 @@ import {
   type DesignOption,
 } from '@/theme/designPreview';
 
-const STATUS_SWATCHES = [
-  { key: 'paid', label: 'Payé', color: 'var(--status-paid)', bg: 'var(--status-paid-bg)' },
-  { key: 'late', label: 'En retard', color: 'var(--status-late)', bg: 'var(--status-late-bg)' },
-  { key: 'pending', label: 'En attente', color: 'var(--status-pending)', bg: 'var(--status-pending-bg)' },
-  { key: 'waived', label: 'Abandonné', color: 'var(--status-waived)', bg: 'var(--status-waived-bg)' },
-  { key: 'cancelled', label: 'Annulé', color: 'var(--status-cancelled)', bg: 'var(--status-cancelled-bg)' },
-] as const;
-
-const BRAND_STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
-
-function Swatch({
-  name,
-  varName,
-  hexHint,
-}: {
-  name: string;
-  varName: string;
-  hexHint?: string;
-}) {
-  return (
-    <div className="min-w-0">
-      <div
-        className="h-14 rounded-[var(--radius-card)] border border-[var(--odoo-border)] shadow-[var(--shadow-soft)]"
-        style={{ background: `var(${varName})` }}
-        title={varName}
-      />
-      <p className="mt-1.5 truncate text-[11px] font-semibold text-[var(--color-ink)]">{name}</p>
-      <p className="truncate font-mono text-[10px] text-[var(--color-muted)]">{hexHint ?? varName}</p>
-    </div>
-  );
-}
-
 /**
- * Page DEV uniquement — galerie tokens + états composants existants.
- * Non liée dans la navigation. Options A/B pour choix produit Phase 2.
+ * Page DEV — galerie tokens + états du kit Calm ledger.
+ * Non liée dans la navigation.
  */
 export function DesignSystemPage() {
   const { theme, toggle } = useTheme();
-  const [option, setOptionState] = useState<DesignOption | null>(() => getStoredDesignOption());
-  const [tab, setTab] = useState('tokens');
+  const [option, setOptionState] = useState<DesignOption>(() => getStoredDesignOption());
+  const [tab, setTab] = useState('kit');
   const [amount, setAmount] = useState('250000');
+  const [seg, setSeg] = useState('m');
+  const [sw, setSw] = useState(true);
+  const [cb, setCb] = useState(false);
+  const [selectVal, setSelectVal] = useState('a');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [step, setStep] = useState('2');
 
-  const setOption = useCallback((next: DesignOption | null) => {
+  const setOption = useCallback((next: DesignOption) => {
     setOptionState(next);
     applyDesignOption(next);
     persistDesignOption(next);
@@ -64,15 +69,12 @@ export function DesignSystemPage() {
   }, [option]);
 
   return (
-    <div
-      className="min-h-[100dvh] bg-[var(--color-app-bg)] text-[var(--color-ink)]"
-      data-testid="design-system-page"
-    >
+    <div className="min-h-[100dvh] bg-[var(--color-app-bg)] pb-24 text-[var(--color-ink)]" data-testid="design-system-page">
       <header className="odoo-chrome-bar sticky top-0 z-[var(--z-sticky)] px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-muted)]">
-              Calm ledger · DEV
+              Calm ledger · DEV · Option B figée
             </p>
             <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Design system</h1>
           </div>
@@ -80,14 +82,14 @@ export function DesignSystemPage() {
             <Button type="button" variant="secondary" onClick={toggle}>
               Thème {theme === 'dark' ? 'sombre' : 'clair'}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setOption(null)}>
-              Retirer preview
+            <Button type="button" variant="ghost" onClick={() => setOption('b')}>
+              Reset Option B
             </Button>
             <Link
-              to={option ? `/?ds=${option}` : '/'}
-              className="inline-flex min-h-9 items-center rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 text-sm font-medium"
+              to="/"
+              className="inline-flex min-h-10 items-center rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 text-sm font-medium"
             >
-              Dashboard {option ? `(option ${option.toUpperCase()})` : ''}
+              Dashboard
             </Link>
           </div>
         </div>
@@ -95,11 +97,10 @@ export function DesignSystemPage() {
 
       <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
         <section className="rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
-          <h2 className="text-base font-semibold">Choix produit — 2 options</h2>
-          <p className="mt-1 max-w-2xl text-sm text-[var(--color-muted)]">
-            Preview locale uniquement (<code className="text-xs">data-ds-option</code> /{' '}
-            <code className="text-xs">?ds=a|b</code>). Aucun changement métier. Répondez A ou B pour
-            figer la direction.
+          <h2 className="text-base font-semibold">Direction produit</h2>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            Option B (Emerald + sidebar claire) est la direction figée. L’option A reste disponible en DEV pour
+            comparaison.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {DESIGN_OPTIONS.map((opt) => {
@@ -111,9 +112,7 @@ export function DesignSystemPage() {
                   data-testid={`ds-option-${opt.id}`}
                   onClick={() => setOption(opt.id)}
                   className={`rounded-[var(--radius-card)] border p-4 text-left transition ${
-                    active
-                      ? 'border-brand-600 ring-2 ring-brand-600/35'
-                      : 'border-[var(--odoo-border)] hover:border-[var(--odoo-border-strong)]'
+                    active ? 'border-brand-600 ring-2 ring-brand-600/35' : 'border-[var(--odoo-border)]'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -122,18 +121,16 @@ export function DesignSystemPage() {
                       style={{ background: opt.accentHex }}
                       aria-hidden
                     />
-                    <div className="min-w-0">
+                    <div>
                       <p className="font-semibold">{opt.title}</p>
                       <p className="text-[12px] text-[var(--color-muted)]">
-                        Accent {opt.accent} · {opt.sidebar}
+                        {opt.accent} · {opt.sidebar}
                       </p>
                     </div>
                   </div>
                   <p className="mt-3 text-sm text-[var(--color-muted)]">{opt.summary}</p>
-                  {active ? (
-                    <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-brand-700">
-                      Preview active
-                    </p>
+                  {opt.locked ? (
+                    <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-brand-700">Figée</p>
                   ) : null}
                 </button>
               );
@@ -141,202 +138,302 @@ export function DesignSystemPage() {
           </div>
         </section>
 
-        {/* Mini chrome sidebar pour comparer sans quitter la page */}
-        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--odoo-border)] shadow-[var(--shadow-soft)]">
-          <div className="flex min-h-[220px] flex-col sm:flex-row">
-            <aside className="odoo-sidebar w-full shrink-0 p-4 sm:w-56" aria-label="Aperçu sidebar">
-              <div className="flex items-center gap-2">
-                <span className="h-8 w-1 shrink-0 rounded-sm bg-brand-600" aria-hidden />
-                <div>
-                  <div className="odoo-sidebar-brand text-[15px] font-semibold">ImmoPilot</div>
-                  <p className="text-[11px] opacity-70">Gestion locative</p>
-                </div>
-              </div>
-              <nav className="mt-4 flex flex-col gap-0.5">
-                <span className="odoo-nav-item odoo-nav-item-active">Tableau de bord</span>
-                <span className="odoo-nav-item">Paiements</span>
-                <span className="odoo-nav-item">Locations</span>
-              </nav>
-            </aside>
-            <div className="flex-1 bg-[var(--color-app-bg)] p-4">
-              <div className="odoo-page-header">
-                <div className="odoo-page-header__bar px-3 py-3">
-                  <div>
-                    <h3 className="odoo-page-header__title text-lg font-semibold">Aperçu coquille</h3>
-                    <p className="odoo-page-header__subtitle text-sm text-[var(--color-muted)]">
-                      Money hero · 1 250 000 FCFA
-                    </p>
-                  </div>
-                  <div className="odoo-page-header__actions">
-                    <Button type="button" variant="primary">
-                      Enregistrer un paiement
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <StatTile label="Dû" value="1 250 000" />
-                <StatTile label="Payé" value="900 000" />
-                <StatTile label="Reste" value="350 000" emphasize className="col-span-2 sm:col-span-1" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <OdooTabBar
+        <Tabs
           tabs={[
-            { id: 'tokens', label: 'Tokens' },
-            { id: 'components', label: 'Composants' },
+            { id: 'kit', label: 'Kit' },
+            { id: 'overlay', label: 'Overlays' },
+            { id: 'data', label: 'Données' },
             { id: 'status', label: 'Statuts' },
           ]}
           activeId={tab}
           onChange={setTab}
         />
 
-        {tab === 'tokens' ? (
+        {tab === 'kit' ? (
           <div className="space-y-8">
-            <section>
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--color-muted)]">
-                Brand
-              </h2>
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-11">
-                {BRAND_STEPS.map((step) => (
-                  <Swatch key={step} name={`${step}`} varName={`--color-brand-${step}`} />
-                ))}
-              </div>
-            </section>
-            <section>
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--color-muted)]">
-                Surfaces & texte
-              </h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Swatch name="App bg" varName="--color-app-bg" />
-                <Swatch name="Surface" varName="--color-surface" />
-                <Swatch name="Ink" varName="--color-ink" />
-                <Swatch name="Muted" varName="--color-muted" />
-              </div>
-            </section>
-            <section>
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--color-muted)]">
-                Typo · rayons · ombre
-              </h2>
-              <Card className="space-y-3">
-                <p className="text-3xl font-semibold tracking-tight">Titre 30 / 1.875rem</p>
-                <p className="text-xl font-semibold">Sous-titre 20</p>
-                <p className="text-base">Corps 16 — saisie mobile sans zoom iOS.</p>
-                <p className="text-sm text-[var(--color-muted)]">Secondaire 14</p>
-                <p className="text-xs text-[var(--color-muted)]">Minimum 12 — jamais en dessous.</p>
-                <p className="text-2xl font-semibold tabular-nums tracking-tight">1 250 000 FCFA</p>
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <div
-                    className="flex h-12 w-24 items-center justify-center border border-[var(--odoo-border)] bg-[var(--color-app-bg)] text-[11px]"
-                    style={{ borderRadius: 'var(--radius-input)' }}
-                  >
-                    input 8px
-                  </div>
-                  <div
-                    className="flex h-16 w-32 items-center justify-center border border-[var(--odoo-border)] bg-[var(--color-app-bg)] text-[11px] shadow-[var(--shadow-soft)]"
-                    style={{ borderRadius: 'var(--radius-card)' }}
-                  >
-                    card 12px
-                  </div>
-                </div>
-              </Card>
-            </section>
-          </div>
-        ) : null}
+            <PageHeader
+              title="En-tête de page"
+              subtitle="Money hero · ex. 1 250 000 FCFA"
+              actions={
+                <Button type="button" variant="primary">
+                  Action principale
+                </Button>
+              }
+              kpis={
+                <>
+                  <StatTile label="Dû" value="1 250 000" />
+                  <StatTile label="Payé" value="900 000" />
+                  <StatTile label="Reste" value="350 000" emphasize />
+                </>
+              }
+            />
 
-        {tab === 'components' ? (
-          <div className="space-y-6">
-            <OdooActionBar
-              left={<p className="text-sm font-medium">Barre d’actions (OdooKit)</p>}
+            <Toolbar
+              left={<p className="text-sm font-medium">Toolbar</p>}
               right={
                 <>
                   <Button type="button" variant="secondary">
-                    Secondaire
+                    Filtrer
                   </Button>
                   <Button type="button" variant="primary">
-                    Primaire
+                    Ajouter
                   </Button>
                 </>
               }
             />
+
+            <section className="space-y-3">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--color-muted)]">Boutons</h2>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="primary">
+                  Primary
+                </Button>
+                <Button type="button" variant="primarySoft">
+                  Soft
+                </Button>
+                <Button type="button" variant="secondary">
+                  Secondary
+                </Button>
+                <Button type="button" variant="ghost">
+                  Ghost
+                </Button>
+                <Button type="button" variant="danger">
+                  Danger
+                </Button>
+                <Button type="button" variant="primary" loading>
+                  Chargement
+                </Button>
+                <Button type="button" variant="primary" disabled>
+                  Disabled
+                </Button>
+                <IconButton
+                  aria-label="Modifier"
+                  variant="ghost"
+                  icon={
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  }
+                />
+              </div>
+            </section>
+
+            <Card className="space-y-4">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--color-muted)]">Champs</h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Nom" htmlFor="ds-name" hint="Texte libre">
+                  <Input id="ds-name" placeholder="Ex. Appartement A1" />
+                </Field>
+                <Field label="Montant" htmlFor="ds-money">
+                  <MoneyInput id="ds-money" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </Field>
+                <Field label="Date" htmlFor="ds-date">
+                  <DateInput id="ds-date" />
+                </Field>
+                <Field label="Notes" htmlFor="ds-notes">
+                  <Textarea id="ds-notes" rows={3} placeholder="Commentaire…" />
+                </Field>
+                <Field label="Liste" htmlFor="ds-select">
+                  <Select
+                    id="ds-select"
+                    value={selectVal}
+                    onValueChange={setSelectVal}
+                    options={[
+                      { id: 'a', label: 'Option Alpha' },
+                      { id: 'b', label: 'Option Beta' },
+                      { id: 'c', label: 'Option Gamma', disabled: true },
+                    ]}
+                  />
+                </Field>
+                <Field label="Recherche" htmlFor="ds-search">
+                  <Select
+                    id="ds-search"
+                    searchable
+                    value={selectVal}
+                    onValueChange={setSelectVal}
+                    options={[
+                      { id: 'a', label: 'Option Alpha' },
+                      { id: 'b', label: 'Option Beta' },
+                    ]}
+                    placeholder="Rechercher…"
+                  />
+                </Field>
+                <Field label="Erreur" htmlFor="ds-err" error="Ce champ est obligatoire.">
+                  <Input id="ds-err" aria-invalid defaultValue="valeur" />
+                </Field>
+                <div className="flex flex-col gap-3">
+                  <Checkbox checked={cb} onChange={(e) => setCb(e.target.checked)} label="Case à cocher" />
+                  <Switch checked={sw} onChange={setSw} label="Interrupteur" />
+                </div>
+              </div>
+              <SegmentedControl
+                value={seg}
+                onChange={setSeg}
+                options={[
+                  { id: 'j', label: 'Jour' },
+                  { id: 'm', label: 'Mois' },
+                  { id: 'a', label: 'Année' },
+                ]}
+              />
+              <Stepper
+                activeId={step}
+                steps={[
+                  { id: '1', label: 'Infos' },
+                  { id: '2', label: 'Montant' },
+                  { id: '3', label: 'Validation' },
+                ]}
+              />
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => setStep('1')}>
+                  Étape 1
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setStep('2')}>
+                  Étape 2
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setStep('3')}>
+                  Étape 3
+                </Button>
+              </div>
+            </Card>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Callout variant="info">Information neutre pour guider l’utilisateur.</Callout>
+              <Callout variant="success">Action réussie.</Callout>
+              <Callout variant="warning">Attention : vérifiez les montants.</Callout>
+              <Callout variant="danger">Erreur bloquante.</Callout>
+            </div>
+
+            <EmptyState
+              title="Aucun élément"
+              description="Créez votre premier enregistrement pour commencer."
+              action={
+                <Button type="button" variant="primary">
+                  Créer
+                </Button>
+              }
+            />
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Skeleton</p>
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        ) : null}
+
+        {tab === 'overlay' ? (
+          <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="primary">
-                Primary
+              <Button type="button" onClick={() => setModalOpen(true)}>
+                Ouvrir Modal
               </Button>
-              <Button type="button" variant="primarySoft">
-                Soft
+              <Button type="button" variant="secondary" onClick={() => setSheetOpen(true)}>
+                Ouvrir BottomSheet
               </Button>
-              <Button type="button" variant="secondary">
-                Secondary
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  void confirmDialog({
+                    title: 'Confirmer ?',
+                    message: 'Exemple de dialogue de confirmation.',
+                    confirmLabel: 'Oui',
+                  }).then((ok) => toast(ok ? 'Confirmé' : 'Annulé', { variant: ok ? 'success' : 'info' }))
+                }
+              >
+                ConfirmDialog
               </Button>
-              <Button type="button" variant="ghost">
-                Ghost
-              </Button>
-              <Button type="button" variant="danger">
-                Danger
-              </Button>
-              <Button type="button" variant="primary" disabled>
-                Disabled
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() =>
+                  void confirmDialog({
+                    title: 'Supprimer ?',
+                    message: 'Cette action est irréversible.',
+                    tone: 'danger',
+                    confirmLabel: 'Supprimer',
+                  })
+                }
+              >
+                Confirm danger
               </Button>
             </div>
-            <OdooFormSection title="Champs (kit actuel)">
-              <div className="grid gap-4 md:grid-cols-2">
-                <OdooFieldRow label="Libellé">
-                  <Label htmlFor="ds-input">Nom</Label>
-                  <Input id="ds-input" placeholder="Ex. Appartement A1" defaultValue="" />
-                </OdooFieldRow>
-                <OdooFieldRow label="Montant" hint="FCFA tabular">
-                  <AmountFcfaInput
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    aria-label="Montant FCFA"
-                  />
-                </OdooFieldRow>
-                <OdooFieldRow label="Erreur">
-                  <Input aria-invalid defaultValue="valeur" className="border-red-600 ring-1 ring-red-600/30" />
-                  <p className="mt-1 text-[12px] text-red-700 dark:text-red-400">Ce champ est obligatoire.</p>
-                </OdooFieldRow>
-                <OdooFieldRow label="Désactivé">
-                  <Input disabled defaultValue="Lecture seule" />
-                </OdooFieldRow>
-              </div>
-            </OdooFormSection>
-            <p className="text-sm text-[var(--color-muted)]">
-              Kit unifié (Toast, ConfirmDialog, DataTable, etc.) : Phase 3. Ici : états du kit actuel.
-            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="ghost" onClick={() => toast('Info', { variant: 'info' })}>
+                Toast info
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => toast('Succès', { variant: 'success' })}>
+                Toast success
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => toast('Attention', { variant: 'warning' })}>
+                Toast warning
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => toast('Erreur', { variant: 'error' })}>
+                Toast error
+              </Button>
+            </div>
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Exemple de modal" size="md">
+              <p className="text-sm text-[var(--color-muted)]">Contenu de démonstration. Échap ou fond pour fermer.</p>
+            </Modal>
+            <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Feuille basse">
+              <p className="text-sm text-[var(--color-muted)]">Adapté mobile — actions secondaires.</p>
+            </BottomSheet>
+          </div>
+        ) : null}
+
+        {tab === 'data' ? (
+          <div className="space-y-6">
+            <DataTable
+              getRowId={(r) => r.id}
+              columns={[
+                { id: 'name', header: 'Nom', cell: (r) => r.name },
+                {
+                  id: 'amount',
+                  header: 'Montant',
+                  align: 'right',
+                  cell: (r) => <span className="tabular-nums font-semibold">{r.amount}</span>,
+                },
+                { id: 'status', header: 'Statut', cell: (r) => <StatusBadge status={r.status} /> },
+              ]}
+              rows={[
+                { id: '1', name: 'Loyer mars', amount: '250 000', status: 'PAID' },
+                { id: '2', name: 'Loyer avril', amount: '250 000', status: 'LATE' },
+                { id: '3', name: 'Loyer mai', amount: '250 000', status: 'PENDING' },
+              ]}
+            />
+            <CardList>
+              <ListRow title="Loyer mars" subtitle="Payé le 5" meta="250 000 FCFA" trailing={<StatusBadge status="PAID" />} />
+              <ListRow title="Loyer avril" subtitle="Échéance dépassée" meta="250 000 FCFA" trailing={<StatusBadge status="LATE" />} />
+            </CardList>
           </div>
         ) : null}
 
         {tab === 'status' ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {STATUS_SWATCHES.map((s) => (
-              <div
-                key={s.key}
-                className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--odoo-border)] px-3 py-3"
-                style={{ background: s.bg }}
-              >
-                <span
-                  className="inline-flex size-8 items-center justify-center rounded-full text-white"
-                  style={{ background: s.color }}
-                  aria-hidden
-                >
-                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="9" />
-                  </svg>
-                </span>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: s.color }}>
-                    {s.label}
-                  </p>
-                  <p className="text-[11px] text-[var(--color-muted)]">Icône + texte + couleur</p>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {(['PAID', 'LATE', 'PENDING', 'WAIVED', 'CANCELLED'] as const).map((s) => (
+                <StatusBadge key={s} status={s} />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(['CASH', 'TRANSFER', 'MOBILE_MONEY', 'CHECK', 'OTHER'] as const).map((m) => (
+                <CollectionMethodBadge key={m} method={m} />
+              ))}
+            </div>
           </div>
         ) : null}
       </main>
+
+      <StickyActionBar>
+        <Button type="button" variant="secondary" className="flex-1 sm:flex-none">
+          Annuler
+        </Button>
+        <Button type="button" variant="primary" className="flex-1 sm:flex-none">
+          Enregistrer
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }

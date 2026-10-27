@@ -8,6 +8,8 @@ import { AppPageTitle } from '@/components/AppPageTitle';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { Button, Card, HelpHint, Input, Label, Select, StatTile } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 import {
@@ -260,12 +262,18 @@ export function BuildingsPage() {
       n > 0
         ? `Supprimer « ${b.name} », ses ${n} unité${n !== 1 ? 's' : ''} et toutes les données liées (baux, loyers) ? Cette action est irréversible.`
         : `Supprimer définitivement le bien « ${b.name} » ? Cette action est irréversible.`;
-    if (!window.confirm(msg)) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer le bien',
+      message: msg,
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api(`/buildings/${b.id}`, { method: 'DELETE' });
       load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Suppression impossible.');
+      toast(e instanceof Error ? e.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 

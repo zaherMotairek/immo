@@ -7,6 +7,8 @@ import { fcfa, INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
 import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { AmountFcfaInput, Button, Card, HelpHint, Input, Label, Select } from '@/components/ui';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import { chargeCategoryLabel, chargeCategoryOptions } from '@/lib/chargeCategories';
 import { listBlockRowClass } from '@/lib/listTableStyles';
 import { unitKindLabel } from '@/lib/unitKind';
@@ -211,19 +213,25 @@ export function ChargesPage({ embedded = false }: { embedded?: boolean }) {
       await api(`/charges/${id}`, { method: 'PATCH', json: { paid } });
       await load();
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Mise à jour impossible.');
+      toast(e2 instanceof Error ? e2.message : 'Mise à jour impossible.', { variant: 'error' });
     } finally {
       setTogglingPaidId(null);
     }
   }
 
   async function remove(id: string) {
-    if (!confirm('Supprimer cette charge ?')) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer la charge',
+      message: 'Supprimer cette charge ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api(`/charges/${id}`, { method: 'DELETE' });
       load();
     } catch (e2) {
-      alert(e2 instanceof Error ? e2.message : 'Suppression impossible.');
+      toast(e2 instanceof Error ? e2.message : 'Suppression impossible.', { variant: 'error' });
     }
   }
 

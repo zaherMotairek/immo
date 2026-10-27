@@ -22,24 +22,32 @@ Professionnel, chaleureux, rassurant, rapide — fintech / banque de confiance, 
 | Z-index | sticky 30 → toast 60 |
 | Motion | 150–200 ms ; `prefers-reduced-motion` → quasi 0 |
 
-## Options Phase 2 (choix produit)
+## Décision produit
 
-Preview : `html[data-ds-option="a"|"b"]`, `localStorage immopilot-ds-option`, ou `?ds=a|b`.  
-Page galerie (DEV) : `/design` — absente du menu.
-
-| Option | Accent | Sidebar |
-|--------|--------|---------|
-| **A** | Teal `#0F766E` | Sombre (pierre / noir chaud) |
-| **B** | Emerald `#047857` | Claire (neutres chauds) |
-
-Tant qu’aucune option n’est figée, l’app reste sur le thème monochrome Odoo actuel (comportement préservé).
+**Option B figée** — Emerald `#047857`, sidebar claire, neutres chauds.  
+Option A (teal + sidebar sombre) : archive DEV via `?ds=a` / `data-ds-option="a"`.  
+Page galerie DEV : `/design` (hors menu).
 
 ## Règles UI
 
 - Cibles tactiles ≥ 44 px (mobile).
 - Focus visible ; contraste AA ; labels sur tous les champs.
-- Toasts / ConfirmDialog (Phase 3) à la place de `alert` / `confirm`.
-- Un seul kit composants (Phase 3) ; migration pages Phase 4.
+- `toast` / `confirmDialog` à la place de `alert` / `confirm`.
+- Un seul kit : `frontend/src/components/ui/` — migration pages = Phase 4.
+- Pont temporaire : `@/components/ui` → `components/ui.tsx` (ré-exports).
+
+## Kit composants
+
+Point d’entrée : `import { Button, Modal, toast, confirmDialog } from '@/components/ui/index'`.
+
+- Formulaires : `Field`, `Input`, `MoneyInput`, `DateInput`, `Textarea`, `Select`, `Checkbox`, `Switch`, `SegmentedControl`
+- Actions : `Button`, `IconButton`, `Toolbar`, `StickyActionBar`
+- Données : `Card`, `StatTile`, `StatusBadge` (+ `CollectionMethodBadge`), `DataTable`, `CardList` / `ListRow`
+- Structure : `PageHeader`, `Tabs`, `Stepper`
+- Feedback : `Modal`, `BottomSheet`, `ConfirmDialog` / `confirmDialog()`, `toast()`, `Callout`, `EmptyState`, `Skeleton`
+- Providers (montés dans `main.tsx`) : `ToastProvider`, `ConfirmProvider`
+
+Compatibilité : `@/components/ui` (fichier `ui.tsx`) reste un pont (`Button`, `Input`, `AmountFcfaInput` = `MoneyInput`, `Card`, `StatTile`, `Label`, `HelpHint`, `Select` legacy). `OdooKit.tsx` est inchangé jusqu'à la Phase 4 (migration des pages).
 
 ## Cursor
 
