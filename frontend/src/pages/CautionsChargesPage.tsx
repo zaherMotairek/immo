@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { OdooTabBar } from '@/components/OdooKit';
+import { Card, Tabs } from '@/components/ui/index';
 import { CautionsEncaisséesPage } from './CautionsEncaisséesPage';
 import { ChargesPage } from './ChargesPage';
 
@@ -26,8 +26,8 @@ export function CautionsChargesPage() {
   }
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] dark:border-zinc-600 dark:bg-zinc-900">
-      <OdooTabBar
+    <Card padding="none" className="overflow-hidden">
+      <Tabs
         tabs={[
           { id: 'cautions', label: 'Cautions encaissées' },
           { id: 'charges', label: 'Charges & impôts' },
@@ -39,6 +39,6 @@ export function CautionsChargesPage() {
       <div className="odoo-notebook-content p-3 sm:p-4">
         {activeTab === 'cautions' ? <CautionsEncaisséesPage embedded /> : <ChargesPage embedded />}
       </div>
-    </section>
+    </Card>
   );
 }
