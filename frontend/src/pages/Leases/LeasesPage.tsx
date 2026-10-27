@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Button, Callout, Skeleton } from '@/components/ui/index';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { useReturnRowFocus } from '@/hooks/useReturnRowFocus';
 import { useEscapeCancel } from '@/lib/useEscapeCancel';
@@ -66,31 +67,53 @@ export function LeasesPage() {
 
       <LeasesToolbar visibleCount={filters.leasesForTable.length} filterSummary={filters.filterSummaryShort} />
 
-      <NewLeaseCard
-        form={form}
-        buildingsAvailable={data.buildingsAvailableForNewLease}
-        tenants={data.tenants}
-        onOpenQuickTenant={quickTenant.openQuickTenant}
-      />
+      {data.loadErr ? (
+        <Callout variant="danger" title="La liste des baux n’a pas pu être chargée">
+          <p>{data.loadErr}</p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={data.load}>
+            Réessayer
+          </Button>
+        </Callout>
+      ) : null}
 
-      <div className="space-y-4">
-        <LeasesFilters f={filters} stats={data.leaseStats} />
-        <LeasesList
-          tableLeases={filters.tableLeases}
-          totalCount={data.leases.length}
-          filteredCount={filters.filteredLeases.length}
-          search={filters.leaseListSearch}
-          onSearchChange={filters.setLeaseListSearch}
-          sort={{ key: filters.leaseSortKey, dir: filters.leaseSortDir, onSort: filters.toggleLeaseSort }}
-          genYear={filters.genYear}
-          flashLeaseRowId={flashLeaseRowId}
-          onOpen={(id) => navigate(`/locations/${id}`, { state: locationSheetState })}
-          onChanged={data.load}
-          onGeneratePayments={(id) => void data.generatePayments(id, filters.genYear)}
-          onToggleActive={(lease) => void data.toggleActive(lease)}
-          onNewLease={form.openAddLeaseForm}
-        />
-      </div>
+      {!data.leasesFetched && !data.loadErr ? (
+        <div className="space-y-3" role="status" aria-busy="true" aria-label="Chargement des baux">
+          <Skeleton className="h-24 w-full rounded-[var(--radius-card)]" />
+          <Skeleton className="h-40 w-full rounded-[var(--radius-card)]" />
+        </div>
+      ) : null}
+
+      {!data.loadErr ? (
+        <>
+          <NewLeaseCard
+            form={form}
+            buildingsAvailable={data.buildingsAvailableForNewLease}
+            tenants={data.tenants}
+            onOpenQuickTenant={quickTenant.openQuickTenant}
+          />
+
+          <div className="space-y-4">
+            <LeasesFilters f={filters} stats={data.leaseStats} />
+            {data.leasesFetched ? (
+              <LeasesList
+                tableLeases={filters.tableLeases}
+                totalCount={data.leases.length}
+                filteredCount={filters.filteredLeases.length}
+                search={filters.leaseListSearch}
+                onSearchChange={filters.setLeaseListSearch}
+                sort={{ key: filters.leaseSortKey, dir: filters.leaseSortDir, onSort: filters.toggleLeaseSort }}
+                genYear={filters.genYear}
+                flashLeaseRowId={flashLeaseRowId}
+                onOpen={(id) => navigate(`/locations/${id}`, { state: locationSheetState })}
+                onChanged={data.load}
+                onGeneratePayments={(id) => void data.generatePayments(id, filters.genYear)}
+                onToggleActive={(lease) => void data.toggleActive(lease)}
+                onNewLease={form.openAddLeaseForm}
+              />
+            ) : null}
+          </div>
+        </>
+      ) : null}
 
       <QuickTenantModal q={quickTenant} />
     </div>

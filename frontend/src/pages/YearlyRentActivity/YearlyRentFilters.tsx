@@ -1,6 +1,6 @@
 import { SmartLink } from '@/components/SmartLink';
 import { HelpHint } from '@/components/ui';
-import { Callout, Card, Field, SegmentedControl, Select } from '@/components/ui/index';
+import { Button, Callout, Card, Field, SegmentedControl, Select } from '@/components/ui/index';
 import type { UiSelectOption } from '@/components/ui/index';
 
 type YearlyRentFiltersProps = {
@@ -16,6 +16,7 @@ type YearlyRentFiltersProps = {
   buildingOptions: UiSelectOption[];
   onBuildingChange: (id: string) => void;
   listsErr: string | null;
+  onRetryLists: () => void;
   paymentsListHref: string;
 };
 
@@ -33,6 +34,7 @@ export function YearlyRentFilters({
   buildingOptions,
   onBuildingChange,
   listsErr,
+  onRetryLists,
   paymentsListHref,
 }: YearlyRentFiltersProps) {
   const yearSelectOptions: UiSelectOption[] = yearOptions.map((y) => ({ id: String(y), label: String(y) }));
@@ -49,7 +51,14 @@ export function YearlyRentFilters({
         onChange={(id) => onScopeChange(id as 'tenant' | 'building')}
       />
 
-      {listsErr ? <Callout variant="warning">{listsErr}</Callout> : null}
+      {listsErr ? (
+        <Callout variant="warning" title="Listes indisponibles">
+          <p>{listsErr}</p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={onRetryLists}>
+            Réessayer
+          </Button>
+        </Callout>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Année" htmlFor="yra-year">

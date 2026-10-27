@@ -33,26 +33,23 @@ export function useYearlyRentActivity() {
   const [yearlyLeaseSortKey, setYearlyLeaseSortKey] = useState<YearlyLeaseSortKey>('label');
   const [yearlyLeaseSortDir, setYearlyLeaseSortDir] = useState<TableSortDir>('asc');
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadLists = useCallback(() => {
     setListsErr(null);
-    Promise.all([api<unknown>('/tenants'), api<unknown>('/buildings')])
+    return Promise.all([api<unknown>('/tenants'), api<unknown>('/buildings')])
       .then(([tRaw, bRaw]) => {
-        if (cancelled) return;
         setTenants(normalizeTenants(tRaw));
         setBuildings(normalizeBuildings(bRaw));
       })
       .catch((e) => {
-        if (!cancelled) {
-          setTenants([]);
-          setBuildings([]);
-          setListsErr(e instanceof Error ? e.message : 'Impossible de charger les listes locataires / biens.');
-        }
+        setTenants([]);
+        setBuildings([]);
+        setListsErr(e instanceof Error ? e.message : 'Impossible de charger les listes locataires / biens.');
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    void loadLists();
+  }, [loadLists]);
 
   const loadPayments = useCallback(() => {
     if (scope === 'tenant' && !tenantId) {
@@ -228,7 +225,9 @@ export function useYearlyRentActivity() {
     tenantOptions,
     buildingOptions,
     listsErr,
+    loadLists,
     err,
+    loadPayments,
     loading,
     selectionOk,
     sortedLeaseRows,

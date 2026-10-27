@@ -7,13 +7,20 @@ import type { BuildingOpt, LeaseRow, TenantOpt } from './types';
 export function useLeasesData() {
   const [leases, setLeases] = useState<LeaseRow[]>([]);
   const [leasesFetched, setLeasesFetched] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [buildings, setBuildings] = useState<BuildingOpt[]>([]);
   const [tenants, setTenants] = useState<TenantOpt[]>([]);
 
   const load = useCallback(() => {
     setLeasesFetched(false);
+    setLoadErr(null);
     Promise.all([
-      api<LeaseRow[]>('/leases').then(setLeases).catch(() => setLeases([])),
+      api<LeaseRow[]>('/leases')
+        .then(setLeases)
+        .catch((e) => {
+          setLeases([]);
+          setLoadErr(e instanceof Error ? e.message : 'Impossible de charger les baux.');
+        }),
       api<BuildingOpt[]>('/buildings').then(setBuildings).catch(() => setBuildings([])),
       api<TenantOpt[]>('/tenants').then(setTenants).catch(() => setTenants([])),
     ]).finally(() => setLeasesFetched(true));
@@ -69,6 +76,7 @@ export function useLeasesData() {
   return {
     leases,
     leasesFetched,
+    loadErr,
     buildings,
     tenants,
     setTenants,

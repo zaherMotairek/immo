@@ -1,6 +1,6 @@
 import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import { SmartLink } from '@/components/SmartLink';
-import { Callout, Card, EmptyState } from '@/components/ui/index';
+import { Button, Callout, Card, EmptyState } from '@/components/ui/index';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { YearlyRentFilters } from './YearlyRentFilters';
 import { YearlyRentTable } from './YearlyRentTable';
@@ -35,12 +35,16 @@ export function YearlyRentActivityPage() {
         buildingOptions={y.buildingOptions}
         onBuildingChange={y.setBuildingId}
         listsErr={y.listsErr}
+        onRetryLists={() => void y.loadLists()}
         paymentsListHref={y.paymentsListHref}
       />
 
       {y.err ? (
-        <Callout variant="danger" className="print:hidden">
-          {y.err}
+        <Callout variant="danger" className="print:hidden" title="Le calendrier n’a pas pu être chargé">
+          <p>{y.err}</p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={y.loadPayments}>
+            Réessayer
+          </Button>
         </Callout>
       ) : null}
 
