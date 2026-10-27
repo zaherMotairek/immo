@@ -9,7 +9,7 @@ import {
   uploadLeaseContract,
 } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
-import { Button } from './ui';
+import { Button } from '@/components/ui/index';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
 
@@ -109,7 +109,8 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
         <Button
           type="button"
           variant="secondary"
-          className="py-2 text-xs"
+          size="sm"
+          className="text-xs"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
         >
@@ -118,7 +119,8 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
         <Button
           type="button"
           variant="ghost"
-          className="py-2 text-xs"
+          size="sm"
+          className="text-xs"
           disabled={busy}
           onClick={() => camRef.current?.click()}
         >
@@ -126,20 +128,23 @@ export function LeaseContractSection({ leaseId, contract, onChanged, compact }: 
         </Button>
       </div>
       {entries.map((entry) => (
-        <div key={entry.fileKey ?? `${entry.fileName}-${entry.uploadedAt}`} className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
-          <p className="font-medium text-slate-900 dark:text-slate-100">{entry.fileName ?? 'Fichier'}</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">
+        <div
+          key={entry.fileKey ?? `${entry.fileName}-${entry.uploadedAt}`}
+          className="rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+        >
+          <p className="font-medium text-[var(--color-ink)]">{entry.fileName ?? 'Fichier'}</p>
+          <p className="text-xs text-[var(--color-muted)]">
             {entry.mimeType ?? '—'} · {formatBytes(entry.size)}
             {entry.uploadedAt && ` · envoyé le ${formatDateFr(entry.uploadedAt)}`}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button type="button" className="py-1.5 text-xs" disabled={busy} onClick={() => openLeaseContractPreview(leaseId, entry.fileKey)}>
+            <Button type="button" size="sm" className="text-xs" disabled={busy} onClick={() => openLeaseContractPreview(leaseId, entry.fileKey)}>
               Ouvrir / afficher
             </Button>
-            <Button type="button" variant="secondary" className="py-1.5 text-xs" disabled={busy} onClick={() => downloadLeaseContractFile(leaseId, entry.fileName ?? 'contrat', entry.fileKey)}>
+            <Button type="button" variant="secondary" size="sm" className="text-xs" disabled={busy} onClick={() => downloadLeaseContractFile(leaseId, entry.fileName ?? 'contrat', entry.fileKey)}>
               Télécharger
             </Button>
-            <Button type="button" variant="danger" className="py-1.5 text-xs" disabled={busy} onClick={() => void onRemove(entry.fileKey)}>
+            <Button type="button" variant="danger" size="sm" className="text-xs" disabled={busy} onClick={() => void onRemove(entry.fileKey)}>
               Supprimer le fichier
             </Button>
           </div>
