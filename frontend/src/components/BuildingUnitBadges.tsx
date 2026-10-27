@@ -26,7 +26,7 @@ export function BuildingScopeBadge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 ${className}`}
+      className={`inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-[var(--color-muted)] ${className}`}
       title={title}
     >
       <IconBuilding className="size-3 opacity-70" />
@@ -45,7 +45,7 @@ export function UnitScopeBadge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 ${className}`}
+      className={`inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-[var(--color-muted)] ${className}`}
       title={title}
     >
       <IconUnit className="size-3 opacity-70" />
@@ -74,11 +74,11 @@ export function BuildingUnitStack({
 }) {
   return (
     <div className={`min-w-0 space-y-0.5 ${buildingClassName}`}>
-      <div className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{buildingName}</div>
+      <div className="truncate text-sm font-medium text-[var(--color-ink)]">{buildingName}</div>
       {buildingSubline ? (
-        <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{buildingSubline}</p>
+        <p className="truncate text-[11px] text-[var(--color-muted)]">{buildingSubline}</p>
       ) : null}
-      <p className={`truncate text-[12px] text-slate-600 dark:text-slate-300 ${unitClassName}`}>
+      <p className={`truncate text-[12px] text-[var(--color-ink)] ${unitClassName}`}>
         {unitKindLabel} · {unitLabel}
       </p>
     </div>

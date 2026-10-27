@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { SmartLink } from '@/components/SmartLink';
-import { Card } from '@/components/ui';
+import { Card } from '@/components/ui/index';
 
 export function ChevronLeftIcon({ className = 'size-4' }: { className?: string }) {
   return (
@@ -14,8 +14,10 @@ export function ChevronLeftIcon({ className = 'size-4' }: { className?: string }
   );
 }
 
-const backLinkClassName =
-  'group inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/95 px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.04] transition hover:border-brand-200 hover:bg-brand-50/80 hover:text-brand-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:border-brand-500 dark:hover:bg-slate-700 dark:hover:text-white';
+const backLinkBase =
+  'group inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] text-sm font-medium text-[var(--color-ink)] transition-colors duration-[var(--duration-fast)] hover:border-brand-300 hover:bg-brand-50/80 hover:text-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-zinc-600 dark:hover:border-brand-500 dark:hover:bg-zinc-800 dark:hover:text-white';
+
+const backLinkClassName = `${backLinkBase} px-2.5 py-1`;
 
 type PageDetailHeroProps = {
   backHref: string;
@@ -39,32 +41,34 @@ export function PageDetailHero({
   omitTopNav = false,
 }: PageDetailHeroProps) {
   return (
-    <Card className="overflow-hidden p-0 sm:p-0">
+    <Card padding="none" className="overflow-hidden">
       {!omitTopNav ? (
-      <div className="flex flex-col gap-3 border-b border-slate-200/80 bg-slate-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <nav aria-label="Fil d'Ariane" className="min-w-0">
-          <ol className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-            <li className="shrink-0">
-              <SmartLink to={backHref} className={backLinkClassName}>
-                <ChevronLeftIcon className="size-4 shrink-0 text-slate-400 transition group-hover:text-brand-600" />
-                {backLabel}
-              </SmartLink>
-            </li>
-            <li className="shrink-0 text-slate-300 dark:text-slate-600" aria-hidden>
-              /
-            </li>
-            <li
-              className="min-w-0 truncate font-semibold text-slate-950 dark:text-slate-50"
-              title={breadcrumbTitle ?? breadcrumbCurrent}
-            >
-              {breadcrumbCurrent}
-            </li>
-          </ol>
-        </nav>
-        {headerEnd ? <div className="shrink-0 sm:ml-2">{headerEnd}</div> : null}
-      </div>
+        <div className="flex flex-col gap-3 border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <nav aria-label="Fil d'Ariane" className="min-w-0">
+            <ol className="flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--color-ink)]">
+              <li className="shrink-0">
+                <SmartLink to={backHref} className={backLinkClassName}>
+                  <ChevronLeftIcon className="size-4 shrink-0 text-[var(--color-muted)] transition group-hover:text-brand-600" />
+                  {backLabel}
+                </SmartLink>
+              </li>
+              <li className="shrink-0 text-[var(--odoo-border-strong)]" aria-hidden>
+                /
+              </li>
+              <li
+                className="min-w-0 truncate font-semibold text-[var(--color-ink)]"
+                title={breadcrumbTitle ?? breadcrumbCurrent}
+              >
+                {breadcrumbCurrent}
+              </li>
+            </ol>
+          </nav>
+          {headerEnd ? <div className="shrink-0 sm:ml-2">{headerEnd}</div> : null}
+        </div>
       ) : headerEnd ? (
-        <div className="flex justify-end border-b border-slate-200/80 bg-slate-50/50 px-4 py-3 sm:px-5">{headerEnd}</div>
+        <div className="flex justify-end border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] px-4 py-3 sm:px-5">
+          {headerEnd}
+        </div>
       ) : null}
       <div className="space-y-3 px-4 py-4 sm:px-5 sm:py-5">{children}</div>
     </Card>
@@ -81,11 +85,8 @@ export function PageDetailBackLink({
   className?: string;
 }) {
   return (
-    <SmartLink
-      to={to}
-      className={`group mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/95 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.04] transition hover:border-brand-200 hover:bg-brand-50/80 hover:text-brand-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10 dark:hover:border-brand-500 dark:hover:bg-slate-700 dark:hover:text-white ${className}`}
-    >
-      <ChevronLeftIcon className="size-4 shrink-0 text-slate-400 transition group-hover:text-brand-600" />
+    <SmartLink to={to} className={`mt-4 w-fit px-3 py-1.5 ${backLinkBase} ${className}`}>
+      <ChevronLeftIcon className="size-4 shrink-0 text-[var(--color-muted)] transition group-hover:text-brand-600" />
       {children}
     </SmartLink>
   );
