@@ -67,8 +67,26 @@ Rapport HTML Playwright : `frontend/e2e/playwright-report/`.
 - Routes de `App.tsx` : login, forgot/reset, dashboard, locations, biens (+ détail si seed), locataires, baux, paiements, activité loyers, cautions, exports, comptabilité, journal, collecteurs, profil, admin
 - Redirects `/immeubles` non capturés (équivalent `/biens`)
 
+## Phase 2 — options design (A/B)
+
+La page `/design` n’existe qu’en **DEV** (`import.meta.env.DEV`). Captures :
+
+```bash
+# Terminal 1 — API + seed déjà OK
+cd frontend && npm run dev
+
+# Terminal 2
+cd frontend
+set E2E_BASE_URL=http://127.0.0.1:5173
+set E2E_SKIP_WEBSERVER=1
+npm run e2e:design-options
+```
+
+Sortie : `frontend/e2e/phase2-options/*.png` (design + dashboard, options A/B).
+
 ## Notes
 
 - Justification dépendance : demandée explicitement en Phase 0 (filet visuel avant refactor UI).
 - Les PNG de `e2e/baselines/` sont destinés au versionnement pour comparaison ultérieure (Phase 6).
 - Ne pas committer `e2e/test-results/` ni `e2e/playwright-report/`.
+- `phase2-options/` : captures de choix produit Phase 2 (peuvent être versionnées).

@@ -1,39 +1,10 @@
 @import 'tailwindcss';
+@import './theme/tokens.css';
 @import './theme/odoo.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Tokens « Odoo-like » : noir élégant, zone de contenu claire, accents neutres */
-@theme {
-  --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #fafafa;
-  --color-brand-100: #f4f4f5;
-  --color-brand-200: #e4e4e7;
-  --color-brand-300: #d4d4d8;
-  --color-brand-400: #a1a1aa;
-  --color-brand-500: #71717a;
-  --color-brand-600: #18181b;
-  --color-brand-700: #09090b;
-  --color-brand-800: #050505;
-  --color-brand-900: #000000;
-  --color-brand-950: #000000;
-  --color-odoo-teal: #27272a;
-  --color-odoo-teal-light: #f0f0f2;
-  --color-app-bg: #ececee;
-  --color-app-bg-deep: #e4e4e8;
-  --color-surface: #f7f7f8;
-  --color-ink: #0a0a0a;
-  --color-muted: #4b4b55;
-  --odoo-border: #c4c4cc;
-  --odoo-border-subtle: #d2d2d8;
-  --odoo-border-strong: #a4a4ae;
-  --odoo-sidebar-top: #121212;
-  --odoo-sidebar-bottom: #050505;
-  --odoo-table-head-bg: #efeff2;
-  --odoo-row-hover: #ebebec;
-  --radius-card: 0.25rem;
-  --radius-input: 0.25rem;
-}
+/* Tokens + options A/B : voir theme/tokens.css (Calm ledger). */
 
 html {
   color-scheme: light;

@@ -1,0 +1,15 @@
+---
+description: UI ImmoPilot — Calm ledger
+alwaysApply: true
+---
+
+# UI ImmoPilot
+
+Suivre **`docs/DESIGN_SYSTEM.md`** et les tokens **`frontend/src/theme/tokens.css`**.
+
+- Pas de nouvelle palette ad hoc ni hex en dur hors tokens / options `data-ds-option`.
+- Light-first ; dark cohérent ; money hero (tabular nums).
+- Statuts : toujours icône + texte + couleur (variables `--status-*`).
+- Comportement métier inchangé sauf demande explicite ; bugs hors scope → « Found, not fixed ».
+- Textes UI en français.
+- Kit unifié Phase 3+ ; ne pas réintroduire un second kit.

@@ -1,0 +1,268 @@
+/**
+ * ImmoPilot — tokens « Calm ledger » (source de vérité visuelle).
+ * Appliqués en preview via html[data-ds-option="a"|"b"] jusqu’au choix produit (Phase 2).
+ * Les variables --color-brand-* / --odoo-* restent le pont vers le CSS existant.
+ */
+
+@theme {
+  --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+
+  /* Échelle typo (rem) — min 12px partout */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+
+  /* Rayons : défaut = legacy Odoo (0.25) ; Calm ledger sous data-ds-option */
+  --radius-control: 0.25rem;
+  --radius-input: 0.25rem;
+  --radius-card: 0.25rem;
+  --radius-sheet: 0.25rem;
+
+  /* Spacing 8-pt (réf. doc ; Tailwind scale inchangée) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Ombres soft */
+  --shadow-soft: 0 1px 2px rgb(28 25 23 / 0.05), 0 4px 12px rgb(28 25 23 / 0.04);
+  --shadow-lift: 0 2px 4px rgb(28 25 23 / 0.06), 0 12px 28px rgb(28 25 23 / 0.08);
+
+  /* Z-index */
+  --z-sticky: 30;
+  --z-dropdown: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /*
+   * Brand / surfaces « legacy Odoo monochrome » (défaut app tant que l’option n’est pas choisie).
+   * Les options A/B ci-dessous écrasent ces valeurs en preview.
+   */
+  --color-brand-50: #fafafa;
+  --color-brand-100: #f4f4f5;
+  --color-brand-200: #e4e4e7;
+  --color-brand-300: #d4d4d8;
+  --color-brand-400: #a1a1aa;
+  --color-brand-500: #71717a;
+  --color-brand-600: #18181b;
+  --color-brand-700: #09090b;
+  --color-brand-800: #050505;
+  --color-brand-900: #000000;
+  --color-brand-950: #000000;
+  --color-odoo-teal: #27272a;
+  --color-odoo-teal-light: #f0f0f2;
+  --color-app-bg: #ececee;
+  --color-app-bg-deep: #e4e4e8;
+  --color-surface: #f7f7f8;
+  --color-ink: #0a0a0a;
+  --color-muted: #4b4b55;
+}
+
+:root {
+  --odoo-border: #c4c4cc;
+  --odoo-border-subtle: #d2d2d8;
+  --odoo-border-strong: #a4a4ae;
+  --odoo-sidebar-top: #121212;
+  --odoo-sidebar-bottom: #050505;
+  --odoo-table-head-bg: #efeff2;
+  --odoo-row-hover: #ebebec;
+
+  /* Sémantique statut (identiques partout) */
+  --status-paid: #047857;
+  --status-paid-bg: #ecfdf5;
+  --status-late: #b91c1c;
+  --status-late-bg: #fef2f2;
+  --status-pending: #b45309;
+  --status-pending-bg: #fffbeb;
+  --status-waived: #5b21b6;
+  --status-waived-bg: #f5f3ff;
+  --status-cancelled: #57534e;
+  --status-cancelled-bg: #f5f5f4;
+
+  --ds-option-label: 'legacy';
+}
+
+/* —— Option A : accent teal #0F766E + sidebar sombre —— */
+html[data-ds-option='a'] {
+  --ds-option-label: 'A — Teal + sidebar sombre';
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0f766e;
+  --color-brand-700: #0d9488;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+  --color-brand-950: #042f2e;
+  --color-odoo-teal: #0f766e;
+  --color-odoo-teal-light: #f0fdfa;
+  --color-app-bg: #f3f2ef;
+  --color-app-bg-deep: #ebe8e3;
+  --color-surface: #fffcf8;
+  --color-ink: #1c1917;
+  --color-muted: #78716c;
+  --odoo-border: #d6d3d1;
+  --odoo-border-subtle: #e7e5e4;
+  --odoo-border-strong: #a8a29e;
+  --odoo-sidebar-top: #1c1917;
+  --odoo-sidebar-bottom: #0c0a09;
+  --odoo-table-head-bg: #f5f5f4;
+  --odoo-row-hover: #f5f5f4;
+  --radius-control: 0.5rem;
+  --radius-input: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-sheet: 0.75rem;
+}
+
+/* —— Option B : accent emerald #047857 + sidebar claire —— */
+html[data-ds-option='b'] {
+  --ds-option-label: 'B — Emerald + sidebar claire';
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #047857;
+  --color-brand-700: #059669;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
+  --color-odoo-teal: #047857;
+  --color-odoo-teal-light: #ecfdf5;
+  --color-app-bg: #f3f2ef;
+  --color-app-bg-deep: #ebe8e3;
+  --color-surface: #fffcf8;
+  --color-ink: #1c1917;
+  --color-muted: #78716c;
+  --odoo-border: #d6d3d1;
+  --odoo-border-subtle: #e7e5e4;
+  --odoo-border-strong: #a8a29e;
+  --odoo-sidebar-top: #fafaf9;
+  --odoo-sidebar-bottom: #f5f5f4;
+  --odoo-table-head-bg: #f5f5f4;
+  --odoo-row-hover: #f5f5f4;
+  --radius-control: 0.5rem;
+  --radius-input: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-sheet: 0.75rem;
+}
+
+html[data-ds-option='b'] .odoo-sidebar {
+  border-color: var(--odoo-border);
+  box-shadow: 4px 0 24px -12px rgb(28 25 23 / 0.12);
+  color: var(--color-ink) !important; /* annule text-slate-100 du Layout en preview */
+}
+
+html[data-ds-option='b'] .odoo-sidebar-brand {
+  color: var(--color-ink);
+}
+
+html[data-ds-option='b'] .odoo-sidebar .text-slate-400,
+html[data-ds-option='b'] .odoo-sidebar .text-slate-500 {
+  color: var(--color-muted) !important;
+}
+
+html[data-ds-option='b'] .odoo-sidebar button {
+  border-color: var(--odoo-border) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+}
+
+html[data-ds-option='b'] .odoo-nav-item {
+  color: rgb(68 64 60 / 0.92);
+}
+
+html[data-ds-option='b'] .odoo-nav-item:hover {
+  background-color: rgb(4 120 87 / 0.08);
+  color: var(--color-ink);
+}
+
+html[data-ds-option='b'] .odoo-nav-item-active {
+  background-color: rgb(4 120 87 / 0.12);
+  border-left-color: var(--color-brand-600);
+  color: var(--color-brand-800);
+  box-shadow: none;
+}
+
+html[data-ds-option='a'] .odoo-nav-item-active {
+  border-left-color: var(--color-brand-400);
+}
+
+html[data-ds-option='a'] .odoo-page-header,
+html[data-ds-option='b'] .odoo-page-header {
+  box-shadow:
+    var(--shadow-soft),
+    inset 3px 0 0 var(--color-brand-600);
+  background: linear-gradient(180deg, var(--color-surface) 0%, rgb(243 242 239 / 0.95) 100%);
+}
+
+html.dark[data-ds-option='a'],
+html.dark[data-ds-option='b'] {
+  --color-app-bg: #1c1917;
+  --color-app-bg-deep: #0c0a09;
+  --color-surface: #292524;
+  --color-ink: #fafaf9;
+  --color-muted: #a8a29e;
+  --odoo-border: #57534e;
+  --odoo-border-subtle: #44403c;
+  --odoo-border-strong: #78716c;
+  --odoo-table-head-bg: #292524;
+  --odoo-row-hover: #292524;
+  --status-paid-bg: rgb(4 120 87 / 0.2);
+  --status-late-bg: rgb(185 28 28 / 0.2);
+  --status-pending-bg: rgb(180 83 9 / 0.2);
+  --status-waived-bg: rgb(91 33 182 / 0.2);
+  --status-cancelled-bg: rgb(87 83 78 / 0.25);
+}
+
+html.dark[data-ds-option='a'] {
+  --odoo-sidebar-top: #0c0a09;
+  --odoo-sidebar-bottom: #000000;
+}
+
+html.dark[data-ds-option='b'] {
+  --odoo-sidebar-top: #1c1917;
+  --odoo-sidebar-bottom: #292524;
+}
+
+html.dark[data-ds-option='b'] .odoo-sidebar-brand {
+  color: #fafaf9;
+}
+
+html.dark[data-ds-option='b'] .odoo-nav-item {
+  color: rgb(231 229 228 / 0.88);
+}
+
+html.dark[data-ds-option='b'] .odoo-nav-item:hover {
+  background-color: rgb(16 185 129 / 0.12);
+  color: #fff;
+}
+
+html.dark[data-ds-option='b'] .odoo-nav-item-active {
+  background-color: rgb(16 185 129 / 0.18);
+  border-left-color: var(--color-brand-400);
+  color: #ecfdf5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-base: 0.01ms;
+  }
+}

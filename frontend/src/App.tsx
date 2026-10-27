@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
@@ -22,9 +22,27 @@ import { AdminClientsPage } from './pages/AdminClientsPage';
 import { ComptabilitePage } from './pages/ComptabilitePage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { CollectorsPage } from './pages/CollectorsPage';
+import { DesignSystemPage } from './pages/DesignSystemPage';
 import { LocationFicheSheet } from './components/LocationFicheSheet';
 import { NavigationProvider } from './context/NavigationContext';
 import type { AppNavigateState } from './lib/navigation';
+import {
+  applyDesignOption,
+  isDesignOption,
+  persistDesignOption,
+} from './theme/designPreview';
+
+/** Sync preview Calm ledger depuis `?ds=a|b` (navigation client). */
+function DesignPreviewSync() {
+  const { search } = useLocation();
+  useEffect(() => {
+    const q = new URLSearchParams(search).get('ds');
+    if (!isDesignOption(q)) return;
+    applyDesignOption(q);
+    persistDesignOption(q);
+  }, [search]);
+  return null;
+}
 
 function Protected({ children }: { children: ReactElement }) {
   const { user, ready } = useAuth();
@@ -65,10 +83,12 @@ export default function App() {
   return (
     <NavigationProvider>
     <>
+    <DesignPreviewSync />
     <Routes location={backgroundLocation ?? location}>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/mot-de-passe-oubli" element={<ForgotPasswordPage />} />
       <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
+      {import.meta.env.DEV ? <Route path="/design" element={<DesignSystemPage />} /> : null}
       <Route
         path="/"
         element={

@@ -4,12 +4,14 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { ThemeProvider } from './theme/ThemeContext';
 import { applyTheme, getStoredTheme } from './theme';
+import { bootstrapDesignPreview } from './theme/designPreview';
 import App from './App';
 import './index.css';
 /** Capture `beforeinstallprompt` dès le chargement (avant les boutons UI). */
 import './lib/pwaInstallBridge';
 
 applyTheme(getStoredTheme());
+bootstrapDesignPreview();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
