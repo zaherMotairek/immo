@@ -9,7 +9,7 @@ import {
   uploadTenantIdDocument,
 } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
-import { Button } from './ui';
+import { Button } from './ui/index';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
 
@@ -88,8 +88,8 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
   return (
     <div className="space-y-3">
       <div>
-        <p className="mb-1 text-xs font-medium text-slate-700">CNI / passeport / titre</p>
-        <p className="text-xs text-slate-500">
+        <p className="mb-1 text-[13px] font-semibold text-[var(--color-ink)]">CNI / passeport / titre</p>
+        <p className="text-xs text-[var(--color-muted)]">
           Scan ou photo (PDF, JPEG, PNG, WebP), max. 15 Mo. Données sensibles : accès réservé aux utilisateurs connectés.
         </p>
       </div>
@@ -98,6 +98,7 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
           ref={inputRef}
           type="file"
           className="sr-only"
+          aria-label="Choisir un fichier (PDF ou image)"
           accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
           disabled={busy}
           onChange={(e) => void onFile(e.target.files?.[0])}
@@ -106,6 +107,7 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
           ref={camRef}
           type="file"
           className="sr-only"
+          aria-label="Prendre une photo avec l’appareil"
           accept="image/*"
           capture="environment"
           disabled={busy}
@@ -114,8 +116,9 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
         <Button
           type="button"
           variant="secondary"
-          className="py-2 text-xs"
+          size="sm"
           disabled={busy}
+          loading={busy}
           onClick={() => inputRef.current?.click()}
         >
           {idDocument ? 'Remplacer le fichier' : 'Ajouter une pièce d’identité'}
@@ -123,7 +126,7 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
         <Button
           type="button"
           variant="ghost"
-          className="py-2 text-xs"
+          size="sm"
           disabled={busy}
           onClick={() => camRef.current?.click()}
         >
@@ -131,28 +134,28 @@ export function TenantIdDocumentSection({ tenantId, idDocument, onChanged }: Pro
         </Button>
       </div>
       {entries.map((entry) => (
-        <div key={entry.fileKey ?? `${entry.fileName}-${entry.uploadedAt}`} className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800/50">
+        <div key={entry.fileKey ?? `${entry.fileName}-${entry.uploadedAt}`} className="rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] px-3 py-2 text-sm dark:border-zinc-600">
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-slate-900 dark:text-slate-100">{entry.fileName ?? 'Fichier'}</p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
+            <p className="truncate font-medium text-[var(--color-ink)]">{entry.fileName ?? 'Fichier'}</p>
+              <p className="text-xs text-[var(--color-muted)]">
                 {entry.mimeType ?? '—'} · {formatBytes(entry.size)}
                 {entry.uploadedAt && ` · envoyé le ${formatDateFr(entry.uploadedAt)}`}
               </p>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button type="button" className="py-1.5 text-xs" disabled={busy} onClick={() => openTenantIdDocumentPreview(tenantId, entry.fileKey)}>
+            <Button type="button" size="sm" disabled={busy} onClick={() => openTenantIdDocumentPreview(tenantId, entry.fileKey)}>
               Ouvrir / afficher
             </Button>
             <Button
               type="button"
               variant="secondary"
-              className="py-1.5 text-xs"
+              size="sm"
               disabled={busy}
               onClick={() => downloadTenantIdDocumentFile(tenantId, entry.fileName ?? 'document', entry.fileKey)}
             >
               Télécharger
             </Button>
-            <Button type="button" variant="danger" className="py-1.5 text-xs" disabled={busy} onClick={() => void onRemove(entry.fileKey)}>
+            <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => void onRemove(entry.fileKey)}>
               Supprimer le fichier
             </Button>
           </div>
