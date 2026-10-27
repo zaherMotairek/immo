@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { Card, Input, Label, Select } from '@/components/ui';
+import { Callout, Card, DataTable, Field, Input, Select, Skeleton } from '@/components/ui/index';
 import { getAuditLogs, type AuditLogEntry } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
 
 const ACTION_OPTIONS = [
-  { value: '', label: 'Toutes les actions' },
-  { value: 'PAYMENT_MARKED_PAID', label: 'Paiement marqué payé' },
-  { value: 'PAYMENT_RECEIPT_GENERATED', label: 'Reçu généré' },
-  { value: 'PAYMENT_UPDATED', label: 'Paiement modifié' },
-  { value: 'PAYMENT_PARTIAL_COLLECTED', label: 'Versement partiel' },
-  { value: 'LEASE_UPDATED', label: 'Bail modifié' },
-  { value: 'TENANT_UPDATED', label: 'Locataire modifié' },
+  { id: 'PAYMENT_MARKED_PAID', label: 'Paiement marqué payé' },
+  { id: 'PAYMENT_RECEIPT_GENERATED', label: 'Reçu généré' },
+  { id: 'PAYMENT_UPDATED', label: 'Paiement modifié' },
+  { id: 'PAYMENT_PARTIAL_COLLECTED', label: 'Versement partiel' },
+  { id: 'LEASE_UPDATED', label: 'Bail modifié' },
+  { id: 'TENANT_UPDATED', label: 'Locataire modifié' },
 ];
 
 export function AuditLogPage() {
@@ -44,65 +43,64 @@ export function AuditLogPage() {
         hintTitle="Traçabilité: qui a fait quoi et quand."
         subtitle="Historique des actions sensibles sur votre espace."
       />
+
       <Card className="space-y-3">
         <div className="grid gap-3 md:grid-cols-3">
-          <div>
-            <Label htmlFor="audit-action">Action</Label>
-            <Select id="audit-action" value={action} onChange={(e) => setAction(e.target.value)}>
-              {ACTION_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="audit-entity">Type entité</Label>
+          <Field label="Action" htmlFor="audit-action">
+            <Select
+              id="audit-action"
+              options={ACTION_OPTIONS}
+              value={action}
+              onValueChange={setAction}
+              emptyLabel="Toutes les actions"
+            />
+          </Field>
+          <Field label="Type entité" htmlFor="audit-entity">
             <Input
               id="audit-entity"
               placeholder="payment / lease / tenant..."
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
             />
-          </div>
+          </Field>
         </div>
-        {loading ? <p className="text-sm text-slate-500">Chargement…</p> : null}
-        {err ? <p className="text-sm text-red-600">{err}</p> : null}
+        {loading ? <Skeleton className="h-4 w-32" /> : null}
+        {err ? <Callout variant="danger">{err}</Callout> : null}
       </Card>
 
-      <Card>
-        <div className="table-scroll overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Utilisateur</th>
-                <th>Action</th>
-                <th>Cible</th>
-                <th>Détail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{formatDateFr(r.createdAt)}</td>
-                  <td>{r.actorEmail ?? r.actorName ?? 'Système'}</td>
-                  <td>{r.action}</td>
-                  <td>{targetLabel(r)}</td>
-                  <td>{r.summary ?? '—'}</td>
-                </tr>
-              ))}
-              {rows.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-slate-500">
-                    Aucun événement pour ce filtre.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <DataTable
+        caption="Journal d’audit"
+        getRowId={(r) => r.id}
+        rows={rows}
+        empty={loading ? 'Chargement…' : 'Aucun événement pour ce filtre.'}
+        columns={[
+          {
+            id: 'date',
+            header: 'Date',
+            cell: (r) => formatDateFr(r.createdAt),
+          },
+          {
+            id: 'user',
+            header: 'Utilisateur',
+            cell: (r) => r.actorEmail ?? r.actorName ?? 'Système',
+          },
+          {
+            id: 'action',
+            header: 'Action',
+            cell: (r) => r.action,
+          },
+          {
+            id: 'target',
+            header: 'Cible',
+            cell: (r) => targetLabel(r),
+          },
+          {
+            id: 'detail',
+            header: 'Détail',
+            cell: (r) => r.summary ?? '—',
+          },
+        ]}
+      />
     </section>
   );
 }
