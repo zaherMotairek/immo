@@ -1,4 +1,5 @@
-import { Button } from '@/components/ui';
+import { Button, cn } from '@/components/ui/index';
+import type { ButtonSize } from '@/components/ui/index';
 import { toast } from '@/components/ui/Toast';
 import { createPaymentReceiptShareLink, downloadPaymentReceipt } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
@@ -22,6 +23,8 @@ export type PaymentLineActionsProps = {
   onMarkPaid: (p: PaymentRow) => void | Promise<void>;
 };
 
+const CONTACT_HINT = 'Ajoutez un e-mail ou un n° avec indicatif (ex. +225…) dans Locataires pour relancer.';
+
 export function PaymentLineActions({
   p,
   zoomed,
@@ -32,36 +35,29 @@ export function PaymentLineActions({
   onOpenPartial,
   onMarkPaid,
 }: PaymentLineActionsProps) {
-  const bp = zoomed
-    ? 'py-3 text-sm min-h-[2.75rem]'
-    : stacked
-      ? 'shrink-0 justify-center whitespace-nowrap px-2.5 py-2 text-xs'
-      : compact
-        ? 'shrink-0 py-1.5 px-2.5 text-[11px] font-semibold leading-tight'
-        : 'py-2 text-xs';
-  const waBp = zoomed
-    ? 'px-5 py-3 text-sm'
-    : stacked
-      ? 'shrink-0 justify-center whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold'
-      : compact
-        ? 'shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold leading-tight'
-        : 'px-4 py-2 text-xs';
-
-  const contactHint =
-    'Ajoutez un e-mail ou un n° avec indicatif (ex. +225…) dans Locataires pour relancer.';
+  const short = compact && !stacked;
+  const size: ButtonSize = zoomed ? 'lg' : 'sm';
+  const btnCls = !zoomed && (stacked || compact) ? 'shrink-0 whitespace-nowrap' : undefined;
+  const waCls = cn(
+    'inline-flex items-center justify-center rounded-[var(--radius-input)] border border-[var(--status-paid)] bg-[var(--status-paid-bg)] font-medium text-[var(--status-paid)] transition-colors hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--status-paid)]',
+    zoomed ? 'min-h-11 px-5 text-base' : cn('min-h-9 px-3 text-sm', btnCls),
+  );
+  const overdue = isOverduePayment(p);
+  const waDigits = formatPhoneForWhatsApp(p.lease.tenant.phone);
+  const canRemind = overdue && Boolean(p.lease.tenant.email);
+  const hasPartialReceipt =
+    p.status === 'PAID' || ((p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0);
 
   const nodes = (
     <>
-      {isOverduePayment(p) && p.lease.tenant.email && (
-        <Button variant="secondary" className={bp} disabled={sendingId !== null} onClick={() => void onSendReminder(p)}>
-          {sendingId === p.id ? 'Envoi…' : compact && !stacked ? 'Relance' : 'Relance e-mail'}
+      {canRemind && (
+        <Button variant="secondary" size={size} className={btnCls} disabled={sendingId !== null} onClick={() => void onSendReminder(p)}>
+          {sendingId === p.id ? 'Envoi…' : short ? 'Relance' : 'Relance e-mail'}
         </Button>
       )}
-      {isOverduePayment(p) &&
-        (() => {
-          const waDigits = formatPhoneForWhatsApp(p.lease.tenant.phone);
-          if (!waDigits) return null;
-          const waHref = whatsAppWebUrl(
+      {overdue && waDigits ? (
+        <a
+          href={whatsAppWebUrl(
             waDigits,
             overdueReminderWhatsAppText({
               firstName: p.lease.tenant.firstName,
@@ -71,83 +67,72 @@ export function PaymentLineActions({
               buildingName: p.lease.unit.building.name,
               unitLabel: p.lease.unit.label,
             }),
-          );
-          return (
-            <a
-              href={waHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center justify-center rounded-xl border border-emerald-600/90 bg-emerald-50 font-medium text-emerald-900 shadow-sm hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200 ${waBp}`}
-            >
-              WhatsApp
-            </a>
-          );
-        })()}
-      {isOverduePayment(p) && !p.lease.tenant.email && !formatPhoneForWhatsApp(p.lease.tenant.phone) && (
-        <span
-          className={
-            stacked
-              ? 'shrink-0 rounded-md border border-amber-200/90 bg-amber-50/90 px-2 py-1.5 text-center text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
-              : compact
-                ? 'shrink-0 rounded-md border border-amber-200/90 bg-amber-50/90 px-1.5 py-1 text-[10px] font-medium text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
-                : zoomed
-                  ? 'w-full py-1 text-sm text-amber-800 dark:text-amber-200'
-                  : 'max-w-[14rem] py-2 text-xs text-amber-800'
-          }
-          title={compact || stacked ? contactHint : undefined}
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={waCls}
         >
-          {compact && !stacked ? 'Coord.' : stacked ? 'Coordonnées manquantes' : contactHint}
+          WhatsApp
+        </a>
+      ) : null}
+      {overdue && !p.lease.tenant.email && !waDigits && (
+        <span
+          className={cn(
+            'text-[var(--status-pending)]',
+            stacked || compact
+              ? 'shrink-0 rounded-md border border-[var(--status-pending)]/40 bg-[var(--status-pending-bg)] px-2 py-1 text-center text-[10px] font-medium'
+              : zoomed
+                ? 'w-full py-1 text-sm'
+                : 'max-w-[14rem] py-2 text-xs',
+          )}
+          title={compact || stacked ? CONTACT_HINT : undefined}
+        >
+          {short ? 'Coord.' : stacked ? 'Coordonnées manquantes' : CONTACT_HINT}
         </span>
       )}
       {(p.status === 'PENDING' || p.status === 'LATE') && (
         <>
-          <Button variant="primarySoft" className={bp} onClick={() => onOpenPartial(p)}>
-            {compact && !stacked ? 'Partiel' : 'Versement partiel'}
+          <Button variant="primarySoft" size={size} className={btnCls} onClick={() => onOpenPartial(p)}>
+            {short ? 'Partiel' : 'Versement partiel'}
           </Button>
-          <Button className={bp} onClick={() => void onMarkPaid(p)}>
-            {compact && !stacked ? 'Payé' : 'Marquer payé'}
+          <Button size={size} className={btnCls} onClick={() => void onMarkPaid(p)}>
+            {short ? 'Payé' : 'Marquer payé'}
           </Button>
         </>
       )}
-      {(p.status === 'PAID' ||
-        ((p.status === 'PENDING' || p.status === 'LATE') && Number(p.amountPaid ?? 0) > 0)) && (
+      {hasPartialReceipt && (
         <>
-          <Button variant="secondary" className={bp} onClick={() => downloadPaymentReceipt(p.id)}>
-            {compact && !stacked ? 'PDF' : 'Reçu PDF'}
+          <Button variant="secondary" size={size} className={btnCls} onClick={() => downloadPaymentReceipt(p.id)}>
+            {short ? 'PDF' : 'Reçu PDF'}
           </Button>
-          {(() => {
-            const waDigits = formatPhoneForWhatsApp(p.lease.tenant.phone);
-            if (!waDigits) return null;
-            return (
-              <Button
-                variant="ghost"
-                className={bp}
-                onClick={() => {
-                  void createPaymentReceiptShareLink(p.id)
-                    .then((r) => {
-                      const msg = [
-                        `Bonjour ${p.lease.tenant.firstName},`,
-                        `Voici votre quittance de loyer (${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}).`,
-                        r.shareUrl,
-                      ].join('\n');
-                      window.open(whatsAppWebUrl(waDigits, msg), '_blank', 'noopener,noreferrer');
-                    })
-                    .catch(() => toast('Lien de quittance indisponible.', { variant: 'error' }));
-                }}
-              >
-                {compact && !stacked ? 'WA reçu' : 'WhatsApp reçu'}
-              </Button>
-            );
-          })()}
+          {waDigits ? (
+            <Button
+              variant="ghost"
+              size={size}
+              className={btnCls}
+              onClick={() => {
+                void createPaymentReceiptShareLink(p.id)
+                  .then((r) => {
+                    const msg = [
+                      `Bonjour ${p.lease.tenant.firstName},`,
+                      `Voici votre quittance de loyer (${String(p.periodMonth).padStart(2, '0')}/${p.periodYear}).`,
+                      r.shareUrl,
+                    ].join('\n');
+                    window.open(whatsAppWebUrl(waDigits, msg), '_blank', 'noopener,noreferrer');
+                  })
+                  .catch(() => toast('Lien de quittance indisponible.', { variant: 'error' }));
+              }}
+            >
+              {short ? 'WA reçu' : 'WhatsApp reçu'}
+            </Button>
+          ) : null}
         </>
       )}
     </>
   );
 
   if (stacked) {
-    return (
-      <div className="flex w-full flex-row flex-wrap items-center justify-end gap-1.5">{nodes}</div>
-    );
+    return <div className="flex w-full flex-row flex-wrap items-center justify-end gap-1.5">{nodes}</div>;
   }
   if (compact) {
     return <div className="flex min-w-0 flex-wrap items-center gap-1 sm:flex-nowrap">{nodes}</div>;
