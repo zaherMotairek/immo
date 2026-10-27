@@ -62,4 +62,24 @@ export default defineConfig({
       '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
+  /** Même proxy pour `vite preview` (baselines Playwright Phase 0). */
+  preview: {
+    host: '127.0.0.1',
+    port: 4173,
+    proxy: {
+      '/auth': { target: 'http://localhost:4000', changeOrigin: true },
+      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
+      '/buildings': { target: 'http://localhost:4000', changeOrigin: true },
+      '/units': { target: 'http://localhost:4000', changeOrigin: true },
+      '/tenants': { target: 'http://localhost:4000', changeOrigin: true },
+      '/leases': { target: 'http://localhost:4000', changeOrigin: true },
+      '/payments': { target: 'http://localhost:4000', changeOrigin: true },
+      '/charges': { target: 'http://localhost:4000', changeOrigin: true },
+      '/dashboard': { target: 'http://localhost:4000', changeOrigin: true },
+      '/reports': { target: 'http://localhost:4000', changeOrigin: true },
+      '/search': { target: 'http://localhost:4000', changeOrigin: true },
+      '/audit': { target: 'http://localhost:4000', changeOrigin: true },
+      '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
+    },
+  },
 });

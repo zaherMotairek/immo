@@ -76,6 +76,7 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              data-testid="login-email"
             />
           </div>
 
@@ -102,6 +103,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                data-testid="login-password"
               />
               <button
                 type="button"
@@ -123,7 +125,12 @@ export function LoginPage() {
             </div>
           ) : null}
 
-          <Button type="submit" className="auth-submit min-h-12 w-full text-base font-semibold tracking-wide" disabled={loading}>
+          <Button
+            type="submit"
+            className="auth-submit min-h-12 w-full text-base font-semibold tracking-wide"
+            disabled={loading}
+            data-testid="login-submit"
+          >
             {loading ? 'Connexion…' : 'Se connecter'}
           </Button>
         </form>

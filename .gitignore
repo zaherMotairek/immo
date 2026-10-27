@@ -24,3 +24,10 @@ owner-passwords.json
 Thumbs.db
 *.log
 npm-debug.log*
+
+# Playwright (artefacts ; les baselines PNG sous e2e/baselines/ sont versionnées)
+frontend/e2e/test-results/
+frontend/e2e/playwright-report/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
