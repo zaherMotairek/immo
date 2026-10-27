@@ -13,7 +13,12 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 90_000,
-  expect: { timeout: 15_000 },
+  expect: {
+    timeout: 15_000,
+    toHaveScreenshot: { maxDiffPixelRatio: 0.08 },
+  },
+  /** Aligne `toHaveScreenshot('mobile/light/dashboard.png')` sur les baselines Phase 0. */
+  snapshotPathTemplate: '{testDir}/baselines/{arg}{ext}',
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'e2e/playwright-report' }]],
   outputDir: 'e2e/test-results',
   use: {

@@ -16,14 +16,7 @@ npm run seed
 npm run start:dev
 ```
 
-Compte seed (à changer en prod) :
-
-| Champ | Valeur |
-|-------|--------|
-| E-mail | `admin@immopilot.local` |
-| Mot de passe | `AdminImmo2026!` |
-
-Variables optionnelles : `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`.
+Compte seed : utiliser les identifiants du seed backend (variables `SEED_ADMIN_*` / `E2E_ADMIN_*` — **à changer hors dev**). Ne pas documenter de mot de passe en clair ici.
 
 4. Front : dépendances + navigateurs Playwright :
 
@@ -38,27 +31,26 @@ L’API doit tourner sur **http://localhost:4000** (le `preview` Vite proxye les
 > Si `preview` ne proxy pas l’API, lancez aussi `npm run dev` et pointez  
 > `E2E_BASE_URL=http://127.0.0.1:5173 E2E_SKIP_WEBSERVER=1`.
 
-## Lancer les baselines
+## Lancer les checks visuels (Phase 6)
 
-Depuis `frontend/` :
-
-```bash
-npm run e2e:screenshots
-```
-
-Ou depuis la racine du monorepo :
+Depuis `frontend/` ou la racine :
 
 ```bash
-npm run check:visual
+npm run check:visual              # smoke : pages chargent + captures (défaut CI-friendly)
+npm run check:visual:compare      # diff pixel vs baselines (E2E_VISUAL_COMPARE=1)
+npm run e2e:visual:update         # depuis frontend/ : met à jour les snapshots compare
+npm run e2e:screenshots           # régénère toutes les baselines Phase 0 (écriture disque)
 ```
 
-Captures écrites dans :
+Captures de référence :
 
 ```
 frontend/e2e/baselines/{mobile|desktop}/{light|dark}/*.png
 ```
 
 Rapport HTML Playwright : `frontend/e2e/playwright-report/`.
+
+> Après une grosse migration UI, les baselines peuvent diverger : préférer le **smoke** au quotidien, puis `e2e:visual:update` quand on fige une nouvelle référence.
 
 ## Ce qui est capturé
 
@@ -87,6 +79,7 @@ Sortie : `frontend/e2e/phase2-options/*.png` (design + dashboard, options A/B).
 ## Notes
 
 - Justification dépendance : demandée explicitement en Phase 0 (filet visuel avant refactor UI).
-- Les PNG de `e2e/baselines/` sont destinés au versionnement pour comparaison ultérieure (Phase 6).
+- Les PNG de `e2e/baselines/` sont versionnés ; la comparaison pixel est opt-in (`check:visual:compare`).
 - Ne pas committer `e2e/test-results/` ni `e2e/playwright-report/`.
 - `phase2-options/` : captures de choix produit Phase 2 (peuvent être versionnées).
+- `phase4h/` + `phase4h-locations.spec.ts` : captures avant/après migration Locations.

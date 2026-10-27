@@ -67,15 +67,21 @@ Ouvrir **http://localhost:5173**
 
 ---
 
-## Compte par défaut (après `npm run seed`)
+## Compte seed (après `npm run seed`)
 
-| Champ | Valeur |
-|-------|--------|
-| E-mail | `admin@immopilot.local` |
-| Mot de passe | `AdminImmo2026!` |
-| Rôle | Administrateur plateforme (menu « Clients (admin) ») |
+Le seed crée un **administrateur plateforme** (e-mail / mot de passe définis dans le script seed ou via `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` — voir `backend/.env.example`).
 
-**À changer impérativement en production.**
+**Changez ces identifiants dès que possible** (surtout hors machine de dev). Ne committez jamais de mots de passe de production.
+
+---
+
+## Documentation utile
+
+| Doc | Contenu |
+|-----|---------|
+| [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) | Design system Calm ledger, kit UI, guardrails |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Aperçu front kit + backend Nest |
+| [`docs/BACKEND_RISKS.md`](docs/BACKEND_RISKS.md) | Inventaire risques backend (Phase 7) |
 
 ---
 
@@ -148,11 +154,9 @@ Servir le dossier `frontend/dist/` (Nginx, Apache, hébergeur statique).
 ## Vérifications avant livraison
 
 ```bash
-# Frontend
-cd frontend && npm run lint && npm run build
-
-# Backend
-cd backend && npm run typecheck && npm run build
+# Depuis la racine du monorepo
+npm run check              # lint + guardrails UI + builds
+npm run check:visual       # smoke Playwright (API seed locale requise)
 ```
 
 Checklist fonctionnelle :

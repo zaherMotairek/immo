@@ -3,6 +3,17 @@
 Source de vérité visuelle. Tokens : `frontend/src/theme/tokens.css`.  
 Anciennes specs contradictoires (palette KIZ, etc.) : `docs/archive/`.
 
+## Statut migration
+
+| Phase | Contenu | État |
+|-------|---------|------|
+| 0–2 | Baselines e2e, tokens, page `/design`, options A/B | Fait |
+| 3 | Kit `components/ui/` + toast / confirm | Fait |
+| 4 | Migration pages (auth → admin) vers le kit | **Fait** |
+| 5 | Mobile, perf (lazy routes), a11y, PWA brand | Fait |
+| 6 | Guardrails `check:ui` + `check:visual` | Fait |
+| 7 | Inventaire risques backend | Voir `docs/BACKEND_RISKS.md` |
+
 ## Personnalité
 
 Professionnel, chaleureux, rassurant, rapide — fintech / banque de confiance, pas ERP 2015.  
@@ -26,19 +37,22 @@ Professionnel, chaleureux, rassurant, rapide — fintech / banque de confiance, 
 
 **Option B figée** — Emerald `#047857`, sidebar claire, neutres chauds.  
 Option A (teal + sidebar sombre) : archive DEV via `?ds=a` / `data-ds-option="a"`.  
-Page galerie DEV : `/design` (hors menu).
+Page galerie DEV : `/design` (hors menu, lazy).
 
 ## Règles UI
 
 - Cibles tactiles ≥ 44 px (mobile).
 - Focus visible ; contraste AA ; labels sur tous les champs.
 - `toast` / `confirmDialog` à la place de `alert` / `confirm`.
-- Un seul kit : `frontend/src/components/ui/` — migration pages = Phase 4.
-- Pont temporaire : `@/components/ui` → `components/ui.tsx` (ré-exports).
+- Un seul kit : `frontend/src/components/ui/` — **ne pas** réintroduire un second kit.
+- Pont temporaire : `@/components/ui` → `components/ui.tsx` (ré-exports legacy).
+- Routes app : **lazy** (`React.lazy` + `Suspense`) dans `App.tsx` — écrans hors auth chargés à la demande.
+- Guardrails CI : `npm run check:ui` (script `frontend/scripts/ui-guardrails.mjs`) — FAIL sur `alert`/`confirm`/hex hors allowlist ; WARN sur `<button>`/`<input>` bruts restants.
+- Visuel : `npm run check:visual` (smoke) ; diff pixel opt-in `npm run check:visual:compare`.
 
 ## Kit composants
 
-Point d’entrée : `import { Button, Modal, toast, confirmDialog } from '@/components/ui/index'`.
+Point d’entrée privilégié : `import { Button, Modal, toast, confirmDialog } from '@/components/ui/index'`.
 
 - Formulaires : `Field`, `Input`, `MoneyInput`, `DateInput`, `Textarea`, `Select`, `Checkbox`, `Switch`, `SegmentedControl`
 - Actions : `Button`, `IconButton`, `Toolbar`, `StickyActionBar`
@@ -47,7 +61,7 @@ Point d’entrée : `import { Button, Modal, toast, confirmDialog } from '@/comp
 - Feedback : `Modal`, `BottomSheet`, `ConfirmDialog` / `confirmDialog()`, `toast()`, `Callout`, `EmptyState`, `Skeleton`
 - Providers (montés dans `main.tsx`) : `ToastProvider`, `ConfirmProvider`
 
-Compatibilité : `@/components/ui` (fichier `ui.tsx`) reste un pont (`Button`, `Input`, `AmountFcfaInput` = `MoneyInput`, `Card`, `StatTile`, `Label`, `HelpHint`, `Select` legacy). `OdooKit.tsx` est inchangé jusqu'à la Phase 4 (migration des pages).
+Compatibilité : `@/components/ui` (fichier `ui.tsx`) reste un pont (`Button`, `Input`, `AmountFcfaInput` = `MoneyInput`, `Card`, `StatTile`, `Label`, `HelpHint`, `Select` legacy). Préférer le kit `ui/index` pour le nouveau code. `OdooKit.tsx` : résidus historiques — ne plus étendre.
 
 ## Cursor
 

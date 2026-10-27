@@ -5,9 +5,10 @@
   "description": "ImmoPilot — monorepo (frontend React + backend NestJS)",
   "scripts": {
     "check": "npm run check:frontend && npm run check:backend",
-    "check:frontend": "npm --prefix frontend run lint && npm --prefix frontend run build",
+    "check:frontend": "npm --prefix frontend run check",
     "check:backend": "npm --prefix backend run typecheck && npm --prefix backend run build",
-    "check:visual": "npm --prefix frontend run e2e:screenshots",
+    "check:visual": "npm --prefix frontend run check:visual",
+    "check:visual:compare": "npm --prefix frontend run e2e:visual:compare",
     "seed": "npm --prefix backend run seed"
   }
 }

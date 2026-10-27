@@ -12,4 +12,6 @@ Suivre **`docs/DESIGN_SYSTEM.md`** et les tokens **`frontend/src/theme/tokens.cs
 - Statuts : toujours icône + texte + couleur (variables `--status-*`).
 - Comportement métier inchangé sauf demande explicite ; bugs hors scope → « Found, not fixed ».
 - Textes UI en français.
-- Kit unifié Phase 3+ ; ne pas réintroduire un second kit.
+- Kit unifié (`src/components/ui/`) ; ne pas réintroduire un second kit.
+- Guardrails : `npm run check:ui` (FAIL alert/confirm/hex ; WARN balises brutes).
+- Feedback : `toast` / `confirmDialog` — pas `alert` / `confirm`.
