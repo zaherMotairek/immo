@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { saveScrollForPath } from '@/lib/navigation';
 import { useAuth } from '@/auth/AuthContext';
@@ -8,7 +7,7 @@ import { GlobalSearchBar } from './GlobalSearchBar';
 import { SidebarNavIcon } from './SidebarNavIcons';
 import { ThemeToggle } from './ThemeToggle';
 import { InstallAppButton } from './InstallAppButton';
-import { Button } from './ui';
+import { BottomSheet, Button } from '@/components/ui/index';
 
 type NavItem = { to: string; label: string; end?: boolean; short?: string };
 
@@ -47,13 +46,10 @@ const DESKTOP_NAV_KEY = 'immopilot-desktop-nav-open';
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `odoo-nav-item ${isActive ? 'odoo-nav-item-active' : ''}`;
 
-const moreToolsBtnClass =
-  'odoo-nav-item w-full border border-white/10 bg-white/5 py-2.5 pl-2.5 pr-3 text-left text-[12px] font-semibold';
-
 function Chevron({ open }: { open: boolean }) {
   return (
     <svg
-      className={`ml-auto size-4 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`}
+      className={`ml-auto size-4 shrink-0 text-[var(--color-muted)] transition ${open ? 'rotate-180' : ''}`}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -177,16 +173,18 @@ export function Layout() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ThemeToggle className="shrink-0" />
-            <button
+            <ThemeToggle className="shrink-0" tone="onLight" />
+            <Button
               type="button"
-              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-ink)] transition hover:bg-[var(--odoo-row-hover)]"
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
               onClick={() => setDesktopNavOpenPersist(false)}
               aria-label="Masquer le menu latéral"
               title="Masquer le menu"
             >
               Masquer
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -194,7 +192,7 @@ export function Layout() {
           className="min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-3 pb-2 lg:pr-1"
           aria-label="Navigation détaillée"
         >
-          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Menu</p>
+          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Menu</p>
           <div className="flex flex-col gap-0.5">
             {navPrimary.map((l) => (
               <NavLink
@@ -214,7 +212,7 @@ export function Layout() {
           <div className="mt-2">
             <button
               type="button"
-              className={moreToolsBtnClass}
+              className="odoo-nav-item w-full border border-[var(--odoo-border)] bg-[var(--color-surface)] py-2.5 pl-2.5 pr-3 text-left text-[12px] font-semibold"
               onClick={() => setMoreToolsOpen((o) => !o)}
               aria-expanded={moreToolsOpen}
               id="nav-plus-tools-toggle"
@@ -226,7 +224,7 @@ export function Layout() {
             </button>
             {moreToolsOpen ? (
               <div
-                className="mt-1.5 flex flex-col gap-0.5 border-l-2 border-slate-700/80 pl-2"
+                className="mt-1.5 flex flex-col gap-0.5 border-l-2 border-brand-600/35 pl-2"
                 role="region"
                 aria-label="Outils supplémentaires"
               >
@@ -241,7 +239,9 @@ export function Layout() {
               </div>
             ) : null}
           </div>
-          <p className="mb-1.5 mt-5 px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Compte</p>
+          <p className="mb-1.5 mt-5 px-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+            Compte
+          </p>
           <div className="flex flex-col gap-0.5">
             {navAccount.map((l) => (
               <NavLink key={l.to} to={l.to} className={navClass} onClick={saveScrollBeforeMenuNav}>
@@ -262,16 +262,12 @@ export function Layout() {
           </div>
         </nav>
 
-        <div className="shrink-0 border-t border-slate-800/80 px-3 pb-4 pt-4">
-          <p className="truncate px-1 text-[11px] text-slate-400" title={user?.email ?? undefined}>
+        <div className="shrink-0 border-t border-[var(--odoo-border)] px-3 pb-4 pt-4">
+          <p className="truncate px-1 text-[11px] text-[var(--color-muted)]" title={user?.email ?? undefined}>
             {user?.email}
           </p>
           <InstallAppButton variant="sidebar" className="mt-2" />
-          <Button
-            variant="ghost"
-            className="mt-2 w-full justify-start rounded-xl border border-slate-700/90 px-3 py-2.5 text-[13px] font-medium text-slate-200 hover:bg-white/[0.06] hover:text-white"
-            onClick={logout}
-          >
+          <Button variant="ghost" className="mt-2 w-full justify-start" onClick={logout}>
             Déconnexion
           </Button>
         </div>
@@ -282,19 +278,22 @@ export function Layout() {
         id="contenu-principal"
         role="main"
         tabIndex={-1}
-        className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-slate-900 outline-none print:bg-white print:text-black max-lg:pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] dark:text-slate-100"
+        className="relative flex min-h-dvh min-w-0 flex-1 flex-col text-[var(--color-ink)] outline-none print:bg-white print:text-black max-lg:pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]"
       >
-        <div className="odoo-chrome-bar sticky top-0 z-30 px-3 py-2.5 print:hidden sm:px-6 sm:py-3.5 lg:px-6 xl:px-8">
+        <div className="odoo-chrome-bar sticky top-0 z-[var(--z-sticky)] px-3 py-2.5 print:hidden sm:px-6 sm:py-3.5 lg:px-6 xl:px-8">
           <div className="mx-auto flex w-full max-w-[min(100%,96rem)] items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              className="hidden min-h-[38px] shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 lg:inline-flex"
-              onClick={() => setDesktopNavOpenPersist(!desktopNavOpen)}
-              aria-label={desktopNavOpen ? 'Masquer le menu latéral' : 'Afficher le menu latéral'}
-              title={desktopNavOpen ? 'Masquer le menu' : 'Afficher le menu'}
-            >
-              {desktopNavOpen ? 'Masquer menu' : 'Afficher menu'}
-            </button>
+            <div className="hidden shrink-0 lg:block">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setDesktopNavOpenPersist(!desktopNavOpen)}
+                aria-label={desktopNavOpen ? 'Masquer le menu latéral' : 'Afficher le menu latéral'}
+                title={desktopNavOpen ? 'Masquer le menu' : 'Afficher le menu'}
+              >
+                {desktopNavOpen ? 'Masquer menu' : 'Afficher menu'}
+              </Button>
+            </div>
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <div className="min-w-0 flex-1">
                 <GlobalSearchBar />
@@ -350,78 +349,68 @@ export function Layout() {
             </button>
           </nav>
 
-          {mobileMoreOpen && typeof document !== 'undefined'
-            ? createPortal(
-                <div className="mobile-more-root print:hidden" role="presentation">
-                  <button
-                    type="button"
-                    className="mobile-more-backdrop"
-                    aria-label="Fermer le menu"
-                    onClick={() => setMobileMoreOpen(false)}
-                  />
-                  <div
-                    id="mobile-more-sheet"
-                    className="mobile-more-sheet"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="Plus d’outils"
-                    style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' } as CSSProperties}
+          <BottomSheet
+            open={mobileMoreOpen}
+            onClose={() => setMobileMoreOpen(false)}
+            title="Plus d’outils"
+            className="print:hidden"
+          >
+            <div id="mobile-more-sheet">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                Navigation
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <NavLink to="/baux" className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
+                  <SidebarNavIcon to="/baux" />
+                  Baux
+                </NavLink>
+                {navSecondary.map((l) => (
+                  <NavLink key={l.to} to={l.to} className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
+                    <SidebarNavIcon to={l.to} />
+                    {l.label}
+                  </NavLink>
+                ))}
+              </div>
+              <p className="mb-2 mt-4 px-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                Compte
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {navAccount.map((l) => (
+                  <NavLink
+                    key={l.to}
+                    to={l.to}
+                    className="mobile-more-link mobile-more-link--row"
+                    onClick={saveScrollBeforeMenuNav}
                   >
-                    <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />
-                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Navigation</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <NavLink to="/baux" className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
-                        <SidebarNavIcon to="/baux" />
-                        Baux
-                      </NavLink>
-                      {navSecondary.map((l) => (
-                        <NavLink key={l.to} to={l.to} className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
-                          <SidebarNavIcon to={l.to} />
-                          {l.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                    <p className="mb-2 mt-4 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Compte</p>
-                    <div className="flex flex-col gap-1.5">
-                      {navAccount.map((l) => (
-                        <NavLink
-                          key={l.to}
-                          to={l.to}
-                          className="mobile-more-link mobile-more-link--row"
-                          onClick={saveScrollBeforeMenuNav}
-                        >
-                          <SidebarNavIcon to={l.to} />
-                          {l.label}
-                        </NavLink>
-                      ))}
-                      {adminItem ? (
-                        <NavLink
-                          to={adminItem.to}
-                          className="mobile-more-link mobile-more-link--row"
-                          onClick={saveScrollBeforeMenuNav}
-                        >
-                          <SidebarNavIcon to={adminItem.to} />
-                          {adminItem.label}
-                        </NavLink>
-                      ) : null}
-                      <p className="truncate px-2 pt-1 text-[11px] text-zinc-500">{user?.email}</p>
-                      <InstallAppButton variant="auth" className="mt-1" />
-                      <Button
-                        variant="secondary"
-                        className="mt-2 w-full justify-center rounded-xl border-red-200 bg-red-50 py-3 text-sm font-semibold text-red-800 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
-                        onClick={() => {
-                          setMobileMoreOpen(false);
-                          logout();
-                        }}
-                      >
-                        Déconnexion
-                      </Button>
-                    </div>
-                  </div>
-                </div>,
-                document.body,
-              )
-            : null}
+                    <SidebarNavIcon to={l.to} />
+                    {l.label}
+                  </NavLink>
+                ))}
+                {adminItem ? (
+                  <NavLink
+                    to={adminItem.to}
+                    className="mobile-more-link mobile-more-link--row"
+                    onClick={saveScrollBeforeMenuNav}
+                  >
+                    <SidebarNavIcon to={adminItem.to} />
+                    {adminItem.label}
+                  </NavLink>
+                ) : null}
+                <p className="truncate px-2 pt-1 text-[11px] text-[var(--color-muted)]">{user?.email}</p>
+                <InstallAppButton variant="auth" className="mt-1" />
+                <Button
+                  variant="danger"
+                  className="mt-2 w-full justify-center"
+                  onClick={() => {
+                    setMobileMoreOpen(false);
+                    logout();
+                  }}
+                >
+                  Déconnexion
+                </Button>
+              </div>
+            </div>
+          </BottomSheet>
         </>
       ) : null}
     </div>

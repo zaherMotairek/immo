@@ -39,10 +39,10 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
 
   const baseBtn =
     variant === 'sidebar'
-      ? 'w-full justify-start gap-2 rounded-xl border border-slate-700/90 bg-slate-800/50 px-3 py-2 text-[12px] font-medium text-slate-200 transition hover:bg-white/[0.07] hover:text-white'
+      ? 'w-full justify-start gap-2 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2 text-[12px] font-medium text-[var(--color-ink)] transition hover:bg-[var(--odoo-row-hover)]'
       : variant === 'compact'
-        ? 'inline-flex items-center gap-1.5 rounded-lg border border-slate-300/90 bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-white dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200'
-        : 'inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300/90 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 dark:border-zinc-500 dark:bg-zinc-800/90 dark:text-zinc-100 dark:hover:bg-zinc-700';
+        ? 'inline-flex items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--color-ink)] shadow-sm transition hover:bg-[var(--odoo-row-hover)]'
+        : 'inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm font-semibold text-[var(--color-ink)] shadow-sm transition hover:bg-[var(--odoo-row-hover)]'
 
   return (
     <div className={className}>
@@ -60,7 +60,7 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
       </button>
 
       {status ? (
-        <p className="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-zinc-400" role="status">
+        <p className="mt-1.5 text-[11px] leading-snug text-[var(--color-muted)]" role="status">
           {status}
         </p>
       ) : null}
