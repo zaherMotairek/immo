@@ -9,12 +9,20 @@ import type { Tenant } from './types';
 export function useTenantsData() {
   const [rows, setRows] = useState<Tenant[]>([]);
   const [listFetched, setListFetched] = useState(false);
+  const [listErr, setListErr] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setListFetched(false);
+    setListErr(null);
     api<Tenant[]>('/tenants')
-      .then(setRows)
-      .catch(() => setRows([]))
+      .then((data) => {
+        setRows(data);
+        setListErr(null);
+      })
+      .catch((e) => {
+        setRows([]);
+        setListErr(e instanceof Error ? e.message : 'Impossible de charger les locataires.');
+      })
       .finally(() => setListFetched(true));
   }, []);
 
@@ -40,5 +48,5 @@ export function useTenantsData() {
     }
   }
 
-  return { rows, listFetched, load, flashTenantId, removeTenant };
+  return { rows, listFetched, listErr, load, flashTenantId, removeTenant };
 }

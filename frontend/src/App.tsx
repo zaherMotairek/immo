@@ -1,29 +1,11 @@
-import { useEffect, type ReactElement } from 'react';
+import { lazy, Suspense, useEffect, type ReactElement } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { BuildingsPage } from './pages/BuildingsPage';
-import { BuildingDetailPage } from './pages/BuildingDetailPage';
-import { TenantsPage } from './pages/TenantsPage';
-import { LeasesPage } from './pages/LeasesPage';
-import { LocationsPage } from './pages/LocationsPage';
-import { LocationDetailPage } from './pages/LocationDetailPage';
-import { PaymentsPage } from './pages/PaymentsPage';
-import { YearlyRentActivityPage } from './pages/YearlyRentActivityPage';
-import { CautionsChargesPage } from './pages/CautionsChargesPage';
-import { ExportsPage } from './pages/ExportsPage';
-import { ProfilePage } from './pages/ProfilePage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import { AdminClientsPage } from './pages/AdminClientsPage';
-import { ComptabilitePage } from './pages/ComptabilitePage';
-import { AuditLogPage } from './pages/AuditLogPage';
-import { CollectorsPage } from './pages/CollectorsPage';
-import { DesignSystemPage } from './pages/DesignSystemPage';
-import { LocationFicheSheet } from './components/LocationFicheSheet';
 import { NavigationProvider } from './context/NavigationContext';
 import type { AppNavigateState } from './lib/navigation';
 import {
@@ -31,6 +13,65 @@ import {
   isDesignOption,
   persistDesignOption,
 } from './theme/designPreview';
+
+const DashboardPage = lazy(() =>
+  import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const BuildingsPage = lazy(() =>
+  import('./pages/BuildingsPage').then((m) => ({ default: m.BuildingsPage })),
+);
+const BuildingDetailPage = lazy(() =>
+  import('./pages/BuildingDetailPage').then((m) => ({ default: m.BuildingDetailPage })),
+);
+const TenantsPage = lazy(() =>
+  import('./pages/TenantsPage').then((m) => ({ default: m.TenantsPage })),
+);
+const LeasesPage = lazy(() =>
+  import('./pages/LeasesPage').then((m) => ({ default: m.LeasesPage })),
+);
+const LocationsPage = lazy(() =>
+  import('./pages/LocationsPage').then((m) => ({ default: m.LocationsPage })),
+);
+const LocationDetailPage = lazy(() =>
+  import('./pages/LocationDetailPage').then((m) => ({ default: m.LocationDetailPage })),
+);
+const PaymentsPage = lazy(() =>
+  import('./pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })),
+);
+const YearlyRentActivityPage = lazy(() =>
+  import('./pages/YearlyRentActivityPage').then((m) => ({ default: m.YearlyRentActivityPage })),
+);
+const CautionsChargesPage = lazy(() =>
+  import('./pages/CautionsChargesPage').then((m) => ({ default: m.CautionsChargesPage })),
+);
+const ExportsPage = lazy(() =>
+  import('./pages/ExportsPage').then((m) => ({ default: m.ExportsPage })),
+);
+const ProfilePage = lazy(() =>
+  import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
+const AdminClientsPage = lazy(() =>
+  import('./pages/AdminClientsPage').then((m) => ({ default: m.AdminClientsPage })),
+);
+const ComptabilitePage = lazy(() =>
+  import('./pages/ComptabilitePage').then((m) => ({ default: m.ComptabilitePage })),
+);
+const AuditLogPage = lazy(() =>
+  import('./pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
+);
+const CollectorsPage = lazy(() =>
+  import('./pages/CollectorsPage').then((m) => ({ default: m.CollectorsPage })),
+);
+const DesignSystemPage = lazy(() =>
+  import('./pages/DesignSystemPage').then((m) => ({ default: m.DesignSystemPage })),
+);
+const LocationFicheSheet = lazy(() =>
+  import('./components/LocationFicheSheet').then((m) => ({ default: m.LocationFicheSheet })),
+);
+
+function RouteFallback() {
+  return <AppLoadingScreen message="Chargement de la page…" />;
+}
 
 /** Sync preview Calm ledger depuis `?ds=a|b` (navigation client). */
 function DesignPreviewSync() {
@@ -70,9 +111,11 @@ function LegacyPathImmeublesToBiens() {
 /** Fiche location en panneau : même route que la page pleine, mais enveloppée pour garantir NavigationProvider + coquille. */
 function LocationFicheModalRoute() {
   return (
-    <LocationFicheSheet>
-      <LocationDetailPage />
-    </LocationFicheSheet>
+    <Suspense fallback={<RouteFallback />}>
+      <LocationFicheSheet>
+        <LocationDetailPage />
+      </LocationFicheSheet>
+    </Suspense>
   );
 }
 
@@ -84,6 +127,7 @@ export default function App() {
     <NavigationProvider>
     <>
     <DesignPreviewSync />
+    <Suspense fallback={<RouteFallback />}>
     <Routes location={backgroundLocation ?? location}>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/mot-de-passe-oubli" element={<ForgotPasswordPage />} />
@@ -126,6 +170,7 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
 
     {backgroundLocation ? (
       <Routes>

@@ -9,13 +9,21 @@ import type { OverviewRow } from './types';
 export function useLocationsData(showAll: boolean) {
   const [rows, setRows] = useState<OverviewRow[]>([]);
   const [listFetched, setListFetched] = useState(false);
+  const [listErr, setListErr] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setListFetched(false);
+    setListErr(null);
     const q = showAll ? '?all=1' : '';
     api<OverviewRow[]>(`/leases/overview${q}`)
-      .then(setRows)
-      .catch(() => setRows([]))
+      .then((data) => {
+        setRows(data);
+        setListErr(null);
+      })
+      .catch((e) => {
+        setRows([]);
+        setListErr(e instanceof Error ? e.message : 'Impossible de charger les locations.');
+      })
       .finally(() => setListFetched(true));
   }, [showAll]);
 
@@ -42,5 +50,5 @@ export function useLocationsData(showAll: boolean) {
     }
   }
 
-  return { rows, listFetched, load, flashLeaseId, requestDeleteLocation };
+  return { rows, listFetched, listErr, load, flashLeaseId, requestDeleteLocation };
 }

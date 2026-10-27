@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from '@/components/ui/index';
 import {
   closeAccountingPeriod,
@@ -22,15 +22,22 @@ export function useComptabilite() {
 
   const yearChoices = useMemo(() => Array.from({ length: 6 }, (_, i) => thisYear - i), [thisYear]);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
     setErr(null);
     getAccountingWorkspace(year)
       .then(setData)
-      .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur de chargement'))
+      .catch((e) => {
+        setData(null);
+        setErr(e instanceof Error ? e.message : 'Erreur de chargement');
+      })
       .finally(() => setLoading(false));
     getAccountingClosures(year).then(setClosures).catch(() => setClosures([]));
   }, [year]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   const closedMonths = useMemo(() => new Set(closures.map((c) => c.periodMonth)), [closures]);
 
@@ -87,6 +94,7 @@ export function useComptabilite() {
     data,
     loading,
     err,
+    reload,
     tab,
     setTab,
     closedMonths,

@@ -48,6 +48,8 @@ export function useLocationFiche(id: string | undefined) {
 
   const reload = useCallback(() => {
     if (!id) return;
+    setErr(null);
+    setData(null);
     api<Fiche>(`/leases/${id}/fiche`)
       .then(setData)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'));

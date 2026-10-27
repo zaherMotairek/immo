@@ -1,12 +1,15 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis } from 'recharts';
+import { lazy, Suspense, useLayoutEffect, useRef, useState } from 'react';
 import { KpiIconAlert } from '@/components/dashboardKpiIcons';
 import { SmartLink } from '@/components/SmartLink';
 import { HelpHint } from '@/components/ui';
-import { Card } from '@/components/ui/index';
+import { Card, Skeleton } from '@/components/ui/index';
 import { fcfa } from '@/lib/format';
 import { dashboardLinkButtonClass } from './types';
 import type { Overview } from './types';
+
+const ChartsBarChart = lazy(() =>
+  import('./ChartsBarChart').then((m) => ({ default: m.ChartsBarChart })),
+);
 
 /** Graphique à barres du mois + carte « Impayés / retard ». */
 export function ChartsSection({ kpis }: { kpis: Overview['kpis'] }) {
@@ -45,26 +48,9 @@ export function ChartsSection({ kpis }: { kpis: Overview['kpis'] }) {
         </p>
         <div ref={barChartWrapRef} className="h-[240px] w-full min-h-[240px] min-w-0">
           {barChartW > 0 ? (
-            <BarChart width={barChartW} height={240} data={dashboardBars} margin={{ top: 12, right: 8, left: 8, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--odoo-border)" opacity={0.6} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: 'var(--color-ink)', fontSize: 12, fontWeight: 600 }} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
-                tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
-              />
-              <Tooltip
-                cursor={{ fill: 'rgba(148, 163, 184, 0.12)' }}
-                formatter={(v) => [fcfa(Number(v)), 'Montant']}
-                labelStyle={{ fontWeight: 700 }}
-              />
-              <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={58}>
-                {dashboardBars.map((entry) => (
-                  <Cell key={entry.key} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
+            <Suspense fallback={<Skeleton className="h-full w-full rounded-[var(--radius-control)]" />}>
+              <ChartsBarChart width={barChartW} data={dashboardBars} />
+            </Suspense>
           ) : null}
         </div>
       </Card>

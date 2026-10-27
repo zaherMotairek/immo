@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigation } from '@/context/NavigationContext';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PageDetailBackLink } from '@/components/PageDetailHero';
-import { Button, Callout, Card, Tabs } from '@/components/ui/index';
+import { Button, Callout, Card, Skeleton, Tabs } from '@/components/ui/index';
 import { inferBackLabelFromPath, resolveReturnTarget, type AppNavigateState } from '@/lib/navigation';
 import { LocationBailTab } from './LocationBailTab';
 import { LocationDetailHero } from './LocationDetailHero';
@@ -47,17 +47,25 @@ export function LocationDetailPage() {
     return (
       <Callout variant="danger" title="Impossible d’afficher cette location.">
         <p>{fiche.err}</p>
-        <PageDetailBackLink to={back.href}>Retour vers {back.label}</PageDetailBackLink>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={fiche.reload}>
+            Réessayer
+          </Button>
+          <PageDetailBackLink to={back.href}>Retour vers {back.label}</PageDetailBackLink>
+        </div>
       </Callout>
     );
   }
 
   if (!fiche.data) {
     return (
-      <Card className="!py-10 text-center">
-        <p className="text-sm font-semibold text-[var(--color-ink)]">Chargement de la fiche location…</p>
-        <p className="mt-2 text-xs text-[var(--color-muted)]">Veuillez patienter.</p>
-      </Card>
+      <div className="space-y-4" role="status" aria-busy="true" aria-label="Chargement de la fiche location">
+        <span className="sr-only">Chargement de la fiche location…</span>
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+        <Skeleton className="h-10 w-full max-w-md" />
+        <Skeleton className="h-52 w-full rounded-[var(--radius-card)]" />
+      </div>
     );
   }
 

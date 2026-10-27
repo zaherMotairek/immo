@@ -506,7 +506,7 @@ html.dark .auth-shell {
 }
 
 .auth-shell__wordmark {
-  font-family: 'Syne', 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Syne', 'Roboto', ui-sans-serif, system-ui, sans-serif;
 }
 
 .auth-shell__perks {

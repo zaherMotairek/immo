@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/index';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
+import { cn } from '@/components/ui/cn';
 
 type Props = {
   className?: string;
@@ -37,27 +39,29 @@ export function InstallAppButton({ className = '', variant = 'auth' }: Props) {
     }
   }
 
-  const baseBtn =
-    variant === 'sidebar'
-      ? 'w-full justify-start gap-2 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2 text-[12px] font-medium text-[var(--color-ink)] transition hover:bg-[var(--odoo-row-hover)]'
-      : variant === 'compact'
-        ? 'inline-flex items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--color-ink)] shadow-sm transition hover:bg-[var(--odoo-row-hover)]'
-        : 'inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-input)] border border-[var(--odoo-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm font-semibold text-[var(--color-ink)] shadow-sm transition hover:bg-[var(--odoo-row-hover)]'
+  const installIcon = (
+    <svg className="size-4 shrink-0 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 
   return (
     <div className={className}>
-      <button
+      <Button
         type="button"
+        variant={variant === 'auth' ? 'secondary' : 'ghost'}
+        size={variant === 'compact' ? 'sm' : 'md'}
+        loading={busy}
+        leftIcon={installIcon}
         onClick={() => void onClick()}
-        disabled={busy}
-        className={`inline-flex items-center ${baseBtn}`}
+        className={cn(
+          variant === 'sidebar' && 'w-full justify-start',
+          variant === 'auth' && 'w-full',
+        )}
         title="Installer ImmoPilot sur cet appareil"
       >
-        <svg className="size-4 shrink-0 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-          <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
         {busy ? 'Ouverture…' : 'Installer l’application'}
-      </button>
+      </Button>
 
       {status ? (
         <p className="mt-1.5 text-[11px] leading-snug text-[var(--color-muted)]" role="status">

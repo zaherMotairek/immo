@@ -1,4 +1,4 @@
-import { Button, Card, EmptyState } from '@/components/ui/index';
+import { Button, Callout, Card, EmptyState, Skeleton } from '@/components/ui/index';
 import { useIsDesktop } from '../Payments/useIsDesktop';
 import { TenantsCardList } from './TenantsCardList';
 import { TenantsKanban } from './TenantsKanban';
@@ -12,8 +12,11 @@ type TenantsListProps = {
   filters: TenantsFilters;
   edit: TenantEdit;
   sort: TenantSort;
+  listFetched: boolean;
+  listErr: string | null;
   flashTenantId: string | null;
   onChanged: () => void;
+  onRetry: () => void;
   onRemove: (id: string) => void;
   onAddTenant: () => void;
 };
@@ -26,8 +29,11 @@ export function TenantsList({
   filters,
   edit,
   sort,
+  listFetched,
+  listErr,
   flashTenantId,
   onChanged,
+  onRetry,
   onRemove,
   onAddTenant,
 }: TenantsListProps) {
@@ -51,11 +57,30 @@ export function TenantsList({
           </p>
         </div>
 
-        {hasRows && viewMode === 'kanban' ? (
+        {!listFetched ? (
+          <div className="space-y-3 p-4" role="status" aria-busy="true" aria-label="Chargement des locataires">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-2/3" />
+          </div>
+        ) : null}
+
+        {listErr ? (
+          <div className="p-4">
+            <Callout variant="danger" title="La liste n’a pas pu être chargée">
+              <p>{listErr}</p>
+              <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
+                Réessayer
+              </Button>
+            </Callout>
+          </div>
+        ) : null}
+
+        {listFetched && !listErr && hasRows && viewMode === 'kanban' ? (
           <TenantsKanban withLease={kanbanTenants.withLease} withoutLease={kanbanTenants.withoutLease} />
         ) : null}
 
-        {total > 0 && viewMode === 'list' ? (
+        {listFetched && !listErr && total > 0 && viewMode === 'list' ? (
           isDesktop ? (
             <TenantsTable
               tenants={sortedFilteredRows}
@@ -76,7 +101,7 @@ export function TenantsList({
           )
         ) : null}
 
-        {total === 0 ? (
+        {listFetched && !listErr && total === 0 ? (
           <EmptyState
             className={emptyWrap}
             title="Aucun locataire."
@@ -84,7 +109,7 @@ export function TenantsList({
             action={<Button onClick={onAddTenant}>Ajouter un premier locataire</Button>}
           />
         ) : null}
-        {total > 0 && shown === 0 ? (
+        {listFetched && !listErr && total > 0 && shown === 0 ? (
           <EmptyState
             className={emptyWrap}
             title="Aucun résultat pour cette recherche."

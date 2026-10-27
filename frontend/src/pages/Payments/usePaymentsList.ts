@@ -29,6 +29,7 @@ export function usePaymentsList(f: PaymentsFilters) {
 
   const [rows, setRows] = useState<PaymentRow[]>([]);
   const [paymentsReady, setPaymentsReady] = useState(false);
+  const [listErr, setListErr] = useState<string | null>(null);
   const [collapsedMonthKeys, setCollapsedMonthKeys] = useState(() => new Set<string>());
   const [paySortKey, setPaySortKey] = useState<PaymentSortKey>('tenant');
   const [paySortDir, setPaySortDir] = useState<TableSortDir>('asc');
@@ -41,6 +42,7 @@ export function usePaymentsList(f: PaymentsFilters) {
 
   const load = useCallback(() => {
     /* Ne pas passer paymentsReady à false : ça déclenche des effets et peut faire « sauter » le scroll. */
+    setListErr(null);
     const q = new URLSearchParams();
     if (overdueOnly) q.set('overdue', '1');
     if (leaseIdFilter) q.set('leaseId', leaseIdFilter);
@@ -53,8 +55,14 @@ export function usePaymentsList(f: PaymentsFilters) {
     if (monthFilter !== 'all') q.set('month', String(monthFilter));
     const qs = q.toString();
     api<PaymentRow[]>(`/payments${qs ? `?${qs}` : ''}`)
-      .then(setRows)
-      .catch(() => setRows([]))
+      .then((data) => {
+        setRows(data);
+        setListErr(null);
+      })
+      .catch((e) => {
+        setRows([]);
+        setListErr(e instanceof Error ? e.message : 'Impossible de charger les échéances.');
+      })
       .finally(() => setPaymentsReady(true));
   }, [buildingIdFilter, leaseIdFilter, monthFilter, overdueOnly, tenantIdFilter, unitIdFilter, yearFilter]);
 
@@ -183,6 +191,7 @@ export function usePaymentsList(f: PaymentsFilters) {
   return {
     rows,
     paymentsReady,
+    listErr,
     visibleRows,
     stats,
     collectionTotals,

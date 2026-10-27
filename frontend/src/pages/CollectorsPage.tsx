@@ -9,6 +9,7 @@ import {
   EmptyState,
   Field,
   Input,
+  Skeleton,
   StatusBadge,
   Toolbar,
 } from '@/components/ui/index';
@@ -29,13 +30,18 @@ export function CollectorsPage() {
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   function load() {
     setErr(null);
+    setLoadErr(null);
+    setLoading(true);
     void api<CollectorRow[]>('/collectors')
       .then(setRows)
-      .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'));
+      .catch((e) => setLoadErr(e instanceof Error ? e.message : 'Erreur'))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -129,8 +135,24 @@ export function CollectorsPage() {
         </div>
       </Card>
 
+      {loadErr ? (
+        <Callout variant="danger" title="Impossible de charger les collecteurs">
+          <p>{loadErr}</p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={load}>
+            Réessayer
+          </Button>
+        </Callout>
+      ) : null}
       {err ? <Callout variant="danger">{err}</Callout> : null}
 
+      {loading ? (
+        <div className="space-y-3" role="status" aria-busy="true" aria-label="Chargement des collecteurs">
+          <Skeleton className="h-24 w-full rounded-[var(--radius-card)]" />
+          <Skeleton className="h-32 w-full rounded-[var(--radius-card)]" />
+        </div>
+      ) : null}
+
+      {!loading ? (
       <Card padding="none" className="overflow-hidden">
         <CardList ariaLabel="Collecteurs" className="rounded-none border-0 md:hidden">
           {rows.map((r) => (
@@ -217,6 +239,7 @@ export function CollectorsPage() {
           />
         </div>
       </Card>
+      ) : null}
     </div>
   );
 }

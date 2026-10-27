@@ -25,6 +25,7 @@ export function BottomSheet({ open, onClose, title, children, className }: Botto
   return createPortal(
     <div
       className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-black/45 backdrop-blur-[2px] transition-opacity duration-[var(--duration-base)] starting:opacity-0"
+      role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

@@ -1,13 +1,18 @@
-import type { ReactNode } from 'react';
-import { Cell, Pie, PieChart, Tooltip } from 'recharts';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { KpiIconAlert, KpiIconMoney, KpiIconTrendUp, KpiIconUnits } from '@/components/dashboardKpiIcons';
 import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { SmartLink } from '@/components/SmartLink';
 import { HelpHint } from '@/components/ui';
+import { Skeleton } from '@/components/ui/index';
 import { fcfa } from '@/lib/format';
+import type { CoveragePieSlice } from './CoveragePieChart';
 import type { Overview } from './types';
 
-export type CoveragePieSlice = { key: string; name: string; value: number; fill: string };
+export type { CoveragePieSlice };
+
+const CoveragePieChart = lazy(() =>
+  import('./CoveragePieChart').then((m) => ({ default: m.CoveragePieChart })),
+);
 
 type FinanceSectionProps = {
   kpis: Overview['kpis'];
@@ -172,25 +177,10 @@ export function FinanceSection({
                 </li>
               </ul>
             </div>
-            <div className="relative mx-auto h-[200px] w-[200px] shrink-0 md:mx-0">
-              <PieChart width={200} height={200}>
-                <Pie
-                  data={coveragePieData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={62}
-                  outerRadius={88}
-                  paddingAngle={coveragePieData.filter((d) => d.value > 0).length > 1 ? 2 : 0}
-                  stroke="none"
-                >
-                  {coveragePieData.map((slice) => (
-                    <Cell key={slice.key} fill={slice.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => [fcfa(Number(v)), 'Montant']} />
-              </PieChart>
+            <div className="relative mx-auto h-[200px] w-[200px] min-h-[200px] min-w-[200px] shrink-0 md:mx-0">
+              <Suspense fallback={<Skeleton className="h-full w-full rounded-full" />}>
+                <CoveragePieChart data={coveragePieData} />
+              </Suspense>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-0.5">
                 {pctOfExpected !== null ? (
                   <>

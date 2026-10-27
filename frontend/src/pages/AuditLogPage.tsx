@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { Callout, Card, DataTable, Field, Input, Select, Skeleton } from '@/components/ui/index';
+import { Button, Callout, Card, DataTable, Field, Input, Select, Skeleton } from '@/components/ui/index';
 import { getAuditLogs, type AuditLogEntry } from '@/lib/api';
 import { formatDateFr } from '@/lib/format';
 
@@ -20,7 +20,7 @@ export function AuditLogPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true);
     setErr(null);
     getAuditLogs({ action: action || undefined, entityType: entityType || undefined, limit: 200 })
@@ -28,6 +28,10 @@ export function AuditLogPage() {
       .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur de chargement'))
       .finally(() => setLoading(false));
   }, [action, entityType]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function targetLabel(r: AuditLogEntry): string {
     const tenant = (r.metadata?.tenantFullName as string | undefined)?.trim();
@@ -65,7 +69,14 @@ export function AuditLogPage() {
           </Field>
         </div>
         {loading ? <Skeleton className="h-4 w-32" /> : null}
-        {err ? <Callout variant="danger">{err}</Callout> : null}
+        {err ? (
+          <Callout variant="danger" title="Impossible de charger le journal">
+            <p>{err}</p>
+            <Button variant="secondary" size="sm" className="mt-3" onClick={load}>
+              Réessayer
+            </Button>
+          </Callout>
+        ) : null}
       </Card>
 
       <DataTable

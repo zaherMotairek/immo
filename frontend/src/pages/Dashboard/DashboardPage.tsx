@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppLoadingScreen } from '@/components/AppLoadingScreen';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { KpiIconBuilding } from '@/components/dashboardKpiIcons';
 import { LinkButton } from '@/components/LinkButton';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
-import { Button, Callout, EmptyState } from '@/components/ui/index';
+import { Button, Callout, EmptyState, Skeleton } from '@/components/ui/index';
 import { api } from '@/lib/api';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
@@ -16,14 +15,38 @@ import { UpcomingSection } from './UpcomingSection';
 import { compareUpcomingRows } from './types';
 import type { DashboardPaymentAlert, Overview, UpcomingSortKey } from './types';
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-busy="true" aria-label="Chargement du tableau de bord">
+      <span className="sr-only">Chargement du tableau de bord…</span>
+      <Skeleton className="h-8 w-56" />
+      <Skeleton className="h-40 w-full rounded-[var(--radius-card)]" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton className="h-24 rounded-[var(--radius-card)]" />
+        <Skeleton className="h-24 rounded-[var(--radius-card)]" />
+        <Skeleton className="h-24 rounded-[var(--radius-card)]" />
+        <Skeleton className="h-24 rounded-[var(--radius-card)]" />
+      </div>
+      <Skeleton className="h-60 w-full rounded-[var(--radius-card)]" />
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
+
+  const load = useCallback(() => {
+    setErr(null);
+    setData(null);
     api<Overview>('/dashboard')
       .then(setData)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const [zoomAlertPaymentId, setZoomAlertPaymentId] = useState<string | null>(null);
   const [upcomingSortKey, setUpcomingSortKey] = useState<UpcomingSortKey>('due');
@@ -86,7 +109,7 @@ export function DashboardPage() {
     return (
       <Callout variant="danger" title="Impossible de charger le tableau de bord.">
         <p>{err}</p>
-        <Button className="mt-4" onClick={() => window.location.reload()}>
+        <Button className="mt-4" onClick={load}>
           Réessayer
         </Button>
       </Callout>
@@ -94,7 +117,7 @@ export function DashboardPage() {
   }
 
   if (!data) {
-    return <AppLoadingScreen message="Chargement du tableau de bord…" />;
+    return <DashboardSkeleton />;
   }
 
   const { kpis, alerts } = data;
@@ -188,7 +211,10 @@ export function DashboardPage() {
         onClose={() => setZoomAlertPaymentId(null)}
         onUpdated={() => {
           void api<Overview>('/dashboard')
-            .then(setData)
+            .then((d) => {
+              setErr(null);
+              setData(d);
+            })
             .catch((e) => setErr(e instanceof Error ? e.message : 'Erreur'));
         }}
       />

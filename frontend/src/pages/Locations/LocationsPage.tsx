@@ -35,8 +35,11 @@ export function LocationsPage() {
           dir: filters.tableSortDir,
           onSort: filters.toggleTableSort,
         }}
+        listFetched={data.listFetched}
+        listErr={data.listErr}
         flashLeaseId={data.flashLeaseId}
         locationSheetState={locationSheetState}
+        onRetry={data.load}
         onOpen={(leaseId) => navigate(`/locations/${leaseId}`, { state: locationSheetState })}
         onDelete={(r) => void data.requestDeleteLocation(r)}
       />

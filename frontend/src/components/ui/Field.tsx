@@ -59,7 +59,7 @@ export function Label({
     <label
       htmlFor={htmlFor}
       className={cn(
-        'mb-1.5 block text-[13px] font-semibold leading-tight tracking-normal text-slate-700 dark:text-slate-300',
+        'mb-1.5 block text-[13px] font-semibold leading-tight tracking-normal text-[var(--color-ink)] dark:text-zinc-200',
         className,
       )}
     >

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PaymentPartialDialog } from '@/components/PaymentPartialDialog';
 import { PaymentZoomModal } from '@/components/PaymentZoomModal';
-import { EmptyState } from '@/components/ui/index';
+import { Button, Callout, EmptyState, Skeleton } from '@/components/ui/index';
 import { usePartialPayment } from '@/components/usePartialPayment';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { PaymentsBulkBar } from './PaymentsBulkBar';
@@ -67,12 +67,28 @@ export function PaymentsPage() {
 
       <PaymentsFilters f={filters} leaseFocusSummary={list.leaseFocusSummary} />
 
-      {list.visibleRows.length > 0 ? (
+      {list.listErr ? (
+        <Callout variant="danger" title="Les échéances n’ont pas pu être chargées">
+          <p>{list.listErr}</p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={list.load}>
+            Réessayer
+          </Button>
+        </Callout>
+      ) : null}
+
+      {!list.paymentsReady && !list.listErr ? (
+        <div className="space-y-3" role="status" aria-busy="true" aria-label="Chargement des échéances">
+          <Skeleton className="h-24 w-full rounded-[var(--radius-card)]" />
+          <Skeleton className="h-40 w-full rounded-[var(--radius-card)]" />
+        </div>
+      ) : null}
+
+      {!list.listErr && list.visibleRows.length > 0 ? (
         <PaymentsSummary stats={list.stats} monthCount={list.monthGroups.length} collectionTotals={list.collectionTotals} />
       ) : null}
 
       <div className="space-y-5">
-        {selection.selectedPaymentIds.length > 0 ? (
+        {!list.listErr && selection.selectedPaymentIds.length > 0 ? (
           <PaymentsBulkBar
             selectedCount={selection.selectedPaymentIds.length}
             payableCount={selection.selectableCount}
@@ -81,7 +97,7 @@ export function PaymentsPage() {
             onClear={selection.clearSelection}
           />
         ) : null}
-        {list.monthGroups.length > 0 ? (
+        {!list.listErr && list.monthGroups.length > 0 ? (
           <PaymentsMonthList
             monthGroups={list.monthGroups}
             totalRows={list.rows.length}
@@ -109,7 +125,7 @@ export function PaymentsPage() {
         }}
       />
 
-      {list.visibleRows.length === 0 ? (
+      {list.paymentsReady && !list.listErr && list.visibleRows.length === 0 ? (
         <EmptyState
           title="Aucune échéance pour ce filtre"
           description="Essayez une autre année, un autre mois, ou « Toutes les années » / « Tous les mois »."

@@ -13,7 +13,11 @@ const barClass = 'animate-pulse rounded-[var(--radius-control)] bg-[var(--odoo-b
 /** Placeholder de chargement. */
 export function Skeleton({ className, lines, label = 'Chargement…' }: SkeletonProps) {
   if (!lines || lines < 1) {
-    return <div aria-hidden className={cn('h-4 w-full', barClass, className)} />;
+    return (
+      <div role="status" className={cn('h-4 w-full', barClass, className)}>
+        <span className="sr-only">{label}</span>
+      </div>
+    );
   }
   return (
     <div role="status" className={cn('grid gap-2', className)}>

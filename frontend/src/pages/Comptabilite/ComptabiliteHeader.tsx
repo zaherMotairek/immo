@@ -1,5 +1,5 @@
 import { AppPageTitle } from '@/components/AppPageTitle';
-import { Button, Callout, Card, Field, Select } from '@/components/ui/index';
+import { Button, Callout, Card, Field, Select, Skeleton } from '@/components/ui/index';
 import type { UiSelectOption } from '@/components/ui/index';
 import { downloadReport } from '@/lib/api';
 
@@ -9,10 +9,11 @@ type ComptabiliteHeaderProps = {
   loading: boolean;
   err: string | null;
   onYearChange: (y: number) => void;
+  onRetry: () => void;
 };
 
 /** Titre, filtre année et boutons d'export Excel / PDF. */
-export function ComptabiliteHeader({ year, yearChoices, loading, err, onYearChange }: ComptabiliteHeaderProps) {
+export function ComptabiliteHeader({ year, yearChoices, loading, err, onYearChange, onRetry }: ComptabiliteHeaderProps) {
   const yearOptions: UiSelectOption[] = yearChoices.map((y) => ({ id: String(y), label: String(y) }));
 
   return (
@@ -41,8 +42,20 @@ export function ComptabiliteHeader({ year, yearChoices, loading, err, onYearChan
             Export PDF synthèse
           </Button>
         </div>
-        {loading ? <p className="text-sm text-[var(--color-muted)]">Chargement…</p> : null}
-        {err ? <Callout variant="danger">{err}</Callout> : null}
+        {loading ? (
+          <div className="space-y-2" role="status" aria-busy="true" aria-label="Chargement comptable">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        ) : null}
+        {err ? (
+          <Callout variant="danger" title="Impossible de charger la synthèse comptable">
+            <p>{err}</p>
+            <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
+              Réessayer
+            </Button>
+          </Callout>
+        ) : null}
       </Card>
     </>
   );

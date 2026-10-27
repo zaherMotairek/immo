@@ -28,6 +28,7 @@ export function BuildingsPage() {
       <BuildingsList
         rows={data.rows}
         filters={filters}
+        listFetched={data.listFetched}
         listErr={data.listErr}
         flashBuildingId={data.flashBuildingId}
         onRetry={data.load}

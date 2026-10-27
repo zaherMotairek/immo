@@ -44,6 +44,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', clo
   return createPortal(
     <div
       className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px] transition-opacity duration-[var(--duration-base)] starting:opacity-0"
+      role="presentation"
       onMouseDown={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) onClose();
       }}

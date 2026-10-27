@@ -1,4 +1,4 @@
-import { Button, Callout, Card, EmptyState } from '@/components/ui/index';
+import { Button, Callout, Card, EmptyState, Skeleton } from '@/components/ui/index';
 import { useIsDesktop } from '../Payments/useIsDesktop';
 import { BuildingsCardList } from './BuildingsCardList';
 import { BuildingsKanban } from './BuildingsKanban';
@@ -9,6 +9,7 @@ import type { BuildingsFilters } from './useBuildingsFilters';
 type BuildingsListProps = {
   rows: BuildingRow[];
   filters: BuildingsFilters;
+  listFetched: boolean;
   listErr: string | null;
   flashBuildingId: string | null;
   onRetry: () => void;
@@ -22,6 +23,7 @@ const emptyWrap = 'rounded-none border-0 border-t border-solid';
 export function BuildingsList({
   rows,
   filters,
+  listFetched,
   listErr,
   flashBuildingId,
   onRetry,
@@ -39,7 +41,9 @@ export function BuildingsList({
         <h2 className="text-base font-semibold tracking-tight text-[var(--color-ink)]">
           {viewMode === 'kanban' ? 'Kanban patrimoine' : 'Liste des biens'}
         </h2>
-        {total > 0 ? (
+        {!listFetched ? (
+          <p className="mt-0.5 text-xs text-[var(--color-muted)]">Chargement…</p>
+        ) : total > 0 ? (
           <p className="mt-0.5 text-xs text-[var(--color-muted)]">
             {searching ? (
               <>
@@ -63,6 +67,14 @@ export function BuildingsList({
         )}
       </div>
 
+      {!listFetched && !listErr ? (
+        <div className="space-y-3 p-4" role="status" aria-busy="true" aria-label="Chargement des biens">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-2/3" />
+        </div>
+      ) : null}
+
       {listErr ? (
         <div className="p-4">
           <Callout variant="danger" title="La liste n’a pas pu être chargée">
@@ -82,9 +94,11 @@ export function BuildingsList({
         </div>
       ) : null}
 
-      {filteredRows.length > 0 && viewMode === 'kanban' ? <BuildingsKanban columns={filters.kanbanColumns} /> : null}
+      {listFetched && filteredRows.length > 0 && viewMode === 'kanban' ? (
+        <BuildingsKanban columns={filters.kanbanColumns} />
+      ) : null}
 
-      {filteredRows.length > 0 && viewMode === 'list' ? (
+      {listFetched && filteredRows.length > 0 && viewMode === 'list' ? (
         isDesktop ? (
           <BuildingsTable rows={filteredRows} flashBuildingId={flashBuildingId} onDelete={onDelete} />
         ) : (
@@ -92,7 +106,7 @@ export function BuildingsList({
         )
       ) : null}
 
-      {total > 0 && filteredRows.length === 0 && searching && !listErr ? (
+      {listFetched && total > 0 && filteredRows.length === 0 && searching && !listErr ? (
         <EmptyState
           className={emptyWrap}
           title={`Aucun bien ne correspond à « ${listSearch.trim()} ».`}
@@ -104,7 +118,7 @@ export function BuildingsList({
         />
       ) : null}
 
-      {total === 0 && !listErr ? (
+      {listFetched && total === 0 && !listErr ? (
         genreFilter ? (
           <EmptyState
             className={emptyWrap}

@@ -1,6 +1,6 @@
 import { SmartLink } from '@/components/SmartLink';
 import { HelpHint } from '@/components/ui';
-import { Button, Card, EmptyState, Field } from '@/components/ui/index';
+import { Button, Callout, Card, EmptyState, Field, Skeleton } from '@/components/ui/index';
 import type { AppNavigateState } from '@/lib/navigation';
 import type { TableSortDir } from '@/lib/tableSort';
 import { LocationsCardList } from './LocationsCardList';
@@ -15,8 +15,11 @@ type LocationsListProps = {
   listSearch: string;
   onSearchChange: (next: string) => void;
   sort: { key: LocationSortKey; dir: TableSortDir; onSort: (key: LocationSortKey) => void };
+  listFetched: boolean;
+  listErr: string | null;
   flashLeaseId: string | null;
   locationSheetState: AppNavigateState;
+  onRetry: () => void;
   onOpen: (leaseId: string) => void;
   onDelete: (r: OverviewRow) => void;
 };
@@ -31,11 +34,35 @@ export function LocationsList({
   listSearch,
   onSearchChange,
   sort,
+  listFetched,
+  listErr,
   flashLeaseId,
   locationSheetState,
+  onRetry,
   onOpen,
   onDelete,
 }: LocationsListProps) {
+  if (!listFetched) {
+    return (
+      <Card className="space-y-3" role="status" aria-busy="true" aria-label="Chargement des locations">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-10 w-full max-w-md" />
+        <Skeleton className="h-48 w-full rounded-[var(--radius-card)]" />
+      </Card>
+    );
+  }
+
+  if (listErr) {
+    return (
+      <Callout variant="danger" title="La liste n’a pas pu être chargée">
+        <p>{listErr}</p>
+        <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
+          Réessayer
+        </Button>
+      </Callout>
+    );
+  }
+
   return (
     <>
       {rows.length > 0 ? (

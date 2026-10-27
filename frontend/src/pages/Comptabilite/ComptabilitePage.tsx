@@ -18,6 +18,7 @@ export function ComptabilitePage() {
         loading={c.loading}
         err={c.err}
         onYearChange={c.setYear}
+        onRetry={c.reload}
       />
 
       {c.data ? (

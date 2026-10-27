@@ -48,8 +48,11 @@ export function TenantsPage() {
         filters={filters}
         edit={edit}
         sort={filters.sort}
+        listFetched={data.listFetched}
+        listErr={data.listErr}
         flashTenantId={data.flashTenantId}
         onChanged={data.load}
+        onRetry={data.load}
         onRemove={(id) => void data.removeTenant(id)}
         onAddTenant={newTenant.openAddTenantForm}
       />
