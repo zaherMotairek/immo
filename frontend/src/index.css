@@ -158,11 +158,12 @@ main a:focus-visible {
   border-radius: 0.125rem;
 }
 
-/* Panneau détail paiement : respect du mouvement réduit */
+/* Fenêtres détail (zoom) : respect du mouvement réduit */
 @media (prefers-reduced-motion: reduce) {
   .payment-detail-sheet {
     transition-duration: 0.01ms !important;
-    transform: translate3d(0, 0, 0) !important;
+    transform: none !important;
+    opacity: 1 !important;
   }
   .payment-detail-backdrop {
     transition-duration: 0.01ms !important;

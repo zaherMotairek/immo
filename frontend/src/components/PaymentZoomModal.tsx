@@ -19,7 +19,7 @@ export type PaymentZoomModalProps = {
   onUpdated?: () => void;
 };
 
-/** Durée alignée sur les classes Tailwind du panneau et du backdrop (slide + fondu). */
+/** Durée alignée sur les classes Tailwind (zoom scale + fondu). */
 const SHEET_TRANSITION_MS = 480;
 
 const EMPTY_DRAFTS: ZoomDrafts = { method: '', reference: '', collectorId: '', note: '' };
@@ -99,7 +99,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
     }, SHEET_TRANSITION_MS);
   }, [onClose]);
 
-  /** Entrée : une frame hors écran puis slide-in (effet « sheet » type Shadcn). */
+  /** Entrée : une frame en scale réduit puis zoom vers 100 %. */
   useEffect(() => {
     if (!paymentId) return;
     setSheetEntered(false);
@@ -218,7 +218,7 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
   return (
     <>
       <div
-        className="fixed inset-0 z-[95]"
+        className="fixed inset-0 z-[95] flex items-center justify-center p-3 sm:px-4 sm:py-5 lg:px-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-zoom-modal-title"
@@ -226,15 +226,15 @@ export function PaymentZoomModal({ paymentId, onClose, onUpdated }: PaymentZoomM
       >
         <button
           type="button"
-          className={`payment-detail-backdrop absolute inset-0 bg-black/45 backdrop-blur-[1px] transition-opacity duration-[480ms] ease-out ${
+          className={`payment-detail-backdrop absolute inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity duration-[480ms] ease-out ${
             sheetEntered ? 'opacity-100' : 'opacity-0'
           }`}
-          aria-label="Fermer le panneau de détail"
+          aria-label="Fermer le détail du paiement"
           onClick={closeAnimated}
         />
         <div
-          className={`payment-detail-sheet absolute inset-x-0 bottom-0 z-10 flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:max-w-lg sm:rounded-none sm:border-l sm:border-t-0 sm:shadow-[-8px_0_40px_-12px_rgba(0,0,0,0.25)] ${
-            sheetEntered ? 'translate-y-0 sm:translate-x-0' : 'translate-y-full sm:translate-y-0 sm:translate-x-full'
+          className={`payment-detail-sheet relative z-10 flex max-h-[min(94dvh,48rem)] w-full max-w-lg flex-col overflow-hidden rounded-[var(--radius-sheet)] border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] shadow-[var(--shadow-lift)] transition-[transform,opacity] duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl ${
+            sheetEntered ? 'scale-100 opacity-100' : 'scale-[0.92] opacity-0'
           }`}
         >
           <OdooSheetHeader

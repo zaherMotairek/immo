@@ -11,8 +11,8 @@ type Props = {
 };
 
 /**
- * Coquille panneau droit pour la fiche location (même animation que le détail paiement).
- * Conservée en panneau latéral (BottomSheet kit = feuille basse mobile — comportement différent).
+ * Fenêtre centrée pour la fiche location (zoom scale + fond assombri).
+ * Remplace l’ancien panneau qui glissait depuis la droite.
  */
 export function LocationFicheSheet({ children }: Props) {
   const navigate = useNavigate();
@@ -54,7 +54,7 @@ export function LocationFicheSheet({ children }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[78] flex justify-end"
+      className="fixed inset-0 z-[78] flex items-center justify-center p-3 sm:px-4 sm:py-5 lg:px-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="location-fiche-sheet-title"
@@ -62,22 +62,22 @@ export function LocationFicheSheet({ children }: Props) {
     >
       <button
         type="button"
-        className={`payment-detail-backdrop absolute inset-0 bg-black/45 backdrop-blur-[1px] transition-opacity duration-[480ms] ease-out ${
+        className={`payment-detail-backdrop absolute inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity duration-[480ms] ease-out ${
           sheetEntered ? 'opacity-100' : 'opacity-0'
         }`}
         aria-label="Fermer la fiche location"
         onClick={closeAnimated}
       />
       <div
-        className={`payment-detail-sheet absolute inset-y-0 right-0 z-10 flex w-full max-w-3xl flex-col border-l border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] shadow-[var(--shadow-lift)] transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 ${
-          sheetEntered ? 'translate-x-0' : 'translate-x-full'
+        className={`payment-detail-sheet relative z-10 flex max-h-[min(94dvh,58rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--radius-sheet)] border border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] shadow-[var(--shadow-lift)] transition-[transform,opacity] duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-zinc-700 dark:bg-zinc-950 sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl ${
+          sheetEntered ? 'scale-100 opacity-100' : 'scale-[0.92] opacity-0'
         }`}
       >
         <OdooSheetHeader
           kicker="Fiche location"
           titleId="location-fiche-sheet-title"
           title="Détail du bail"
-          subtitle="Vue panneau latéral"
+          subtitle="Fenêtre sur la page"
           onClose={closeAnimated}
         />
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
