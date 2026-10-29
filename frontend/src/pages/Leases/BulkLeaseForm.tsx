@@ -102,6 +102,18 @@ export function BulkLeaseForm({ bulk, tenants, onOpenQuickTenant, onCancel }: Bu
 
       {bulk.buildingId ? (
         <div className="flex flex-wrap items-center gap-2">
+          {bulk.contactsSupported ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={bulk.busy || bulk.contactsBusy}
+              loading={bulk.contactsBusy}
+              onClick={() => void bulk.importFromPhoneContacts()}
+            >
+              Depuis les contacts…
+            </Button>
+          ) : null}
           <Button type="button" variant="secondary" size="sm" onClick={() => bulk.applyDefaultsToSelected()}>
             Appliquer date / loyer aux lots cochés
           </Button>
@@ -113,6 +125,7 @@ export function BulkLeaseForm({ bulk, tenants, onOpenQuickTenant, onCancel }: Bu
           </Button>
           <span className="text-xs text-[var(--color-muted)]">
             {selectedCount} lot{selectedCount !== 1 ? 's' : ''} sélectionné{selectedCount !== 1 ? 's' : ''}
+            {bulk.contactsSupported ? ' · Android Chrome : multi-contacts' : ''}
           </span>
         </div>
       ) : null}

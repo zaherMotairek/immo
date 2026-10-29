@@ -15,6 +15,19 @@ export function QuickTenantModal({ q }: { q: QuickTenant }) {
       titleId="quick-tenant-title"
     >
       <form id="quick-tenant-form" onSubmit={(e) => void q.createQuickTenant(e)} className="grid gap-4 sm:grid-cols-2">
+        {q.contactsSupported ? (
+          <div className="sm:col-span-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={q.quickTenantBusy}
+              onClick={() => void q.fillFromPhoneContact()}
+            >
+              Choisir dans les contacts…
+            </Button>
+          </div>
+        ) : null}
         <Field label="Nom complet" htmlFor="quick-tenant-name" className="sm:col-span-2">
           <Input
             id="quick-tenant-name"

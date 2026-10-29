@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { isMultiLotStructure } from '@/lib/buildingStructure';
 import { api } from '@/lib/api';
-import type { BuildingOpt, BulkLeaseRow } from './types';
+import { isContactPickerSupported, pickDeviceContacts } from '@/lib/contactPicker';
+import { splitFullName } from './leaseUtils';
+import type { BuildingOpt, BulkLeaseRow, TenantOpt } from './types';
 
 type Options = {
   buildings: BuildingOpt[];
   activeLeaseUnitIds: Set<string>;
   buildingsAvailableForNewLease: BuildingOpt[];
+  tenants: TenantOpt[];
+  setTenants: Dispatch<SetStateAction<TenantOpt[]>>;
   load: () => void;
   /** Ferme le zoom parent après succès. */
   onSuccessClose: () => void;
@@ -51,6 +56,8 @@ export function useBulkLeaseForm({
   buildings,
   activeLeaseUnitIds,
   buildingsAvailableForNewLease,
+  tenants,
+  setTenants,
   load,
   onSuccessClose,
 }: Options) {
@@ -61,8 +68,10 @@ export function useBulkLeaseForm({
   const [rows, setRows] = useState<BulkLeaseRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [contactsBusy, setContactsBusy] = useState(false);
   /** Ligne qui recevra le locataire créé via « Nouveau locataire rapide ». */
   const [pendingTenantUnitId, setPendingTenantUnitId] = useState<string | null>(null);
+  const contactsSupported = isContactPickerSupported();
 
   const multiLotBuildings = useMemo(
     () =>
@@ -113,7 +122,81 @@ export function useBulkLeaseForm({
     setRows([]);
     setErr(null);
     setBusy(false);
+    setContactsBusy(false);
     setPendingTenantUnitId(null);
+  }
+
+  /**
+   * Ouvre le carnet du téléphone (multi), crée les locataires (nom + n°)
+   * et les affecte aux lots cochés encore sans locataire.
+   */
+  async function importFromPhoneContacts() {
+    setErr(null);
+    if (!contactsSupported) {
+      setErr('La sélection de contacts n’est pas disponible ici (essayez Chrome sur Android).');
+      return;
+    }
+    const targets = rows.filter((r) => r.selected && !r.tenantId);
+    if (targets.length === 0) {
+      setErr('Cochez des lots encore sans locataire, puis réessayez.');
+      return;
+    }
+    setContactsBusy(true);
+    try {
+      const contacts = await pickDeviceContacts({ multiple: true });
+      if (!contacts?.length) return;
+
+      const toUse = contacts.slice(0, targets.length);
+      const assignments: Array<{ unitId: string; tenantId: string }> = [];
+      const created: TenantOpt[] = [];
+
+      for (let i = 0; i < toUse.length; i += 1) {
+        const c = toUse[i];
+        const { firstName, lastName } = splitFullName(c.name);
+        if (!firstName.trim()) continue;
+        const tenant = await api<TenantOpt>('/tenants', {
+          method: 'POST',
+          json: {
+            firstName,
+            lastName: lastName.trim() || '-',
+            phone: c.tel,
+            ...(c.email && c.email.includes('@') ? { email: c.email } : {}),
+          },
+        });
+        created.push(tenant);
+        assignments.push({ unitId: targets[i].unitId, tenantId: tenant.id });
+      }
+
+      if (created.length === 0) {
+        setErr('Aucun contact utilisable (nom manquant).');
+        return;
+      }
+
+      setTenants(
+        [...tenants, ...created].sort((a, b) =>
+          `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'fr', {
+            sensitivity: 'base',
+          }),
+        ),
+      );
+      setRows((prev) =>
+        prev.map((r) => {
+          const a = assignments.find((x) => x.unitId === r.unitId);
+          return a ? { ...r, tenantId: a.tenantId } : r;
+        }),
+      );
+
+      const leftover = contacts.length - created.length;
+      if (leftover > 0) {
+        setErr(
+          `${created.length} locataire(s) importé(s). ${leftover} contact(s) non placé(s) : pas assez de lots cochés libres.`,
+        );
+      }
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : 'Import contacts impossible.');
+    } finally {
+      setContactsBusy(false);
+    }
   }
 
   function updateRow(unitId: string, patch: Partial<BulkLeaseRow>) {
@@ -232,6 +315,8 @@ export function useBulkLeaseForm({
     rows,
     err,
     busy,
+    contactsBusy,
+    contactsSupported,
     pendingTenantUnitId,
     selectedBuilding,
     resetBulk,
@@ -241,6 +326,7 @@ export function useBulkLeaseForm({
     assignTenantToPendingOrIgnore,
     clearPendingTenant,
     openQuickTenantForRow,
+    importFromPhoneContacts,
     createBulk,
   };
 }

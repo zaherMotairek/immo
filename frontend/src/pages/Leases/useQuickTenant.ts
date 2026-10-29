@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { api } from '@/lib/api';
+import { isContactPickerSupported, pickDeviceContacts } from '@/lib/contactPicker';
 import { splitFullName } from './leaseUtils';
 import type { TenantOpt } from './types';
 
@@ -19,6 +20,8 @@ export function useQuickTenant({ tenants, setTenants, setTenantId }: Options) {
   const [quickTenantBusy, setQuickTenantBusy] = useState(false);
   const [quickTenantErr, setQuickTenantErr] = useState<string | null>(null);
 
+  const contactsSupported = isContactPickerSupported();
+
   function openQuickTenant() {
     setQuickTenantErr(null);
     setQuickTenantOpen(true);
@@ -29,6 +32,22 @@ export function useQuickTenant({ tenants, setTenants, setTenantId }: Options) {
     if (quickTenantBusy) return;
     setQuickTenantOpen(false);
     setQuickTenantErr(null);
+  }
+
+  /** Remplit nom / téléphone / e-mail depuis un contact du téléphone. */
+  async function fillFromPhoneContact() {
+    setQuickTenantErr(null);
+    if (!contactsSupported || quickTenantBusy) return;
+    try {
+      const contacts = await pickDeviceContacts({ multiple: false });
+      const c = contacts?.[0];
+      if (!c) return;
+      setQuickTenantName(c.name);
+      if (c.tel) setQuickTenantPhone(c.tel);
+      if (c.email) setQuickTenantEmail(c.email);
+    } catch (e2) {
+      setQuickTenantErr(e2 instanceof Error ? e2.message : 'Contact inaccessible.');
+    }
   }
 
   async function createQuickTenant(e: FormEvent) {
@@ -78,8 +97,10 @@ export function useQuickTenant({ tenants, setTenants, setTenantId }: Options) {
     setQuickTenantEmail,
     quickTenantBusy,
     quickTenantErr,
+    contactsSupported,
     openQuickTenant,
     closeQuickTenant,
+    fillFromPhoneContact,
     createQuickTenant,
   };
 }

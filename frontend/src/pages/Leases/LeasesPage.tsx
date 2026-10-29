@@ -43,6 +43,8 @@ export function LeasesPage() {
     buildings: data.buildings,
     activeLeaseUnitIds: data.activeLeaseUnitIds,
     buildingsAvailableForNewLease: data.buildingsAvailableForNewLease,
+    tenants: data.tenants,
+    setTenants: data.setTenants,
     load: data.load,
     onSuccessClose: () => {
       form.setCreateMode('single');
