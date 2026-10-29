@@ -241,6 +241,7 @@ export function useNewLeaseForm({ buildings, leases, activeLeaseUnitIds, buildin
     depositMonthsPreset,
     setDepositMonthsPreset,
     err,
+    setErr,
     addLeaseOpen,
     setAddLeaseOpen,
     createMode,
