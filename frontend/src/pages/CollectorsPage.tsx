@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AddZoomModal } from '@/components/AddZoomModal';
 import { AppPageTitle, PageHeaderKpi } from '@/components/AppPageTitle';
 import {
   Button,
@@ -33,6 +34,7 @@ export function CollectorsPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   function load() {
     setErr(null);
@@ -59,12 +61,21 @@ export function CollectorsPage() {
       setName('');
       setPhone('');
       setNotes('');
+      setAddOpen(false);
       load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Création impossible');
     } finally {
       setSaving(false);
     }
+  }
+
+  function cancelAdd() {
+    setName('');
+    setPhone('');
+    setNotes('');
+    setErr(null);
+    setAddOpen(false);
   }
 
   async function toggleActive(r: CollectorRow) {
@@ -86,7 +97,14 @@ export function CollectorsPage() {
         title="Collecteurs de loyers"
         hintTitle="Assigner un collecteur sur un paiement depuis le panneau de droite."
         subtitle="Agents de terrain chargés de récupérer les loyers."
-        actions={<PageHeaderKpi label="Total" value={String(rows.length)} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <PageHeaderKpi label="Total" value={String(rows.length)} />
+            <Button type="button" onClick={() => setAddOpen(true)}>
+              Ajouter un collecteur
+            </Button>
+          </div>
+        }
       />
 
       <Toolbar
@@ -100,8 +118,15 @@ export function CollectorsPage() {
         }
       />
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-ink)]">Nouveau collecteur</h2>
+      <AddZoomModal
+        open={addOpen}
+        onClose={cancelAdd}
+        kicker="Ajouter"
+        title="Nouveau collecteur"
+        subtitle="Agent de terrain pour les loyers"
+        size="md"
+        titleId="nouveau-collecteur-title"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nom" htmlFor="collector-name" required>
             <Input
@@ -109,6 +134,7 @@ export function CollectorsPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex. Kouamé Yao"
+              autoFocus
             />
           </Field>
           <Field label="Téléphone" htmlFor="collector-phone" required>
@@ -128,12 +154,15 @@ export function CollectorsPage() {
             />
           </Field>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap gap-2">
           <Button disabled={saving || !name.trim() || !phone.trim()} onClick={() => void createCollector()}>
             {saving ? 'Création…' : 'Ajouter collecteur'}
           </Button>
+          <Button type="button" variant="secondary" onClick={cancelAdd}>
+            Annuler
+          </Button>
         </div>
-      </Card>
+      </AddZoomModal>
 
       {loadErr ? (
         <Callout variant="danger" title="Impossible de charger les collecteurs">

@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/index';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { periodLabel } from './chargeUtils';
 import { ChargesList } from './ChargesList';
@@ -51,6 +52,11 @@ export function ChargesPage({ embedded = false }: { embedded?: boolean }) {
 
       {data.summary ? <ChargesSummary summary={data.summary} periodeLibelle={periodeLibelle} /> : null}
 
+      <div>
+        <Button type="button" onClick={form.openAdd}>
+          Ajouter une charge
+        </Button>
+      </div>
       <NewChargeCard form={form} buildings={data.buildings} />
 
       <ChargesList

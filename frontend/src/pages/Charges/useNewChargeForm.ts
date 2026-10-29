@@ -21,6 +21,7 @@ export function useNewChargeForm({ y, viewMonth, buildings, onCreated }: Options
   const [notes, setNotes] = useState('');
   const [paidOnCreate, setPaidOnCreate] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
     if (viewMonth !== 'all') setPeriodMonth(String(viewMonth));
@@ -46,6 +47,15 @@ export function useNewChargeForm({ y, viewMonth, buildings, onCreated }: Options
     setPeriodMonth(viewMonth === 'all' ? '' : String(viewMonth));
   }
 
+  function openAdd() {
+    setAddOpen(true);
+  }
+
+  function cancelAdd() {
+    reset();
+    setAddOpen(false);
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -64,10 +74,8 @@ export function useNewChargeForm({ y, viewMonth, buildings, onCreated }: Options
           paid: paidOnCreate,
         },
       });
-      setLabel('');
-      setAmount('');
-      setNotes('');
-      setPaidOnCreate(false);
+      reset();
+      setAddOpen(false);
       onCreated();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
@@ -93,6 +101,9 @@ export function useNewChargeForm({ y, viewMonth, buildings, onCreated }: Options
     paidOnCreate,
     setPaidOnCreate,
     err,
+    addOpen,
+    openAdd,
+    cancelAdd,
     reset,
     submit,
   };

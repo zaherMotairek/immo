@@ -15,6 +15,7 @@ export function useAdminClients() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const [editOrg, setEditOrg] = useState<AdminOrgRow | null>(null);
   const [editPaidUntil, setEditPaidUntil] = useState('');
@@ -181,12 +182,29 @@ export function useAdminClients() {
       setEmail('');
       setPassword('');
       setOwnerName('');
+      setCreateOpen(false);
       await loadOrganizations();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Création impossible');
     } finally {
       setSaving(false);
     }
+  }
+
+  function openCreate() {
+    setErr(null);
+    setOk(null);
+    setCreateOpen(true);
+  }
+
+  function cancelCreate() {
+    setOrganizationName('');
+    setEmail('');
+    setPassword('');
+    setOwnerName('');
+    setErr(null);
+    setOk(null);
+    setCreateOpen(false);
   }
 
   return {
@@ -204,6 +222,9 @@ export function useAdminClients() {
     saving,
     err,
     ok,
+    createOpen,
+    openCreate,
+    cancelCreate,
     editOrg,
     editPaidUntil,
     setEditPaidUntil,

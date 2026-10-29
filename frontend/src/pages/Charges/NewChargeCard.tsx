@@ -1,5 +1,6 @@
+import { AddZoomModal } from '@/components/AddZoomModal';
 import { HelpHint } from '@/components/ui';
-import { Button, Callout, Card, Checkbox, Field, Input, Label, MoneyInput, Select, Textarea } from '@/components/ui/index';
+import { Button, Callout, Checkbox, Field, Input, Label, MoneyInput, Select, Textarea } from '@/components/ui/index';
 import type { UiSelectOption } from '@/components/ui/index';
 import { chargeCategoryOptions } from '@/lib/chargeCategories';
 import { INPUT_AMOUNT_FCFA_LABEL } from '@/lib/format';
@@ -15,18 +16,25 @@ const MONTH_OPTIONS: UiSelectOption[] = Array.from({ length: 12 }, (_, i) => i +
   label: `${capitalize(MOIS_LONGS[m - 1])} (${m})`,
 }));
 
-/** Carte « Nouvelle charge » : bien, unité, catégorie, imputation, libellé, montant, notes. */
+/** Fenêtre zoom « Nouvelle charge ». */
 export function NewChargeCard({ form, buildings }: { form: NewChargeForm; buildings: BuildingOpt[] }) {
   const buildingOptions: UiSelectOption[] = buildings.map((b) => ({ id: b.id, label: b.name }));
   const unitOptions: UiSelectOption[] = form.units.map((u) => ({ id: u.id, label: `${unitKindLabel(u.kind)} — ${u.label}` }));
 
   return (
-    <Card>
+    <AddZoomModal
+      open={form.addOpen}
+      onClose={form.cancelAdd}
+      kicker="Ajouter"
+      title="Nouvelle charge"
+      subtitle="Dépense liée à un bien"
+      size="lg"
+      titleId="nouvelle-charge-title"
+    >
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold text-[var(--color-ink)]">Nouvelle charge</h2>
         <HelpHint
           className="align-middle"
-          title="Cochez « Déjà réglée » si vous enregistrez la charge au moment du paiement. Sinon, ajoutez-la puis, dans la liste ci-dessous, utilisez « Marquer comme payé »."
+          title="Cochez « Déjà réglée » si vous enregistrez la charge au moment du paiement. Sinon, ajoutez-la puis, dans la liste, utilisez « Marquer comme payé »."
         />
       </div>
       <form onSubmit={form.submit} className="grid gap-4 sm:grid-cols-2">
@@ -59,7 +67,7 @@ export function NewChargeCard({ form, buildings }: { form: NewChargeForm; buildi
             </Label>
             <HelpHint
               className="align-middle"
-              title="S’aligne sur le mois affiché en haut de page. « Année entière » pour une taxe ou charge unique sur tout l’exercice — visible surtout en vue « Toute l’année »."
+              title="S’aligne sur le mois affiché en haut de page. « Année entière » pour une taxe ou charge unique sur tout l’exercice."
             />
           </div>
           <Select
@@ -88,7 +96,7 @@ export function NewChargeCard({ form, buildings }: { form: NewChargeForm; buildi
           checked={form.paidOnCreate}
           onChange={(e) => form.setPaidOnCreate(e.target.checked)}
           label="Déjà réglée (payée)"
-          description="À cocher si vous avez déjà payé cette dépense (salaire, facture…). Sinon la ligne apparaîtra comme « À payer » jusqu’à ce que vous la marquiez dans la liste."
+          description="À cocher si vous avez déjà payé cette dépense."
         />
         <Field label="Notes (optionnel)" htmlFor="charge-notes" className="sm:col-span-2">
           <Textarea
@@ -97,7 +105,7 @@ export function NewChargeCard({ form, buildings }: { form: NewChargeForm; buildi
             onChange={(e) => form.setNotes(e.target.value)}
             maxLength={2000}
             rows={3}
-            placeholder="Réf. contrat, N° de facture, nom du salarié ou du prestataire, période couverte…"
+            placeholder="Réf. contrat, N° de facture…"
           />
         </Field>
         {form.err ? (
@@ -107,11 +115,11 @@ export function NewChargeCard({ form, buildings }: { form: NewChargeForm; buildi
         ) : null}
         <div className="flex flex-wrap gap-2 sm:col-span-2">
           <Button type="submit">Ajouter</Button>
-          <Button type="button" variant="secondary" onClick={form.reset}>
+          <Button type="button" variant="secondary" onClick={form.cancelAdd}>
             Annuler
           </Button>
         </div>
       </form>
-    </Card>
+    </AddZoomModal>
   );
 }

@@ -5,6 +5,15 @@ import { COMMUNE_SUGGESTIONS, IVORY_COAST_CITIES } from '@/lib/ciLocation';
 import type { BuildingStructureValue } from '@/lib/buildingStructure';
 import { isSafeInternalReturnPath, navigateAfterCreate } from '@/lib/navigation';
 
+export type StructureAnswers = {
+  structureKind: BuildingStructureValue;
+  floorCountImmeuble?: string;
+  apartmentsPerFloorImmeuble?: string;
+  includeRezDeChaussee?: boolean;
+  rezApartmentImmeuble?: string;
+  terrainLotCountNew?: string;
+};
+
 /** Formulaire « Nouveau bien » : champs, validation, création (`POST /buildings`) et retour éventuel vers une location. */
 export function useNewBuilding({ load }: { load: () => void }) {
   const navigate = useNavigate();
@@ -55,6 +64,18 @@ export function useNewBuilding({ load }: { load: () => void }) {
     setErr(null);
   }
 
+  /** Préremplit genre + champs structure depuis le guide (mêmes valeurs qu’une saisie manuelle). */
+  function applyStructureAnswers(answers: StructureAnswers) {
+    setStructureKind(answers.structureKind);
+    setStructureSettingsOpen(true);
+    setFloorCountImmeuble(answers.floorCountImmeuble ?? '');
+    setApartmentsPerFloorImmeuble(answers.apartmentsPerFloorImmeuble ?? '');
+    setIncludeRezDeChaussee(answers.includeRezDeChaussee ?? true);
+    setRezApartmentImmeuble(answers.rezApartmentImmeuble ?? '');
+    setTerrainLotCountNew(answers.terrainLotCountNew ?? '');
+    setErr(null);
+  }
+
   function cancelNewBuilding() {
     resetNewBuildingForm();
     setAddFormOpen(false);
@@ -96,9 +117,12 @@ export function useNewBuilding({ load }: { load: () => void }) {
     return communeChoice === 'Autre' ? communeOther.trim() : communeChoice;
   }
 
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
+  async function createBuilding() {
     setErr(null);
+    if (!name.trim()) {
+      setErr('Indiquez le nom du bien.');
+      return;
+    }
     const city = resolvedCity();
     const commune = resolvedCommune();
     if (!city || !commune) {
@@ -126,7 +150,7 @@ export function useNewBuilding({ load }: { load: () => void }) {
       await api('/buildings', {
         method: 'POST',
         json: {
-          name,
+          name: name.trim(),
           city,
           commune,
           address: address.trim() || undefined,
@@ -153,16 +177,7 @@ export function useNewBuilding({ load }: { load: () => void }) {
       });
       const back = returnAfterBuildingCreateRef.current;
       returnAfterBuildingCreateRef.current = null;
-      setName('');
-      setAddress('');
-      setPostalCode('');
-      setCityOther('');
-      setCommuneOther('');
-      setFloorCountImmeuble('');
-      setIncludeRezDeChaussee(true);
-      setApartmentsPerFloorImmeuble('');
-      setRezApartmentImmeuble('');
-      setTerrainLotCountNew('');
+      resetNewBuildingForm();
       setAddFormOpen(false);
       if (back) {
         navigateAfterCreate(navigate, back);
@@ -172,6 +187,11 @@ export function useNewBuilding({ load }: { load: () => void }) {
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Erreur');
     }
+  }
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    await createBuilding();
   }
 
   const immeubleCreateTotalPreview = useMemo(() => {
@@ -217,10 +237,12 @@ export function useNewBuilding({ load }: { load: () => void }) {
     setAddFormOpen,
     structureSettingsOpen,
     setStructureSettingsOpen,
+    applyStructureAnswers,
     addFormRef,
     openAddForm,
     cancelNewBuilding,
     create,
+    createBuilding,
     immeubleCreateTotalPreview,
   };
 }

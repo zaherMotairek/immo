@@ -56,7 +56,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', clo
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          'flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-[var(--radius-sheet)] border border-[var(--odoo-border)] bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[var(--shadow-lift)] outline-none transition duration-[var(--duration-base)] starting:translate-y-3 starting:opacity-0 dark:border-zinc-600',
+          'flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-[var(--radius-sheet)] border border-[var(--odoo-border)] bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[var(--shadow-lift)] outline-none transition duration-[var(--duration-base)] starting:scale-[0.92] starting:opacity-0 dark:border-zinc-600',
           sizeClass[size],
           className,
         )}

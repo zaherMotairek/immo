@@ -1,4 +1,5 @@
 import { AppPageTitle } from '@/components/AppPageTitle';
+import { Button } from '@/components/ui/index';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { AdminNewClientForm } from './AdminNewClientForm';
 import { AdminOrgAccessPanel } from './AdminOrgAccessPanel';
@@ -17,6 +18,11 @@ export function AdminClientsPage() {
         title="Clients & accès plateforme"
         hintTitle="Liste des organisations : prolongez l’accès en indiquant « payé jusqu’au » (dernier jour inclus), ou coupez tout accès avec « suspendre ». Sans date, seul le blocage manuel s’applique. Les comptes USER sont bloqués à la connexion et sur toutes les requêtes API ; les administrateurs plateforme ne sont jamais bloqués."
         subtitle="Création des comptes clients et gestion des accès."
+        actions={
+          <Button type="button" onClick={admin.openCreate}>
+            Nouveau client
+          </Button>
+        }
       />
 
       <AdminOrgsTable

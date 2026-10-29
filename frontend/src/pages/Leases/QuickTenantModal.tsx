@@ -1,26 +1,19 @@
-import { Button, Callout, Field, Input, Modal } from '@/components/ui/index';
+import { AddZoomModal } from '@/components/AddZoomModal';
+import { Button, Callout, Field, Input } from '@/components/ui/index';
 import type { QuickTenant } from './useQuickTenant';
 
-/** Modale « Nouveau locataire » : création rapide depuis le formulaire de bail. */
+/** Fenêtre zoom « Nouveau locataire » rapide depuis le formulaire de bail. */
 export function QuickTenantModal({ q }: { q: QuickTenant }) {
   return (
-    <Modal
+    <AddZoomModal
       open={q.quickTenantOpen}
       onClose={q.closeQuickTenant}
+      kicker="Ajouter"
       title="Nouveau locataire"
-      closeOnBackdrop={false}
-      footer={
-        <>
-          <Button type="button" variant="secondary" onClick={q.closeQuickTenant}>
-            Annuler
-          </Button>
-          <Button type="submit" form="quick-tenant-form" disabled={q.quickTenantBusy} loading={q.quickTenantBusy}>
-            {q.quickTenantBusy ? 'Enregistrement…' : 'Créer et sélectionner'}
-          </Button>
-        </>
-      }
+      subtitle="Création rapide depuis le bail"
+      size="md"
+      titleId="quick-tenant-title"
     >
-      <p className="mb-3 text-xs text-[var(--color-muted)]">Création rapide depuis la fiche bail.</p>
       <form id="quick-tenant-form" onSubmit={(e) => void q.createQuickTenant(e)} className="grid gap-4 sm:grid-cols-2">
         <Field label="Nom complet" htmlFor="quick-tenant-name" className="sm:col-span-2">
           <Input
@@ -31,6 +24,7 @@ export function QuickTenantModal({ q }: { q: QuickTenant }) {
             placeholder="Ex. Amadou Koné"
             autoComplete="name"
             required
+            autoFocus
           />
         </Field>
         <Field label="Téléphone (optionnel)" htmlFor="quick-tenant-phone">
@@ -54,7 +48,15 @@ export function QuickTenantModal({ q }: { q: QuickTenant }) {
             {q.quickTenantErr}
           </Callout>
         ) : null}
+        <div className="flex flex-wrap gap-2 sm:col-span-2">
+          <Button type="submit" disabled={q.quickTenantBusy} loading={q.quickTenantBusy}>
+            {q.quickTenantBusy ? 'Enregistrement…' : 'Créer et sélectionner'}
+          </Button>
+          <Button type="button" variant="secondary" onClick={q.closeQuickTenant}>
+            Annuler
+          </Button>
+        </div>
       </form>
-    </Modal>
+    </AddZoomModal>
   );
 }
