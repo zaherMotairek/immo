@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import { ApiError, api, getStoredUser, getToken, setStoredUser, setToken } from '@/lib/api';
+import { runPasskeyAuthentication } from '@/lib/webauthn';
 
 export type AuthUserRole = 'USER' | 'PLATFORM_ADMIN';
 
@@ -17,6 +19,8 @@ type AuthState = {
   user: AuthUser | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Connexion Face ID / empreinte (après activation dans Mon compte). */
+  loginWithPasskey: (email: string) => Promise<void>;
   logout: () => void;
   applyUser: (u: AuthUser) => void;
 };
@@ -95,6 +99,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/', { replace: true });
   }, [navigate, applyUser]);
 
+  const loginWithPasskey = useCallback(
+    async (email: string) => {
+      const options = await api<PublicKeyCredentialRequestOptionsJSON>('/auth/webauthn/login/options', {
+        method: 'POST',
+        json: { email },
+      });
+      const response = await runPasskeyAuthentication(options);
+      const res = await api<{ accessToken: string; user: AuthUser }>('/auth/webauthn/login/verify', {
+        method: 'POST',
+        json: { email, response },
+      });
+      setToken(res.accessToken);
+      applyUser(res.user);
+      navigate('/', { replace: true });
+    },
+    [navigate, applyUser],
+  );
+
   const logout = useCallback(() => {
     setToken(null);
     setStoredUser(null);
@@ -103,8 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   const value = useMemo(
-    () => ({ user: getToken() ? user : null, ready, login, logout, applyUser }),
-    [user, ready, login, logout, applyUser],
+    () => ({ user: getToken() ? user : null, ready, login, loginWithPasskey, logout, applyUser }),
+    [user, ready, login, loginWithPasskey, logout, applyUser],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

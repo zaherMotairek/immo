@@ -43,8 +43,48 @@ model User {
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   passwordResetTokens PasswordResetToken[]
+  webauthnCredentials WebAuthnCredential[]
+  webauthnChallenges  WebAuthnChallenge[]
 
   @@index([organizationId])
+}
+
+/** Clé Face ID / empreinte / passkey (WebAuthn) liée à un compte. */
+model WebAuthnCredential {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** Identifiant credential en base64url. */
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  deviceType   String?   @map("device_type")
+  backedUp     Boolean   @default(false) @map("backed_up")
+  /** Transports WebAuthn sérialisés JSON (ex. ["internal"]). */
+  transports   String?
+  friendlyName String?   @map("friendly_name")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+/** Challenge WebAuthn temporaire (enregistrement ou connexion). */
+model WebAuthnChallenge {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String?
+  challenge String
+  purpose   String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("webauthn_challenges")
 }
 
 /** Jeton à usage unique pour le lien « mot de passe oublié » (expiration courte). */

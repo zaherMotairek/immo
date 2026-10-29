@@ -4,15 +4,18 @@ import { useAuth } from '@/auth/AuthContext';
 import { AuthShell } from '@/components/AuthShell';
 import { InstallAppButton } from '@/components/InstallAppButton';
 import { Button, Callout, Field, Input, Label } from '@/components/ui/index';
+import { supportsPlatformPasskey } from '@/lib/webauthn';
 
 export function LoginPage() {
-  const { user, ready, login } = useAuth();
+  const { user, ready, login, loginWithPasskey } = useAuth();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const passkeyOk = supportsPlatformPasskey();
 
   const accessDeniedFlash = (location.state as { accessDenied?: string } | null)?.accessDenied;
 
@@ -34,6 +37,27 @@ export function LoginPage() {
       setErr(e2 instanceof Error ? e2.message : 'Connexion impossible');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onPasskeyLogin() {
+    setErr(null);
+    if (!email.trim()) {
+      setErr('Indiquez d’abord votre e-mail, puis utilisez Face ID.');
+      return;
+    }
+    setPasskeyLoading(true);
+    try {
+      await loginWithPasskey(email.trim());
+    } catch (e2) {
+      const name = e2 instanceof Error ? e2.name : '';
+      if (name === 'NotAllowedError' || name === 'AbortError') {
+        setErr('Face ID annulé.');
+      } else {
+        setErr(e2 instanceof Error ? e2.message : 'Connexion Face ID impossible');
+      }
+    } finally {
+      setPasskeyLoading(false);
     }
   }
 
@@ -120,11 +144,27 @@ export function LoginPage() {
             type="submit"
             size="lg"
             loading={loading}
+            disabled={passkeyLoading}
             className="auth-submit w-full text-base font-semibold tracking-wide"
             data-testid="login-submit"
           >
             {loading ? 'Connexion…' : 'Se connecter'}
           </Button>
+
+          {passkeyOk ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="w-full text-base font-semibold"
+              loading={passkeyLoading}
+              disabled={loading}
+              onClick={() => void onPasskeyLogin()}
+              data-testid="login-passkey"
+            >
+              {passkeyLoading ? 'Face ID…' : 'Face ID / empreinte'}
+            </Button>
+          ) : null}
         </form>
 
         <div className="relative mt-6 border-t border-[var(--odoo-border)] pt-5">
