@@ -30,6 +30,8 @@ export function useAddUnitForm({ b, layout, setBuildingTab }: Options) {
   } = layout;
 
   const [label, setLabel] = useState('');
+  /** Si true, on ne réécrit plus le libellé automatique (l’utilisateur a choisi un surnom). */
+  const [labelManual, setLabelManual] = useState(false);
   const [floor, setFloor] = useState('');
   const [surfaceM2, setSurfaceM2] = useState('');
   const [rooms, setRooms] = useState('');
@@ -132,6 +134,7 @@ export function useAddUnitForm({ b, layout, setBuildingTab }: Options) {
 
   function resetAddUnitForm() {
     setLabel('');
+    setLabelManual(false);
     setFloor('');
     setImmeubleEtage('');
     setImmeubleAppNo('');
@@ -146,22 +149,30 @@ export function useAddUnitForm({ b, layout, setBuildingTab }: Options) {
     setErr(null);
   }
 
+  function setLabelFromUser(value: string) {
+    setLabelManual(true);
+    setLabel(value);
+  }
+
   useEffect(() => {
+    if (labelManual) return;
     if (!immeubleFloorPickerActive || !isImmeubleSlotFlowKind(kind)) return;
     if (immeubleEtage === '') return;
-    const eta = immeubleEtage;
+    const eta = Number(immeubleEtage);
     if (kind === 'APARTMENT') {
       if (immeubleAppNo === '') return;
-      setLabel(`App${immeubleAppNo}_Eta${eta}`);
+      const slot = immeubleAppNo;
+      setLabel(eta === 0 ? `Appartement RDC-${slot}` : `Appartement ${eta}-${slot}`);
     } else {
       if (immeubleLocauxNo === '') return;
+      const slot = immeubleLocauxNo;
       if (kind === 'WAREHOUSE') {
-        setLabel(`Ent${immeubleLocauxNo}_Eta${eta}`);
+        setLabel(eta === 0 ? `Entrepôt RDC-${slot}` : `Entrepôt ${eta}-${slot}`);
       } else {
-        setLabel(`Com${immeubleLocauxNo}_Eta${eta}`);
+        setLabel(eta === 0 ? `Commerce RDC-${slot}` : `Commerce ${eta}-${slot}`);
       }
     }
-  }, [immeubleFloorPickerActive, kind, immeubleEtage, immeubleAppNo, immeubleLocauxNo]);
+  }, [labelManual, immeubleFloorPickerActive, kind, immeubleEtage, immeubleAppNo, immeubleLocauxNo]);
 
   useEffect(() => {
     if (immeubleEtage === '') return;
@@ -174,9 +185,10 @@ export function useAddUnitForm({ b, layout, setBuildingTab }: Options) {
   }, [immeubleEtage, availableImmeubleFloors, immeubleFloorsWhComm, kind]);
 
   useEffect(() => {
+    if (labelManual) return;
     if (!terrainPlanActive || terrainLotNo === '') return;
     setLabel(`Unité ${terrainLotNo}`);
-  }, [terrainPlanActive, terrainLotNo]);
+  }, [labelManual, terrainPlanActive, terrainLotNo]);
 
   useEffect(() => {
     if (addUnitFormOpen && terrainPlanActive) {
@@ -208,6 +220,8 @@ export function useAddUnitForm({ b, layout, setBuildingTab }: Options) {
   return {
     label,
     setLabel,
+    setLabelFromUser,
+    labelManual,
     floor,
     setFloor,
     surfaceM2,

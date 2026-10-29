@@ -13,6 +13,7 @@ import { QuickTenantModal } from './QuickTenantModal';
 import { useLeaseDeepLink } from './useLeaseDeepLink';
 import { useLeasesData } from './useLeasesData';
 import { useLeasesFilters } from './useLeasesFilters';
+import { useBulkLeaseForm } from './useBulkLeaseForm';
 import { useNewLeaseForm } from './useNewLeaseForm';
 import { useQuickTenant } from './useQuickTenant';
 
@@ -38,18 +39,33 @@ export function LeasesPage() {
     buildingsAvailableForNewLease: data.buildingsAvailableForNewLease,
     load: data.load,
   });
+  const bulk = useBulkLeaseForm({
+    buildings: data.buildings,
+    activeLeaseUnitIds: data.activeLeaseUnitIds,
+    buildingsAvailableForNewLease: data.buildingsAvailableForNewLease,
+    load: data.load,
+    onSuccessClose: () => {
+      form.setCreateMode('single');
+      form.setAddLeaseOpen(false);
+    },
+  });
   const quickTenant = useQuickTenant({
     tenants: data.tenants,
     setTenants: data.setTenants,
-    setTenantId: form.setTenantId,
+    setTenantId: (id) => {
+      if (bulk.assignTenantToPendingOrIgnore(id)) return;
+      form.setTenantId(id);
+    },
   });
   const flashLeaseRowId = useReturnRowFocus({ rowIdPrefix: 'lease-row-', ready: data.leasesFetched });
 
   useEscapeCancel(form.addLeaseOpen || quickTenant.quickTenantOpen, () => {
     if (quickTenant.quickTenantOpen) {
+      bulk.clearPendingTenant();
       quickTenant.closeQuickTenant();
       return;
     }
+    bulk.resetBulk();
     form.cancelNewLease();
   });
 
@@ -87,6 +103,7 @@ export function LeasesPage() {
         <>
           <NewLeaseCard
             form={form}
+            bulk={bulk}
             buildingsAvailable={data.buildingsAvailableForNewLease}
             tenants={data.tenants}
             onOpenQuickTenant={quickTenant.openQuickTenant}
@@ -115,7 +132,15 @@ export function LeasesPage() {
         </>
       ) : null}
 
-      <QuickTenantModal q={quickTenant} />
+      <QuickTenantModal
+        q={{
+          ...quickTenant,
+          closeQuickTenant: () => {
+            bulk.clearPendingTenant();
+            quickTenant.closeQuickTenant();
+          },
+        }}
+      />
     </div>
   );
 }

@@ -17,8 +17,8 @@ type UnitsCardListProps = {
 };
 
 /**
- * Vue mobile des unités : une carte par unité (identité, statut, locataire / loyer) avec les mêmes champs éditables
- * (nature, surface, pièces au blur) et actions que le tableau desktop.
+ * Vue mobile des unités : une carte par unité (identité, statut, locataire / loyer)
+ * avec nature / surnom éditables et actions comme le tableau desktop.
  */
 export function UnitsCardList({ b, list, actions }: UnitsCardListProps) {
   const { displayUnits, unitDrafts, setUnitDrafts } = list;
@@ -33,12 +33,29 @@ export function UnitsCardList({ b, list, actions }: UnitsCardListProps) {
         return (
           <li key={u.id} id={`unit-row-${u.id}`} className="list-none scroll-mt-28 space-y-3 p-3.5">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
                   {unitSlotCaption(u)}
                   {fl ? ` · ${fl}` : ''}
                 </p>
-                <p className="font-semibold leading-snug text-[var(--color-ink)]">{u.label}</p>
+                <Input
+                  aria-label={`Surnom de l’unité — ${unitSlotCaption(u)}`}
+                  value={unitDrafts[u.id]?.label ?? u.label}
+                  onChange={(e) =>
+                    setUnitDrafts((prev) => ({
+                      ...prev,
+                      [u.id]: {
+                        label: e.target.value,
+                        surfaceM2:
+                          prev[u.id]?.surfaceM2 ?? (u.surfaceM2 != null ? String(u.surfaceM2) : ''),
+                        rooms: prev[u.id]?.rooms ?? (u.rooms != null ? String(u.rooms) : ''),
+                      },
+                    }))
+                  }
+                  onBlur={() => void actions.updateUnitMetrics(u)}
+                  className="mt-0.5 font-semibold"
+                  placeholder="Surnom libre…"
+                />
                 {u.description ? (
                   <p className="mt-1 line-clamp-2 text-xs text-[var(--color-muted)]">{u.description}</p>
                 ) : null}
@@ -58,38 +75,6 @@ export function UnitsCardList({ b, list, actions }: UnitsCardListProps) {
               value={u.kind ?? 'APARTMENT'}
               onValueChange={(v) => void actions.updateUnitKind(u.id, v)}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                aria-label={`Surface (m²) — ${u.label}`}
-                value={unitDrafts[u.id]?.surfaceM2 ?? ''}
-                onChange={(e) =>
-                  setUnitDrafts((prev) => ({
-                    ...prev,
-                    [u.id]: { surfaceM2: e.target.value, rooms: prev[u.id]?.rooms ?? (u.rooms != null ? String(u.rooms) : '') },
-                  }))
-                }
-                onBlur={() => void actions.updateUnitMetrics(u)}
-                type="number"
-                step="0.01"
-                min={0}
-                placeholder="Surface m²"
-              />
-              <Input
-                aria-label={`Nombre de pièces — ${u.label}`}
-                value={unitDrafts[u.id]?.rooms ?? ''}
-                onChange={(e) =>
-                  setUnitDrafts((prev) => ({
-                    ...prev,
-                    [u.id]: { surfaceM2: prev[u.id]?.surfaceM2 ?? (u.surfaceM2 != null ? String(u.surfaceM2) : ''), rooms: e.target.value },
-                  }))
-                }
-                onBlur={() => void actions.updateUnitMetrics(u)}
-                type="number"
-                min={0}
-                step={1}
-                placeholder="Pièces"
-              />
-            </div>
             <div className="flex justify-end">
               <UnitRowActions buildingId={b.id} unit={u} onRemove={(unitId) => void actions.removeUnit(unitId)} />
             </div>

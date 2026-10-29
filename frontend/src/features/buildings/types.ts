@@ -47,4 +47,4 @@ export type UnitTableSortKey = 'label' | 'kind' | 'floor' | 'surface' | 'rooms' 
 
 export type UnitListFilter = 'all' | 'vacant' | 'occupied';
 
-export type UnitDraft = { surfaceM2: string; rooms: string };
+export type UnitDraft = { label: string; surfaceM2: string; rooms: string };

@@ -4,7 +4,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { buildReturnToBuildingUrl } from '@/lib/navigation';
 import { computeLeaseEndPreviewFr } from './leaseUtils';
-import type { BuildingOpt, DepositMonthsPreset, LeaseRow, ReturnToBuildingState } from './types';
+import type {
+  BuildingOpt,
+  DepositMonthsPreset,
+  LeaseCreateMode,
+  LeaseRow,
+  ReturnToBuildingState,
+} from './types';
 import { useLeaseUnitOptions } from './useLeaseUnitOptions';
 
 type Options = {
@@ -28,6 +34,7 @@ export function useNewLeaseForm({ buildings, leases, activeLeaseUnitIds, buildin
   const [depositMonthsPreset, setDepositMonthsPreset] = useState<DepositMonthsPreset>('0');
   const [err, setErr] = useState<string | null>(null);
   const [addLeaseOpen, setAddLeaseOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<LeaseCreateMode>('single');
   const addLeaseFormRef = useRef<HTMLDivElement | null>(null);
   /** Évite de réappliquer le préremplissage tant que l’URL n’a pas changé. */
   const newLeasePrefillAppliedRef = useRef<string | null>(null);
@@ -69,6 +76,7 @@ export function useNewLeaseForm({ buildings, leases, activeLeaseUnitIds, buildin
 
   function cancelNewLease() {
     resetNewLeaseForm();
+    setCreateMode('single');
     setAddLeaseOpen(false);
     returnToBuildingAfterLeaseRef.current = null;
   }
@@ -235,6 +243,8 @@ export function useNewLeaseForm({ buildings, leases, activeLeaseUnitIds, buildin
     err,
     addLeaseOpen,
     setAddLeaseOpen,
+    createMode,
+    setCreateMode,
     addLeaseFormRef,
     leaseEndPreviewFr,
     openAddLeaseForm,

@@ -76,3 +76,18 @@ export type LeasesViewProps = {
 
 /** Clé de la valeur « option » du select locataire qui ouvre la création rapide. */
 export const NEW_TENANT_OPTION_ID = '__create_new_tenant__';
+
+/** Mode du formulaire d’ajout de bail. */
+export type LeaseCreateMode = 'single' | 'bulk';
+
+/** Ligne de la grille « plusieurs lots d’un coup ». */
+export type BulkLeaseRow = {
+  unitId: string;
+  label: string;
+  kind: string;
+  apartmentSlot?: number | null;
+  selected: boolean;
+  tenantId: string;
+  monthlyRent: string;
+  startDate: string;
+};

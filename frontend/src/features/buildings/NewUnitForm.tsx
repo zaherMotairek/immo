@@ -78,22 +78,20 @@ export function NewUnitForm({ b, form, layout, onSubmit, onSubmitBatch }: NewUni
             </div>
             <HintedField
               className="sm:col-span-2 lg:col-span-2"
-              label="Nom ou référence du local"
+              label="Surnom / nom du local"
               htmlFor="new-unit-label"
               help={
-                immeubleSlotFlowActive
-                  ? 'Rempli automatiquement à partir de l’étage et du numéro de logement ; vous pouvez le modifier.'
-                  : terrainPlanActive
-                    ? 'Rempli automatiquement à partir du numéro d’unité ; vous pouvez le modifier.'
-                    : undefined
+                immeubleSlotFlowActive || terrainPlanActive
+                  ? 'Suggestion automatique selon l’emplacement. Vous pouvez le renommer librement (ex. « Appart. Amadou », « Studio vue cour »).'
+                  : 'Donnez le nom que vous voulez (ex. « Appart. n° 1 », « Bureau direction »).'
               }
             >
               <Input
                 id="new-unit-label"
                 value={form.label}
-                onChange={(e) => form.setLabel(e.target.value)}
+                onChange={(e) => form.setLabelFromUser(e.target.value)}
                 required
-                placeholder="A12, Bureau 2, Entrepôt B…"
+                placeholder="Ex. Appartement 1-1, Studio Amadou…"
               />
             </HintedField>
             {!immeubleSlotFlowActive && !terrainPlanActive ? (
@@ -107,25 +105,8 @@ export function NewUnitForm({ b, form, layout, onSubmit, onSubmitBatch }: NewUni
               </Field>
             ) : null}
             <div className="border-t border-[var(--odoo-border)] pt-4 sm:col-span-2 lg:col-span-3">
-              <p className={stepTitle}>4. Caractéristiques</p>
+              <p className={stepTitle}>4. Description</p>
             </div>
-            <Field label="Surface m²" htmlFor="new-unit-surface">
-              <Input
-                id="new-unit-surface"
-                value={form.surfaceM2}
-                onChange={(e) => form.setSurfaceM2(e.target.value)}
-                type="number"
-                step="0.01"
-              />
-            </Field>
-            <Field label="Nombre de pièces" htmlFor="new-unit-rooms">
-              <Input
-                id="new-unit-rooms"
-                value={form.rooms}
-                onChange={(e) => form.setRooms(e.target.value)}
-                type="number"
-              />
-            </Field>
             <Field label="Description simple (optionnel)" htmlFor="new-unit-description" className="sm:col-span-full">
               <Input
                 id="new-unit-description"

@@ -75,6 +75,7 @@ export function useUnitsList({ id, b, focusUnitId, hintUnitLabel, setParams, set
       const next: Record<string, UnitDraft> = {};
       for (const u of b.units) {
         next[u.id] = prev[u.id] ?? {
+          label: u.label,
           surfaceM2: u.surfaceM2 != null ? String(u.surfaceM2) : '',
           rooms: u.rooms != null ? String(u.rooms) : '',
         };

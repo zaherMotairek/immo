@@ -123,10 +123,18 @@ export function useUnitActions({ id, b, setB, layout, unitDrafts, setErr, load }
   }
 
   async function updateUnitMetrics(unit: Unit) {
-    const draft = unitDrafts[unit.id] ?? { surfaceM2: '', rooms: '' };
+    const draft = unitDrafts[unit.id] ?? { label: unit.label, surfaceM2: '', rooms: '' };
     const curSurface = unit.surfaceM2 != null ? String(unit.surfaceM2) : '';
     const curRooms = unit.rooms != null ? String(unit.rooms) : '';
-    if (draft.surfaceM2.trim() === curSurface.trim() && draft.rooms.trim() === curRooms.trim()) return;
+    const nextLabel = draft.label.trim();
+    const labelChanged = nextLabel !== unit.label.trim();
+    const metricsChanged =
+      draft.surfaceM2.trim() !== curSurface.trim() || draft.rooms.trim() !== curRooms.trim();
+    if (!labelChanged && !metricsChanged) return;
+    if (!nextLabel) {
+      toast('Indiquez un nom pour cette unité.', { variant: 'error' });
+      return;
+    }
     const surfaceVal = draft.surfaceM2.trim();
     const roomsVal = draft.rooms.trim();
     if (surfaceVal && (!Number.isFinite(Number(surfaceVal)) || Number(surfaceVal) < 0)) {
@@ -141,8 +149,13 @@ export function useUnitActions({ id, b, setB, layout, unitDrafts, setErr, load }
       await api(`/units/${unit.id}`, {
         method: 'PATCH',
         json: {
-          surfaceM2: surfaceVal ? Number(surfaceVal) : null,
-          rooms: roomsVal ? Number(roomsVal) : null,
+          ...(labelChanged ? { label: nextLabel } : {}),
+          ...(metricsChanged
+            ? {
+                surfaceM2: surfaceVal ? Number(surfaceVal) : null,
+                rooms: roomsVal ? Number(roomsVal) : null,
+              }
+            : {}),
         },
       });
       await load({ silent: true });

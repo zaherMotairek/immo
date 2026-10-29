@@ -19,14 +19,14 @@ type UnitsTableProps = {
   actions: UnitActions;
 };
 
-/** Tableau desktop des unités : tri, nature du local, surface / pièces éditables au blur, locataire, loyer, statut. */
+/** Tableau desktop des unités : tri, nature, surnom éditable, locataire, loyer, statut. */
 export function UnitsTable({ b, list, actions }: UnitsTableProps) {
   const { displayUnits, unitDrafts, setUnitDrafts, unitSortKey, unitSortDir, toggleUnitSort } = list;
   const sortProps = { activeKey: unitSortKey, dir: unitSortDir, onSort: toggleUnitSort };
 
   return (
     <div className="table-scroll overflow-x-auto">
-      <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)]">
             <SortableTh label="Unité" columnKey="label" {...sortProps} />
@@ -37,8 +37,6 @@ export function UnitsTable({ b, list, actions }: UnitsTableProps) {
               {...sortProps}
             />
             <SortableTh label="Étage" columnKey="floor" {...sortProps} />
-            <SortableTh label="Surface" columnKey="surface" {...sortProps} />
-            <SortableTh label="Pièces" columnKey="rooms" {...sortProps} />
             <SortableTh
               label="Locataire"
               columnKey="tenant"
@@ -68,7 +66,24 @@ export function UnitsTable({ b, list, actions }: UnitsTableProps) {
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
                         {unitSlotCaption(u)}
                       </p>
-                      <p className="font-semibold leading-snug text-[var(--color-ink)]">{u.label}</p>
+                      <Input
+                        aria-label={`Surnom de l’unité — ${unitSlotCaption(u)}`}
+                        value={unitDrafts[u.id]?.label ?? u.label}
+                        onChange={(e) =>
+                          setUnitDrafts((prev) => ({
+                            ...prev,
+                            [u.id]: {
+                              label: e.target.value,
+                              surfaceM2:
+                                prev[u.id]?.surfaceM2 ?? (u.surfaceM2 != null ? String(u.surfaceM2) : ''),
+                              rooms: prev[u.id]?.rooms ?? (u.rooms != null ? String(u.rooms) : ''),
+                            },
+                          }))
+                        }
+                        onBlur={() => void actions.updateUnitMetrics(u)}
+                        className="mt-0.5 font-semibold"
+                        placeholder="Surnom libre…"
+                      />
                       {u.description ? (
                         <p className="mt-1 line-clamp-2 text-xs text-[var(--color-muted)]">{u.description}</p>
                       ) : null}
@@ -86,42 +101,6 @@ export function UnitsTable({ b, list, actions }: UnitsTableProps) {
                   />
                 </td>
                 <td className={`whitespace-nowrap text-[var(--color-ink)] ${listTableCellClass}`}>{fl ?? '—'}</td>
-                <td className={`whitespace-nowrap tabular-nums text-[var(--color-ink)] ${listTableCellClass}`}>
-                  <Input
-                    aria-label={`Surface (m²) — ${u.label}`}
-                    value={unitDrafts[u.id]?.surfaceM2 ?? ''}
-                    onChange={(e) =>
-                      setUnitDrafts((prev) => ({
-                        ...prev,
-                        [u.id]: { surfaceM2: e.target.value, rooms: prev[u.id]?.rooms ?? (u.rooms != null ? String(u.rooms) : '') },
-                      }))
-                    }
-                    onBlur={() => void actions.updateUnitMetrics(u)}
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    className="max-w-[7rem]"
-                    placeholder="—"
-                  />
-                </td>
-                <td className={`whitespace-nowrap tabular-nums text-[var(--color-ink)] ${listTableCellClass}`}>
-                  <Input
-                    aria-label={`Nombre de pièces — ${u.label}`}
-                    value={unitDrafts[u.id]?.rooms ?? ''}
-                    onChange={(e) =>
-                      setUnitDrafts((prev) => ({
-                        ...prev,
-                        [u.id]: { surfaceM2: prev[u.id]?.surfaceM2 ?? (u.surfaceM2 != null ? String(u.surfaceM2) : ''), rooms: e.target.value },
-                      }))
-                    }
-                    onBlur={() => void actions.updateUnitMetrics(u)}
-                    type="number"
-                    min={0}
-                    step={1}
-                    className="max-w-[6rem]"
-                    placeholder="—"
-                  />
-                </td>
                 <td className={`text-[var(--color-ink)] ${listTableCellClass}`}>
                   {tenant ? (
                     <span className="font-medium">
