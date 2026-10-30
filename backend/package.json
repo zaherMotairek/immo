@@ -18,9 +18,12 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
+    "preseed": "node ../scripts/assert-local-db.mjs",
     "seed": "node prisma/seed.js",
+    "pretest": "node ../scripts/assert-local-db.mjs --env DATABASE_URL_TEST",
+    "test": "jest --config jest.config.cjs --runInBand",
     "test:smtp": "node scripts/test-smtp.js",
-    "seed:dashboard-reminder": "node scripts/seed-dashboard-reminder-one-lease.cjs"
+    "seed:dashboard-reminder": "node ../scripts/assert-local-db.mjs && node scripts/seed-dashboard-reminder-one-lease.cjs"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -43,18 +46,22 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.15.0",
+    "pretty-format": "^29.7.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.14",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.11.30",
     "@types/nodemailer": "^8.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/pdfkit": "^0.13.9",
+    "jest": "^29.7.0",
     "prisma": "^6.16.2",
+    "ts-jest": "^29.2.5",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }
