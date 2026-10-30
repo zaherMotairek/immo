@@ -28,11 +28,13 @@ async function main() {
       name: 'Administrateur',
       organizationId: DEFAULT_ORG_ID,
       role: 'PLATFORM_ADMIN',
+      orgRole: 'OWNER',
     },
     update: {
       passwordHash: hash,
       organizationId: DEFAULT_ORG_ID,
       role: 'PLATFORM_ADMIN',
+      orgRole: 'OWNER',
     },
   });
 
