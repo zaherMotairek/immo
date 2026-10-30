@@ -33,7 +33,7 @@ export class DashboardService {
   ) {}
 
   async overview(organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
 
     const now = new Date();
     const y = now.getFullYear();

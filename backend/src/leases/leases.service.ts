@@ -87,7 +87,7 @@ export class LeasesService {
 
   /** Liste synthétique pour cartes « locations » (tableau de bord métier). */
   async listOverview(organizationId: string, activeOnly = true) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
@@ -167,7 +167,7 @@ export class LeasesService {
   }
 
   async getFiche(id: string, organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const l = await this.prisma.lease.findFirst({
       where: { id, ...leaseBelongsToOrg(organizationId) },
       include: {
@@ -783,7 +783,7 @@ export class LeasesService {
     if (!Number.isInteger(months) || months < 1 || months > 12) {
       throw new BadRequestException('Nombre de mois invalide (indiquer un entier entre 1 et 12).');
     }
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const lease = await this.prisma.lease.findFirst({
       where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
     });

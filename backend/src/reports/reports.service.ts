@@ -180,7 +180,7 @@ export class ReportsService {
   }
 
   async buildAccountingSummary(year: number, organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const leaseInOrg = { unit: { building: { organizationId } } };
     const [payments, charges] = await Promise.all([
       this.prisma.payment.findMany({
@@ -243,7 +243,7 @@ export class ReportsService {
   }
 
   async buildAccountingWorkspace(year: number, organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const leaseInOrg = { unit: { building: { organizationId } } };
     const [summary, payments, charges] = await Promise.all([
       this.buildAccountingSummary(year, organizationId),
@@ -325,7 +325,7 @@ export class ReportsService {
   }
 
   async buildPdf(year: number, organizationId: string): Promise<Buffer> {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const leaseInOrg = { unit: { building: { organizationId } } };
     const [chargeSummary, overdue, allPaidYear, org] = await Promise.all([
       this.charges.summary(organizationId, year),
@@ -423,7 +423,7 @@ export class ReportsService {
   }
 
   async buildExcel(year: number, organizationId: string): Promise<Buffer> {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const today = startOfTodayUtc();
     const leaseInOrg = { unit: { building: { organizationId } } };
 
@@ -826,7 +826,7 @@ export class ReportsService {
 
   /** Tableau récapitulatif (paysage) pour export « comme à l’écran ». */
   async buildLeasesTablePdf(organizationId: string): Promise<Buffer> {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const list = await this.leases.list(organizationId);
     const sorted = [...list].sort(
       (a, b) =>

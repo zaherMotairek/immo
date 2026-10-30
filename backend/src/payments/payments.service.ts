@@ -42,13 +42,20 @@ export class PaymentsService {
     private readonly config: ConfigService,
   ) {}
 
-  /** Met à jour les statuts PENDING → LATE si la date d’échéance est passée. */
-  async syncLateStatuses() {
+  /**
+   * Met à jour PENDING → LATE si échéance passée.
+   * **Toujours** scoper par organisation sur les chemins HTTP (B6).
+   * Sans `organizationId` : réservé au job planifié (B7).
+   */
+  async syncLateStatuses(organizationId?: string) {
     const today = startOfTodayUtc();
     const res = await this.prisma.payment.updateMany({
       where: {
         status: PaymentStatus.PENDING,
         dueDate: { lt: today },
+        ...(organizationId
+          ? { lease: { unit: { building: { organizationId } } } }
+          : {}),
       },
       data: { status: PaymentStatus.LATE },
     });
@@ -70,7 +77,7 @@ export class PaymentsService {
       tenantId?: string;
     },
   ) {
-    await this.syncLateStatuses();
+    await this.syncLateStatuses(organizationId);
     /** Échéances des baux actifs uniquement (baux désactivés = historique hors vue liste). */
     const leaseScope =
       filters?.leaseId != null && filters.leaseId.trim() !== ''
@@ -141,7 +148,7 @@ export class PaymentsService {
 
   /** Relance locataire par e-mail pour une échéance en retard (LATE ou PENDING dépassé). */
   async sendOverdueReminder(id: string, organizationId: string, actor?: JwtAuthUser) {
-    await this.syncLateStatuses();
+    await this.syncLateStatuses(organizationId);
     const p = await this.prisma.payment.findFirst({
       where: { id, lease: { unit: { building: { organizationId } } } },
       include: {
@@ -211,7 +218,7 @@ export class PaymentsService {
 
   /** Enregistre une relance WhatsApp (après envoi manuel depuis le lien — pas d’API WhatsApp). */
   async logReminder(id: string, organizationId: string, channel: ReminderChannel, actor?: JwtAuthUser) {
-    await this.syncLateStatuses();
+    await this.syncLateStatuses(organizationId);
     await this.ensure(id, organizationId);
     const p = await this.prisma.payment.findFirst({
       where: { id, lease: { unit: { building: { organizationId } } } },

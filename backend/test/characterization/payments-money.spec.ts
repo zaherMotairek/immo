@@ -44,22 +44,30 @@ describeDb('PaymentsService — caractérisation argent (DB locale)', () => {
     await prisma.$disconnect();
   });
 
-  it('syncLateStatuses : PENDING avec dueDate < aujourd’hui → LATE (toutes orgs)', async () => {
+  it('syncLateStatuses : PENDING avec dueDate < aujourd’hui → LATE (scopé org)', async () => {
     const f = await seedOrgFixture(prisma, {
       label: 'late',
       year: 2020,
       months: [1],
       rentDueDay: 1,
     });
-    orgIds.push(f.organizationId);
+    const other = await seedOrgFixture(prisma, {
+      label: 'late-other',
+      year: 2020,
+      months: [1],
+      rentDueDay: 1,
+    });
+    orgIds.push(f.organizationId, other.organizationId);
     const before = await prisma.payment.findUniqueOrThrow({ where: { id: f.paymentIds[0] } });
     expect(before.status).toBe(PaymentStatus.PENDING);
 
-    const res = await payments.syncLateStatuses();
+    const res = await payments.syncLateStatuses(f.organizationId);
     expect(res.updated).toBeGreaterThanOrEqual(1);
 
     const after = await prisma.payment.findUniqueOrThrow({ where: { id: f.paymentIds[0] } });
     expect(after.status).toBe(PaymentStatus.LATE);
+    const otherStill = await prisma.payment.findUniqueOrThrow({ where: { id: other.paymentIds[0] } });
+    expect(otherStill.status).toBe(PaymentStatus.PENDING);
   });
 
   it('update addAmountPaid partiel puis complet', async () => {

@@ -131,7 +131,7 @@ export class ExcelImportService {
       throw new BadRequestException('Fichier Excel illisible ou corrompu.');
     }
 
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
 
     await this.importBiens(wb, organizationId, result, pushErr);
     await this.importBaux(wb, organizationId, result, pushErr, pushWarn);
