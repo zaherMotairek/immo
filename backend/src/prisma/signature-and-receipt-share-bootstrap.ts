@@ -36,6 +36,12 @@ export async function runSignatureAndReceiptShareBootstrap(prisma: PrismaClient)
     await prisma.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "receipt_share_tokens_expires_at_idx" ON "receipt_share_tokens" ("expires_at")`,
     );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "receipt_share_tokens" ADD COLUMN IF NOT EXISTS "revoked_at" TIMESTAMP(3)`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "receipt_share_tokens" ADD COLUMN IF NOT EXISTS "access_count" INTEGER NOT NULL DEFAULT 0`,
+    );
   } catch (e) {
     console.error(TAG, 'create receipt_share_tokens', e);
   }

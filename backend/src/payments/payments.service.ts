@@ -1377,12 +1377,14 @@ export class PaymentsService {
   ) {
     await this.ensure(paymentId, organizationId);
     const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    const ttlHours = Number(this.config.get<string>('RECEIPT_SHARE_TTL_HOURS') || 720); // 30 j par défaut
+    const hours = Number.isFinite(ttlHours) && ttlHours > 0 ? ttlHours : 720;
+    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
     await this.prisma.$executeRawUnsafe(
       `
       INSERT INTO "receipt_share_tokens"
-      ("id","token","organization_id","payment_id","created_by_user_id","expires_at","created_at")
-      VALUES ($1,$2,$3,$4,$5,$6,NOW())
+      ("id","token","organization_id","payment_id","created_by_user_id","expires_at","created_at","access_count")
+      VALUES ($1,$2,$3,$4,$5,$6,NOW(),0)
       `,
       randomUUID(),
       token,
@@ -1436,16 +1438,54 @@ export class PaymentsService {
   async buildReceiptPdfFromShareToken(token: string): Promise<Buffer | null> {
     const rows = (await this.prisma.$queryRawUnsafe(
       `
-      SELECT "payment_id" AS "paymentId", "organization_id" AS "organizationId", "expires_at" AS "expiresAt"
+      SELECT "id", "payment_id" AS "paymentId", "organization_id" AS "organizationId",
+             "expires_at" AS "expiresAt", "revoked_at" AS "revokedAt"
       FROM "receipt_share_tokens"
       WHERE "token" = $1
       LIMIT 1
       `,
       token,
-    )) as Array<{ paymentId: string; organizationId: string; expiresAt: Date }>;
+    )) as Array<{
+      id: string;
+      paymentId: string;
+      organizationId: string;
+      expiresAt: Date;
+      revokedAt: Date | null;
+    }>;
     const row = rows[0];
     if (!row) return null;
-    if (row.expiresAt.getTime() <= Date.now()) return null;
+    if (row.revokedAt) return null;
+    if (new Date(row.expiresAt).getTime() <= Date.now()) return null;
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "receipt_share_tokens" SET "access_count" = COALESCE("access_count",0) + 1 WHERE "id" = $1`,
+      row.id,
+    );
     return this.buildReceiptPdf([row.paymentId], row.organizationId);
+  }
+
+  /** Révoque les liens publics encore valides pour une échéance. */
+  async revokeReceiptShareLinks(paymentId: string, organizationId: string, actor?: JwtAuthUser) {
+    await this.ensure(paymentId, organizationId);
+    const res = await this.prisma.$executeRawUnsafe(
+      `
+      UPDATE "receipt_share_tokens"
+      SET "revoked_at" = NOW()
+      WHERE "payment_id" = $1 AND "organization_id" = $2
+        AND "revoked_at" IS NULL
+        AND "expires_at" > NOW()
+      `,
+      paymentId,
+      organizationId,
+    );
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_RECEIPT_SHARE_LINK_REVOKED',
+      entityType: 'payment',
+      entityId: paymentId,
+      summary: 'Liens publics de quittance revoques',
+      metadata: { rawResult: res },
+    });
+    return { ok: true as const };
   }
 }

@@ -130,6 +130,11 @@ export class PaymentsController {
     return this.payments.createReceiptShareLink(id, user.organizationId, user, req);
   }
 
+  @Post(':id/receipt-share-link/revoke')
+  revokeReceiptShareLinks(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
+    return this.payments.revokeReceiptShareLinks(id, user.organizationId, user);
+  }
+
   /** Reçu PDF unique pour plusieurs loyers payés (même bail), ex. après prépaiement de plusieurs mois. */
   @Post('receipts/bulk')
   async bulkReceipt(@CurrentUser() user: JwtAuthUser, @Body() dto: BulkReceiptDto, @Res() res: Response) {
