@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BulkReceiptDto } from './dto/bulk-receipt.dto';
+import { BulkCollectDto, ConfirmStatementMatchesDto } from './dto/bulk-collect.dto';
 import { LogReminderDto } from './dto/log-reminder.dto';
 import { WaivePaymentDto } from './dto/waive-payment.dto';
 import { UpsertCollectionTaskDto } from './dto/upsert-collection-task.dto';
@@ -87,6 +88,23 @@ export class PaymentsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="immopilot-feuille-route-paiements.pdf"');
     res.send(buf);
+  }
+
+  /** C4 : encaissement multi-sélection (méthode / date / référence). */
+  @Post('bulk-collect')
+  bulkCollect(@CurrentUser() user: JwtAuthUser, @Body() dto: BulkCollectDto) {
+    return this.payments.bulkCollect(user.organizationId, dto, user);
+  }
+
+  /** C4 : suggestions de rapprochement CSV Mobile Money (confirmation séparée). */
+  @Post('statement-match')
+  statementMatch(@CurrentUser() user: JwtAuthUser, @Body() body: { csv: string }) {
+    return this.payments.suggestStatementMatches(user.organizationId, body.csv ?? '');
+  }
+
+  @Post('statement-confirm')
+  statementConfirm(@CurrentUser() user: JwtAuthUser, @Body() dto: ConfirmStatementMatchesDto) {
+    return this.payments.confirmStatementMatches(user.organizationId, dto.items, user);
   }
 
   @Post(':id/send-reminder')

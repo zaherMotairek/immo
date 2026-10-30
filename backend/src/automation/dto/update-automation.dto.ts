@@ -28,6 +28,11 @@ class TemplatesDto {
   @IsString()
   @MaxLength(4000)
   reminder?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  receipt?: string;
 }
 
 export class UpdateAutomationDto {
@@ -40,6 +45,10 @@ export class UpdateAutomationDto {
   autoRemindersEnabled?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  autoReceiptEnabled?: boolean;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReminderRuleDto)
@@ -49,6 +58,11 @@ export class UpdateAutomationDto {
   @IsArray()
   @IsIn(['EMAIL', 'WHATSAPP'], { each: true })
   reminderChannels?: Array<'EMAIL' | 'WHATSAPP'>;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(['EMAIL', 'WHATSAPP'], { each: true })
+  receiptChannels?: Array<'EMAIL' | 'WHATSAPP'>;
 
   @IsOptional()
   @IsInt()

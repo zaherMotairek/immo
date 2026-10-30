@@ -18,7 +18,15 @@ describeDb('LeasesService — generatePayments / prepay (DB locale)', () => {
     const mail = { sendMail: jest.fn() };
     const auth = {};
     const config = { get: jest.fn() };
-    payments = new PaymentsService(prisma as never, mail as never, audit as never, auth as never, config as never);
+    payments = new PaymentsService(
+      prisma as never,
+      mail as never,
+      audit as never,
+      auth as never,
+      config as never,
+      { getSettings: jest.fn().mockResolvedValue({ autoReceiptEnabled: false }) } as never,
+      { send: jest.fn() } as never,
+    );
     const storage = {
       put: jest.fn(),
       get: jest.fn(),
@@ -27,7 +35,13 @@ describeDb('LeasesService — generatePayments / prepay (DB locale)', () => {
       getSignedDownloadUrl: jest.fn(),
       driver: 'local',
     };
-    leases = new LeasesService(prisma as never, payments, audit as never, storage as never);
+    leases = new LeasesService(
+      prisma as never,
+      payments,
+      audit as never,
+      storage as never,
+      { getSettings: jest.fn().mockResolvedValue({ autoGenerateSchedules: false }) } as never,
+    );
   });
 
   afterAll(async () => {

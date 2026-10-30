@@ -26,7 +26,9 @@ export class AutomationService {
 
   async updateSettings(
     organizationId: string,
-    patch: Partial<OrgAutomationSettings>,
+    patch: Partial<Omit<OrgAutomationSettings, 'templates'>> & {
+      templates?: Partial<OrgAutomationSettings['templates']>;
+    },
     actor?: JwtAuthUser,
   ): Promise<OrgAutomationSettings> {
     const current = await this.getSettings(organizationId);
@@ -36,6 +38,7 @@ export class AutomationService {
       templates: { ...current.templates, ...(patch.templates || {}) },
       reminderRules: patch.reminderRules ?? current.reminderRules,
       reminderChannels: patch.reminderChannels ?? current.reminderChannels,
+      receiptChannels: patch.receiptChannels ?? current.receiptChannels,
     };
     if (!Array.isArray(next.reminderRules) || next.reminderRules.length > 12) {
       throw new BadRequestException('Règles de relance invalides (max 12).');
@@ -55,8 +58,12 @@ export class AutomationService {
       action: 'ORG_AUTOMATION_SETTINGS_UPDATED',
       entityType: 'organization',
       entityId: organizationId,
-      summary: `Automation : schedules=${next.autoGenerateSchedules} relances=${next.autoRemindersEnabled}`,
-      metadata: { autoGenerateSchedules: next.autoGenerateSchedules, autoRemindersEnabled: next.autoRemindersEnabled },
+      summary: `Automation : schedules=${next.autoGenerateSchedules} relances=${next.autoRemindersEnabled} quittance=${next.autoReceiptEnabled}`,
+      metadata: {
+        autoGenerateSchedules: next.autoGenerateSchedules,
+        autoRemindersEnabled: next.autoRemindersEnabled,
+        autoReceiptEnabled: next.autoReceiptEnabled,
+      },
     });
     return next;
   }

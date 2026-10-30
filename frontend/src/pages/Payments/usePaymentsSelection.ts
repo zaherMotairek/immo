@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { paymentRemaining } from '@/lib/paymentRow';
 import type { PaymentRow } from '@/lib/paymentRow';
-import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
+import type { BulkCollectValues } from './PaymentsBulkCollectModal';
 
-/** Sélection de lignes + action groupée « Marquer payé ». */
+/** Sélection de lignes + encaissement groupé (C4). */
 export function usePaymentsSelection(options: {
   rows: PaymentRow[];
   visibleRows: PaymentRow[];
@@ -15,6 +15,7 @@ export function usePaymentsSelection(options: {
   const { rows, visibleRows, methodFilter, load } = options;
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [collectOpen, setCollectOpen] = useState(false);
 
   useEffect(() => {
     const visibleIds = new Set(
@@ -57,36 +58,41 @@ export function usePaymentsSelection(options: {
     });
   }
 
-  async function markSelectedPaid() {
+  function openCollectModal() {
     if (selectableRows.length === 0) {
       toast('Aucune ligne sélectionnée payable (en attente / en retard).', { variant: 'warning' });
       return;
     }
-    const count = selectableRows.length;
-    const ok = await confirmDialog({
-      title: 'Marquer comme payé',
-      message: `Marquer ${count} paiement${count > 1 ? 's' : ''} comme payé${count > 1 ? 's' : ''} ?`,
-      confirmLabel: 'Marquer payé',
-    });
-    if (!ok) return;
+    setCollectOpen(true);
+  }
+
+  async function confirmCollect(values: BulkCollectValues) {
+    if (selectableRows.length === 0) return;
     setBulkSubmitting(true);
     try {
-      await Promise.all(
-        selectableRows.map((p) =>
-          api(`/payments/${p.id}`, {
-            method: 'PATCH',
-            json: {
-              status: 'PAID',
-              amountPaid: Number(p.amountDue),
-              paidAt: new Date().toISOString().slice(0, 10),
-            },
-          }),
-        ),
-      );
+      const res = await api<{ ok: number; failed: number }>('/payments/bulk-collect', {
+        method: 'POST',
+        json: {
+          paidAt: values.paidAt,
+          collectionMethod: values.collectionMethod || 'CASH',
+          collectionReference: values.collectionReference.trim() || undefined,
+          items: selectableRows.map((p) => ({
+            id: p.id,
+            amountPaid: Number(p.amountDue),
+          })),
+        },
+      });
+      setCollectOpen(false);
       setSelectedPaymentIds([]);
+      toast(
+        res.failed
+          ? `${res.ok} encaissé(s), ${res.failed} échec(s)`
+          : `${res.ok} paiement(s) encaissé(s)`,
+        { variant: res.failed ? 'warning' : 'success' },
+      );
       load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Action groupée impossible.', { variant: 'error' });
+      toast(e instanceof Error ? e.message : 'Encaissement groupé impossible.', { variant: 'error' });
     } finally {
       setBulkSubmitting(false);
     }
@@ -96,9 +102,12 @@ export function usePaymentsSelection(options: {
     selectedPaymentIds,
     selectableCount: selectableRows.length,
     bulkSubmitting,
+    collectOpen,
+    setCollectOpen,
     togglePaymentSelection,
     toggleAllInMonth,
-    markSelectedPaid,
+    openCollectModal,
+    confirmCollect,
     clearSelection: () => setSelectedPaymentIds([]),
   };
 }

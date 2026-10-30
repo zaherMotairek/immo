@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -12,9 +13,13 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { AuthService } from '../auth/auth.service';
+import { AutomationService } from '../automation/automation.service';
+import { WHATSAPP_PROVIDER } from '../whatsapp/whatsapp.module';
+import type { WhatsAppProvider } from '../whatsapp/whatsapp.provider';
 import { startOfTodayUtc } from '../common/date.util';
 import { amountXofToFrenchWords } from '../common/number-to-french-words';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
+import type { BulkCollectDto, BulkCollectItemDto } from './dto/bulk-collect.dto';
 import {
   COLLECTION_TASK_STATUSES,
   type CollectionTaskStatus,
@@ -31,6 +36,8 @@ import {
   formatFcfaPdf,
   type PaymentsWorksheetRow,
 } from '../common/immo-pdf';
+import { maybeSendAutoReceipt } from './auto-receipt';
+import { matchStatementLines, parseStatementCsv } from './statement-match';
 
 @Injectable()
 export class PaymentsService {
@@ -40,6 +47,8 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly auth: AuthService,
     private readonly config: ConfigService,
+    private readonly automation: AutomationService,
+    @Inject(WHATSAPP_PROVIDER) private readonly whatsapp: WhatsAppProvider,
   ) {}
 
   /**
@@ -378,6 +387,9 @@ export class PaymentsService {
         },
       });
       await this.syncCollectionTaskFromPaymentStatus(updated.id, organizationId, updated.status);
+      if (paidFull) {
+        await this.dispatchAutoReceipt(id, organizationId, actor);
+      }
       return this.attachCollectionMetaOne(updated, organizationId);
     }
 
@@ -433,7 +445,96 @@ export class PaymentsService {
       },
     });
     await this.syncCollectionTaskFromPaymentStatus(updated.id, organizationId, updated.status);
+    if (data.status === PaymentStatus.PAID) {
+      await this.dispatchAutoReceipt(id, organizationId, actor);
+    }
     return this.attachCollectionMetaOne(updated, organizationId);
+  }
+
+  /** C4 : encaissement multi-lignes (une transaction métier = N updates + audit chacun). */
+  async bulkCollect(organizationId: string, dto: BulkCollectDto, actor?: JwtAuthUser) {
+    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+    for (const item of dto.items) {
+      try {
+        await this.update(
+          item.id,
+          organizationId,
+          {
+            status: PaymentStatus.PAID,
+            amountPaid: item.amountPaid,
+            paidAt: item.paidAt ?? dto.paidAt,
+            collectionMethod: item.collectionMethod ?? dto.collectionMethod,
+            collectionReference: item.collectionReference ?? dto.collectionReference,
+          },
+          actor,
+        );
+        results.push({ id: item.id, ok: true });
+      } catch (err) {
+        results.push({
+          id: item.id,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    const ok = results.filter((r) => r.ok).length;
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_BULK_COLLECT',
+      entityType: 'payment',
+      summary: `Encaissement groupé : ${ok}/${results.length}`,
+      metadata: { results },
+    });
+    return { ok, failed: results.length - ok, results };
+  }
+
+  /** C4 : suggestions de rapprochement relevé Mobile Money (jamais d’auto-pay). */
+  async suggestStatementMatches(organizationId: string, csvText: string) {
+    const lines = parseStatementCsv(csvText);
+    if (lines.length === 0) {
+      throw new BadRequestException('Aucune ligne exploitable (montant requis).');
+    }
+    if (lines.length > 200) {
+      throw new BadRequestException('Maximum 200 lignes par import.');
+    }
+    const suggestions = await matchStatementLines(this.prisma, organizationId, lines);
+    return { suggestions };
+  }
+
+  async confirmStatementMatches(
+    organizationId: string,
+    items: BulkCollectItemDto[],
+    actor?: JwtAuthUser,
+  ) {
+    return this.bulkCollect(
+      organizationId,
+      {
+        items: items.map((it) => ({
+          ...it,
+          collectionMethod: it.collectionMethod ?? CollectionMethod.ORANGE_MONEY,
+        })),
+      },
+      actor,
+    );
+  }
+
+  private async dispatchAutoReceipt(
+    paymentId: string,
+    organizationId: string,
+    actor?: JwtAuthUser,
+  ) {
+    await maybeSendAutoReceipt({
+      prisma: this.prisma,
+      mail: this.mail,
+      audit: this.audit,
+      automation: this.automation,
+      whatsapp: this.whatsapp,
+      createShareLink: (pid, orgId, act) => this.createReceiptShareLink(pid, orgId, act),
+      paymentId,
+      organizationId,
+      actor,
+    });
   }
 
   async upsertCollectionTask(
@@ -1379,7 +1480,7 @@ export class PaymentsService {
   async createReceiptShareLink(
     paymentId: string,
     organizationId: string,
-    actor: JwtAuthUser,
+    actor?: JwtAuthUser,
     req?: { protocol?: string; get?: (name: string) => string | undefined; headers?: Record<string, unknown> },
   ) {
     await this.ensure(paymentId, organizationId);
@@ -1397,7 +1498,7 @@ export class PaymentsService {
       token,
       organizationId,
       paymentId,
-      actor.id,
+      actor?.id ?? null,
       expiresAt,
     );
     const apiBase = this.resolvePublicApiBase(req);

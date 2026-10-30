@@ -42,6 +42,12 @@ export class MailService {
     return this.deliverMail(to, subject, text, html);
   }
 
+  /** Message libre (quittance, etc.) — SMTP ou simulation. */
+  async sendTextEmail(to: string, subject: string, text: string): Promise<{ simulated: boolean }> {
+    const html = `<pre style="font-family:inherit;white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+    return this.deliverMail(to, subject, text, html);
+  }
+
   /** Envoie un e-mail réel (SMTP) ou l’enregistre dans les logs si MAIL_MODE=log ou SMTP absent. */
   async sendOverdueRentReminder(payload: ReminderMailPayload): Promise<{ simulated: boolean }> {
     const subject = `ImmoPilot — rappel de loyer ${payload.periodLabel}`;

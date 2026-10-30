@@ -13,20 +13,26 @@ export type OrgAutomationSettings = {
   autoGenerateSchedules: boolean;
   /** C2 : file de relances automatiques. */
   autoRemindersEnabled: boolean;
+  /** C3 : envoyer le lien quittance à l’encaissement (PAID). */
+  autoReceiptEnabled: boolean;
   reminderRules: ReminderRule[];
   reminderChannels: ReminderChannel[];
+  /** Canaux pour la quittance auto (défaut = same as reminderChannels). */
+  receiptChannels: ReminderChannel[];
   /** Heure locale Africa/Abidjan : début quiet hours (inclus). */
   quietHoursStart: number;
   /** Heure locale : fin quiet hours (exclusive). Ex. 20→7 = nuit. */
   quietHoursEnd: number;
   templates: {
     reminder: string;
+    receipt: string;
   };
 };
 
 export const DEFAULT_AUTOMATION_SETTINGS: OrgAutomationSettings = {
   autoGenerateSchedules: false,
   autoRemindersEnabled: false,
+  autoReceiptEnabled: false,
   reminderRules: [
     { offsetDays: -3, tone: 'friendly' },
     { offsetDays: 0, tone: 'neutral' },
@@ -34,13 +40,24 @@ export const DEFAULT_AUTOMATION_SETTINGS: OrgAutomationSettings = {
     { offsetDays: 15, tone: 'firm' },
   ],
   reminderChannels: [ReminderChannel.EMAIL, ReminderChannel.WHATSAPP],
+  receiptChannels: [ReminderChannel.EMAIL, ReminderChannel.WHATSAPP],
   quietHoursStart: 20,
   quietHoursEnd: 7,
   templates: {
     reminder:
       'Bonjour {prenom},\n\nRappel loyer {periode} — {montant} FCFA — échéance {echeance}.\nBien : {bien}.\n{lien_quittance}\n\nCordialement',
+    receipt:
+      'Bonjour {prenom},\n\nNous confirmons la réception de votre loyer {periode} ({montant} FCFA).\nBien : {bien}.\nQuittance : {lien_quittance}\n\nMerci — ImmoPilot',
   },
 };
+
+function parseChannels(raw: unknown): ReminderChannel[] | null {
+  if (!Array.isArray(raw)) return null;
+  const ch = raw.filter(
+    (c): c is ReminderChannel => c === ReminderChannel.EMAIL || c === ReminderChannel.WHATSAPP,
+  );
+  return ch.length ? ch : null;
+}
 
 export function parseAutomationSettings(raw: unknown): OrgAutomationSettings {
   const base = { ...DEFAULT_AUTOMATION_SETTINGS, templates: { ...DEFAULT_AUTOMATION_SETTINGS.templates } };
@@ -48,6 +65,7 @@ export function parseAutomationSettings(raw: unknown): OrgAutomationSettings {
   const o = raw as Record<string, unknown>;
   if (typeof o.autoGenerateSchedules === 'boolean') base.autoGenerateSchedules = o.autoGenerateSchedules;
   if (typeof o.autoRemindersEnabled === 'boolean') base.autoRemindersEnabled = o.autoRemindersEnabled;
+  if (typeof o.autoReceiptEnabled === 'boolean') base.autoReceiptEnabled = o.autoReceiptEnabled;
   if (Array.isArray(o.reminderRules)) {
     base.reminderRules = o.reminderRules
       .filter((r): r is ReminderRule => !!r && typeof r === 'object' && typeof (r as ReminderRule).offsetDays === 'number')
@@ -56,12 +74,10 @@ export function parseAutomationSettings(raw: unknown): OrgAutomationSettings {
         tone: r.tone === 'friendly' || r.tone === 'firm' || r.tone === 'neutral' ? r.tone : 'neutral',
       }));
   }
-  if (Array.isArray(o.reminderChannels)) {
-    const ch = o.reminderChannels.filter(
-      (c): c is ReminderChannel => c === ReminderChannel.EMAIL || c === ReminderChannel.WHATSAPP,
-    );
-    if (ch.length) base.reminderChannels = ch;
-  }
+  const remCh = parseChannels(o.reminderChannels);
+  if (remCh) base.reminderChannels = remCh;
+  const recCh = parseChannels(o.receiptChannels);
+  if (recCh) base.receiptChannels = recCh;
   if (typeof o.quietHoursStart === 'number' && o.quietHoursStart >= 0 && o.quietHoursStart <= 23) {
     base.quietHoursStart = Math.trunc(o.quietHoursStart);
   }
@@ -71,6 +87,7 @@ export function parseAutomationSettings(raw: unknown): OrgAutomationSettings {
   if (o.templates && typeof o.templates === 'object') {
     const t = o.templates as Record<string, unknown>;
     if (typeof t.reminder === 'string' && t.reminder.trim()) base.templates.reminder = t.reminder;
+    if (typeof t.receipt === 'string' && t.receipt.trim()) base.templates.receipt = t.receipt;
   }
   return base;
 }

@@ -30,6 +30,8 @@ describeDb('PaymentsService — caractérisation argent (DB locale)', () => {
       deps.audit as never,
       deps.auth as never,
       deps.config as never,
+      { getSettings: jest.fn().mockResolvedValue({ autoReceiptEnabled: false }) } as never,
+      { send: jest.fn() } as never,
     );
   });
 

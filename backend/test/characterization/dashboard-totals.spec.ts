@@ -21,6 +21,8 @@ describeDb('DashboardService.overview — totaux (caractérisation)', () => {
       audit as never,
       {} as never,
       { get: jest.fn() } as never,
+      { getSettings: jest.fn().mockResolvedValue({ autoReceiptEnabled: false }) } as never,
+      { send: jest.fn() } as never,
     );
     dashboard = new DashboardService(prisma as never, payments);
   });

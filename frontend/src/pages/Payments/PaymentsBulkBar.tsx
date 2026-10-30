@@ -24,7 +24,7 @@ export function PaymentsBulkBar({ selectedCount, payableCount, submitting, onMar
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" disabled={submitting || payableCount === 0} onClick={onMarkPaid}>
-          {submitting ? 'Traitement…' : 'Marquer la sélection comme payée'}
+          {submitting ? 'Traitement…' : 'Encaisser la sélection'}
         </Button>
         <Button variant="secondary" size="sm" disabled={submitting} onClick={onClear}>
           Vider la sélection

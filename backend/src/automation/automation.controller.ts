@@ -23,11 +23,19 @@ export class AutomationController {
       {
         autoGenerateSchedules: dto.autoGenerateSchedules,
         autoRemindersEnabled: dto.autoRemindersEnabled,
+        autoReceiptEnabled: dto.autoReceiptEnabled,
         reminderRules: dto.reminderRules,
         reminderChannels: dto.reminderChannels as ReminderChannel[] | undefined,
+        receiptChannels: dto.receiptChannels as ReminderChannel[] | undefined,
         quietHoursStart: dto.quietHoursStart,
         quietHoursEnd: dto.quietHoursEnd,
-        templates: dto.templates?.reminder != null ? { reminder: dto.templates.reminder } : undefined,
+        templates:
+          dto.templates?.reminder != null || dto.templates?.receipt != null
+            ? {
+                ...(dto.templates.reminder != null ? { reminder: dto.templates.reminder } : {}),
+                ...(dto.templates.receipt != null ? { receipt: dto.templates.receipt } : {}),
+              }
+            : undefined,
       },
       user,
     );

@@ -6,11 +6,13 @@ import { toast } from '@/components/ui/Toast';
 type Settings = {
   autoGenerateSchedules: boolean;
   autoRemindersEnabled: boolean;
+  autoReceiptEnabled: boolean;
   quietHoursStart: number;
   quietHoursEnd: number;
   reminderRules: Array<{ offsetDays: number; tone?: string }>;
   reminderChannels: Array<'EMAIL' | 'WHATSAPP'>;
-  templates: { reminder: string };
+  receiptChannels: Array<'EMAIL' | 'WHATSAPP'>;
+  templates: { reminder: string; receipt: string };
 };
 
 export function ProfileAutomationTab() {
@@ -79,6 +81,21 @@ export function ProfileAutomationTab() {
         </span>
       </label>
 
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={s.autoReceiptEnabled}
+          onChange={(e) => setS({ ...s, autoReceiptEnabled: e.target.checked })}
+        />
+        <span>
+          <span className="font-medium text-[var(--color-ink)]">Quittance automatique</span>
+          <span className="mt-0.5 block text-sm text-[var(--color-muted)]">
+            À chaque encaissement (payé), envoie le lien de quittance au locataire (e-mail / WhatsApp).
+          </span>
+        </span>
+      </label>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block text-[var(--color-muted)]">Quiet hours — début</span>
@@ -103,14 +120,20 @@ export function ProfileAutomationTab() {
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block text-[var(--color-muted)]">
-          Modèle de message ({'{prenom}'}, {'{montant}'}, {'{periode}'}, {'{bien}'}, {'{echeance}'},{' '}
-          {'{lien_quittance}'})
-        </span>
+        <span className="mb-1 block text-[var(--color-muted)]">Modèle relance</span>
         <Textarea
-          rows={6}
+          rows={5}
           value={s.templates.reminder}
-          onChange={(e) => setS({ ...s, templates: { reminder: e.target.value } })}
+          onChange={(e) => setS({ ...s, templates: { ...s.templates, reminder: e.target.value } })}
+        />
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-1 block text-[var(--color-muted)]">Modèle quittance</span>
+        <Textarea
+          rows={5}
+          value={s.templates.receipt}
+          onChange={(e) => setS({ ...s, templates: { ...s.templates, receipt: e.target.value } })}
         />
       </label>
 
