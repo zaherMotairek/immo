@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -15,6 +15,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import type { JwtAuthUser, JwtAuthUserRole } from './jwt-user.types';
 import type { Express } from 'express';
+import { LoginLockoutService } from './login-lockout.service';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -34,6 +35,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    private readonly lockout: LoginLockoutService,
   ) {}
 
   async getUserPayload(userId: string): Promise<AuthUserPayload> {
@@ -54,6 +56,13 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const email = dto.email.trim();
+    const lockedMs = this.lockout.getLockRemainingMs(email);
+    if (lockedMs > 0) {
+      throw new HttpException(
+        `Trop de tentatives. Réessayez dans ${Math.ceil(lockedMs / 1000)} s.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const user = await this.prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
       include: {
@@ -65,12 +74,25 @@ export class AuthService {
         },
       },
     });
-    if (!user) throw new UnauthorizedException('Identifiants invalides');
+    if (!user) {
+      this.lockout.recordFailure(email);
+      throw new UnauthorizedException('Identifiants invalides');
+    }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Identifiants invalides');
+    if (!ok) {
+      const { lockedMs: wait } = this.lockout.recordFailure(email);
+      if (wait > 0) {
+        throw new HttpException(
+          `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 1000)} s.`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw new UnauthorizedException('Identifiants invalides');
+    }
 
     const role: JwtAuthUserRole = user.role === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'USER';
     assertOrganizationPlatformAccess(role, user.organization);
+    this.lockout.recordSuccess(email);
 
     const payload: { sub: string; email: string; organizationId: string } = {
       sub: user.id,

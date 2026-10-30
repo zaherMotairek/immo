@@ -14,10 +14,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
+    const isProd = (config.get<string>('NODE_ENV') || '').toLowerCase() === 'production';
+    const secret = config.get<string>('JWT_SECRET') || (isProd ? '' : 'dev-secret-change-me');
+    if (!secret) {
+      throw new Error('JWT_SECRET manquant en production.');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') || 'dev-secret-change-me',
+      secretOrKey: secret,
     });
   }
 
