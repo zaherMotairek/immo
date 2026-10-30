@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +16,9 @@ import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { CollectorsModule } from './collectors/collectors.module';
 import { StorageModule } from './storage/storage.module';
+import { JobsModule } from './jobs/jobs.module';
+import { HealthModule } from './health/health.module';
+import { RequestIdMiddleware } from './common/request-id.middleware';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -48,6 +51,8 @@ import { APP_GUARD } from '@nestjs/core';
     AdminModule,
     AuditModule,
     CollectorsModule,
+    JobsModule,
+    HealthModule,
   ],
   providers: [
     {
@@ -56,4 +61,8 @@ import { APP_GUARD } from '@nestjs/core';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
