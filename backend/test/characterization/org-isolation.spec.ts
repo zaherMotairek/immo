@@ -29,9 +29,17 @@ describeDb('Isolation organisation (caractérisation)', () => {
     const auth = {};
     const config = { get: jest.fn() };
     payments = new PaymentsService(prisma as never, mail as never, audit as never, auth as never, config as never);
-    leases = new LeasesService(prisma as never, payments, audit as never);
+    const storage = {
+      put: jest.fn(),
+      get: jest.fn(),
+      delete: jest.fn(),
+      exists: jest.fn(),
+      getSignedDownloadUrl: jest.fn(),
+      driver: 'local',
+    };
+    leases = new LeasesService(prisma as never, payments, audit as never, storage as never);
     buildings = new BuildingsService(prisma as never);
-    tenants = new TenantsService(prisma as never, audit as never);
+    tenants = new TenantsService(prisma as never, audit as never, storage as never);
 
     orgA = await seedOrgFixture(prisma, { label: 'orgA', year: 2037, months: [1] });
     orgB = await seedOrgFixture(prisma, { label: 'orgB', year: 2037, months: [1] });

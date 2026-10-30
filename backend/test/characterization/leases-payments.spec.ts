@@ -19,7 +19,15 @@ describeDb('LeasesService — generatePayments / prepay (DB locale)', () => {
     const auth = {};
     const config = { get: jest.fn() };
     payments = new PaymentsService(prisma as never, mail as never, audit as never, auth as never, config as never);
-    leases = new LeasesService(prisma as never, payments, audit as never);
+    const storage = {
+      put: jest.fn(),
+      get: jest.fn(),
+      delete: jest.fn(),
+      exists: jest.fn(),
+      getSignedDownloadUrl: jest.fn(),
+      driver: 'local',
+    };
+    leases = new LeasesService(prisma as never, payments, audit as never, storage as never);
   });
 
   afterAll(async () => {

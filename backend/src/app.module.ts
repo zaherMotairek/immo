@@ -15,6 +15,9 @@ import { SearchModule } from './search/search.module';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { CollectorsModule } from './collectors/collectors.module';
+import { StorageModule } from './storage/storage.module';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -23,6 +26,14 @@ import { CollectorsModule } from './collectors/collectors.module';
       // Toujours charger backend/.env (UTF-8), même si le cwd n’est pas le dossier backend.
       envFilePath: join(__dirname, '..', '.env'),
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
+    StorageModule,
     PrismaModule,
     AuthModule,
     BuildingsModule,
@@ -37,6 +48,12 @@ import { CollectorsModule } from './collectors/collectors.module';
     AdminModule,
     AuditModule,
     CollectorsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
