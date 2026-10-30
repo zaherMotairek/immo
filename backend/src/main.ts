@@ -6,9 +6,12 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaClientExceptionFilter } from './prisma/prisma-client-exception.filter';
 import { assertEnvOrExit } from './config/validate-env';
+import { initSentryIfConfigured, captureException } from './common/sentry';
+import { REQUEST_ID_HEADER } from './common/request-id.middleware';
 
 async function bootstrap() {
   assertEnvOrExit();
+  await initSentryIfConfigured();
 
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, { bodyParser: false });
@@ -55,7 +58,8 @@ async function bootstrap() {
   app.enableCors({
     origin: corsOrigin,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER],
+    exposedHeaders: [REQUEST_ID_HEADER],
     credentials: true,
   });
 
@@ -76,5 +80,6 @@ async function bootstrap() {
 
 bootstrap().catch((err) => {
   console.error(err);
+  void captureException(err);
   process.exit(1);
 });
