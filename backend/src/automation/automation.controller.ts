@@ -1,0 +1,35 @@
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
+import { AutomationService } from './automation.service';
+import { UpdateAutomationDto } from './dto/update-automation.dto';
+import { ReminderChannel } from '@prisma/client';
+
+@Controller('automation')
+@UseGuards(JwtAuthGuard)
+export class AutomationController {
+  constructor(private readonly automation: AutomationService) {}
+
+  @Get('settings')
+  get(@CurrentUser() user: JwtAuthUser) {
+    return this.automation.getSettings(user.organizationId);
+  }
+
+  @Patch('settings')
+  patch(@CurrentUser() user: JwtAuthUser, @Body() dto: UpdateAutomationDto) {
+    return this.automation.updateSettings(
+      user.organizationId,
+      {
+        autoGenerateSchedules: dto.autoGenerateSchedules,
+        autoRemindersEnabled: dto.autoRemindersEnabled,
+        reminderRules: dto.reminderRules,
+        reminderChannels: dto.reminderChannels as ReminderChannel[] | undefined,
+        quietHoursStart: dto.quietHoursStart,
+        quietHoursEnd: dto.quietHoursEnd,
+        templates: dto.templates?.reminder != null ? { reminder: dto.templates.reminder } : undefined,
+      },
+      user,
+    );
+  }
+}

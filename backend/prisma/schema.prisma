@@ -17,11 +17,17 @@ model Organization {
   platformAccessPaidUntil DateTime? @map("platform_access_paid_until") @db.Date
   /** Blocage manuel par l’admin plateforme (prioritaire). */
   platformAccessSuspended Boolean @default(false) @map("platform_access_suspended")
+  /**
+   * Automation opt-in (Phase C) : échéances auto, relances, templates…
+   * Voir `OrgAutomationSettings` côté code.
+   */
+  automationSettings Json? @map("automation_settings")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   users     User[]
   buildings Building[]
   tenants   Tenant[]
+  reminderOutbox ReminderOutbox[]
 
   @@map("organizations")
 }
@@ -285,6 +291,7 @@ model Payment {
   updatedAt   DateTime      @updatedAt @map("updated_at")
   lease       Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
   reminders   PaymentReminder[]
+  reminderOutbox ReminderOutbox[]
 
   @@unique([leaseId, periodYear, periodMonth])
   @@index([leaseId])
@@ -303,6 +310,38 @@ model PaymentReminder {
 
   @@index([paymentId])
   @@map("payment_reminders")
+}
+
+enum ReminderOutboxStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/** File d’attente des relances automatiques (idempotente par payment+channel+offset). */
+model ReminderOutbox {
+  id              String               @id @default(uuid())
+  organizationId  String               @map("organization_id")
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymentId       String               @map("payment_id")
+  payment         Payment              @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  channel         ReminderChannel
+  ruleOffsetDays  Int                  @map("rule_offset_days")
+  tone            String?              @db.VarChar(32)
+  status          ReminderOutboxStatus @default(QUEUED)
+  bodyPreview     String?              @map("body_preview") @db.Text
+  waMeUrl         String?              @map("wa_me_url") @db.VarChar(512)
+  errorMessage    String?              @map("error_message") @db.VarChar(500)
+  scheduledFor    DateTime             @map("scheduled_for")
+  processedAt     DateTime?            @map("processed_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@unique([paymentId, channel, ruleOffsetDays])
+  @@index([organizationId, status])
+  @@index([scheduledFor, status])
+  @@map("reminder_outbox")
 }
 
 enum ChargeCategory {

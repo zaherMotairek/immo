@@ -7,6 +7,7 @@ import { ProfileBanner } from './ProfileBanner';
 import { ProfileInfoTab } from './ProfileInfoTab';
 import { ProfileSecurityTab } from './ProfileSecurityTab';
 import { ProfileSignatureTab } from './ProfileSignatureTab';
+import { ProfileAutomationTab } from './ProfileAutomationTab';
 import { useProfileAccount } from './useProfileAccount';
 import { useProfilePasskeys } from './useProfilePasskeys';
 import { useProfilePassword } from './useProfilePassword';
@@ -16,6 +17,7 @@ const PROFILE_TABS = [
   { id: 'profil', label: 'Profil' },
   { id: 'securite', label: 'Sécurité' },
   { id: 'signature', label: 'Signature PDF' },
+  { id: 'automation', label: 'Automation' },
 ] as const;
 
 type ProfileTabId = (typeof PROFILE_TABS)[number]['id'];
@@ -58,6 +60,7 @@ export function ProfilePage() {
           {tab === 'profil' ? <ProfileInfoTab account={account} /> : null}
           {tab === 'securite' ? <ProfileSecurityTab password={password} passkeys={passkeys} /> : null}
           {tab === 'signature' ? <ProfileSignatureTab sig={signature} /> : null}
+          {tab === 'automation' ? <ProfileAutomationTab /> : null}
         </div>
       </Card>
     </div>

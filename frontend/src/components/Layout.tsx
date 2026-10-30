@@ -21,6 +21,7 @@ const navPrimary: NavItem[] = [
 ];
 
 const navSecondary: NavItem[] = [
+  { to: '/relances', label: 'Relances' },
   { to: '/locations', label: 'Carte des biens' },
   { to: '/activite-loyers', label: 'Calendrier loyers' },
   { to: '/cautions', label: 'Cautions & charges' },

@@ -18,6 +18,8 @@ import { CollectorsModule } from './collectors/collectors.module';
 import { StorageModule } from './storage/storage.module';
 import { JobsModule } from './jobs/jobs.module';
 import { HealthModule } from './health/health.module';
+import { AutomationModule } from './automation/automation.module';
+import { RemindersModule } from './reminders/reminders.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -53,6 +55,8 @@ import { APP_GUARD } from '@nestjs/core';
     CollectorsModule,
     JobsModule,
     HealthModule,
+    AutomationModule,
+    RemindersModule,
   ],
   providers: [
     {

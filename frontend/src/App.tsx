@@ -50,6 +50,9 @@ const ExportsPage = lazy(() =>
 const ProfilePage = lazy(() =>
   import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 );
+const RemindersPage = lazy(() =>
+  import('./pages/RemindersPage').then((m) => ({ default: m.RemindersPage })),
+);
 const AdminClientsPage = lazy(() =>
   import('./pages/AdminClientsPage').then((m) => ({ default: m.AdminClientsPage })),
 );
@@ -151,6 +154,7 @@ export default function App() {
         <Route path="locataires" element={<TenantsPage />} />
         <Route path="baux" element={<LeasesPage />} />
         <Route path="paiements" element={<PaymentsPage />} />
+        <Route path="relances" element={<RemindersPage />} />
         <Route path="activite-loyers" element={<YearlyRentActivityPage />} />
         <Route path="cautions" element={<CautionsChargesPage />} />
         <Route path="charges" element={<Navigate to="/cautions?tab=charges" replace />} />

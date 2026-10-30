@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { PaymentsService } from '../payments/payments.service';
+import { AutomationService } from '../automation/automation.service';
 import { addOneYearSameDay, rentDueDateForBilledPeriod, startOfTodayUtc } from '../common/date.util';
 import { assertAllowedUploadMagic } from '../common/file-magic';
 import { StorageService } from '../storage/storage.service';
@@ -72,6 +73,7 @@ export class LeasesService {
     private readonly payments: PaymentsService,
     private readonly audit: AuditService,
     private readonly storage: StorageService,
+    private readonly automation: AutomationService,
   ) {}
 
   list(organizationId: string) {
@@ -299,9 +301,13 @@ export class LeasesService {
     }
 
     const startDate = new Date(dto.startDate);
-    const endDate =
-      dto.endDate != null && String(dto.endDate).trim() !== ''
-        ? new Date(dto.endDate)
+    const automation = await this.automation.getSettings(organizationId);
+    const hasExplicitEnd = dto.endDate != null && String(dto.endDate).trim() !== '';
+    /** C1 : sans date de fin + opt-in → bail open-ended (horizon 12 mois). Sinon +1 an. */
+    const endDate = hasExplicitEnd
+      ? new Date(dto.endDate!)
+      : automation.autoGenerateSchedules
+        ? null
         : addOneYearSameDay(startDate);
 
     const lease = await this.prisma.lease.create({
@@ -319,7 +325,12 @@ export class LeasesService {
     });
 
     if (lease.active) {
-      await this.generatePaymentsFromLeaseStartUntilContractEnd(lease.id, lease);
+      if (lease.endDate) {
+        await this.generatePaymentsFromLeaseStartUntilContractEnd(lease.id, lease);
+      }
+      if (automation.autoGenerateSchedules) {
+        await this.ensureScheduleMonthsAhead(lease.id, lease, 12);
+      }
     }
 
     return lease;
@@ -353,17 +364,69 @@ export class LeasesService {
     lease: Pick<Lease, 'startDate' | 'endDate' | 'monthlyRent' | 'rentDueDay' | 'createdAt'>,
   ) {
     if (!lease.endDate) return;
-
     const { y: firstY, m: firstM } = this.firstBillingPeriodMonth(lease.startDate, lease.createdAt);
     const lastY = lease.endDate.getFullYear();
     const lastM = lease.endDate.getMonth() + 1;
+    await this.createPaymentRange(leaseId, lease, firstY, firstM, lastY, lastM);
+  }
 
+  /**
+   * C1 : crée les échéances manquantes jusqu’à `monthsAhead` mois après aujourd’hui
+   * (ou jusqu’à endDate si plus tôt). N’écrase jamais (unique leaseId+year+month).
+   */
+  async ensureScheduleMonthsAhead(
+    leaseId: string,
+    lease: Pick<Lease, 'startDate' | 'endDate' | 'monthlyRent' | 'rentDueDay' | 'createdAt'>,
+    monthsAhead: number,
+  ): Promise<number> {
+    const { y: firstY, m: firstM } = this.firstBillingPeriodMonth(lease.startDate, lease.createdAt);
+    const today = startOfTodayUtc();
+    let lastY = today.getUTCFullYear();
+    let lastM = today.getUTCMonth() + 1 + monthsAhead;
+    while (lastM > 12) {
+      lastM -= 12;
+      lastY += 1;
+    }
+    if (lease.endDate) {
+      const ey = lease.endDate.getFullYear();
+      const em = lease.endDate.getMonth() + 1;
+      if (ey * 12 + em < lastY * 12 + lastM) {
+        lastY = ey;
+        lastM = em;
+      }
+    }
+    return this.createPaymentRange(leaseId, lease, firstY, firstM, lastY, lastM);
+  }
+
+  /** Job annuel / manuel : org avec autoGenerateSchedules. */
+  async extendSchedulesForOrganization(
+    organizationId: string,
+    monthsAhead = 12,
+  ): Promise<{ created: number; leases: number }> {
+    const leases = await this.prisma.lease.findMany({
+      where: { active: true, ...leaseBelongsToOrg(organizationId) },
+    });
+    let created = 0;
+    for (const lease of leases) {
+      created += await this.ensureScheduleMonthsAhead(lease.id, lease, monthsAhead);
+    }
+    return { created, leases: leases.length };
+  }
+
+  private async createPaymentRange(
+    leaseId: string,
+    lease: Pick<Lease, 'monthlyRent' | 'rentDueDay'>,
+    firstY: number,
+    firstM: number,
+    lastY: number,
+    lastM: number,
+  ): Promise<number> {
     const firstSeq = firstY * 12 + firstM;
     const lastSeq = lastY * 12 + lastM;
-    if (firstSeq > lastSeq) return;
-
+    if (firstSeq > lastSeq) return 0;
     let y = firstY;
     let mo = firstM;
+    let created = 0;
     while (y * 12 + mo <= lastSeq) {
       const due = rentDueDateForBilledPeriod(y, mo, lease.rentDueDay);
       try {
@@ -377,6 +440,7 @@ export class LeasesService {
             status: PaymentStatus.PENDING,
           },
         });
+        created += 1;
       } catch {
         /* déjà créé */
       }
@@ -386,6 +450,7 @@ export class LeasesService {
         y += 1;
       }
     }
+    return created;
   }
 
   /** Recalcule les échéances modifiables d’un bail selon ses conditions actuelles. */
@@ -518,6 +583,16 @@ export class LeasesService {
         createdAt: before.createdAt,
         active: updated.active,
       });
+      const automation = await this.automation.getSettings(organizationId);
+      if (automation.autoGenerateSchedules && updated.active) {
+        await this.ensureScheduleMonthsAhead(id, {
+          startDate: updated.startDate,
+          endDate: updated.endDate,
+          monthlyRent: updated.monthlyRent,
+          rentDueDay: updated.rentDueDay,
+          createdAt: before.createdAt,
+        }, 12);
+      }
     }
     await this.audit.log({
       organizationId,
