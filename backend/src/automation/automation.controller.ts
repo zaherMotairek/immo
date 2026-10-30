@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrgPermGuard } from '../auth/org-perm.guard';
+import { RequireOrgPerm } from '../auth/require-org-perm.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { AutomationService } from './automation.service';
@@ -7,7 +9,7 @@ import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { ReminderChannel } from '@prisma/client';
 
 @Controller('automation')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrgPermGuard)
 export class AutomationController {
   constructor(private readonly automation: AutomationService) {}
 
@@ -17,6 +19,7 @@ export class AutomationController {
   }
 
   @Patch('settings')
+  @RequireOrgPerm('automation:write')
   patch(@CurrentUser() user: JwtAuthUser, @Body() dto: UpdateAutomationDto) {
     return this.automation.updateSettings(
       user.organizationId,

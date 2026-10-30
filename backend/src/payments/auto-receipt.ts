@@ -48,6 +48,12 @@ export async function maybeSendAutoReceipt(deps: {
   actor?: JwtAuthUser;
 }): Promise<void> {
   try {
+    const org = await deps.prisma.organization.findUnique({
+      where: { id: deps.organizationId },
+      select: { isDemo: true },
+    });
+    if (org?.isDemo) return;
+
     const settings = await deps.automation.getSettings(deps.organizationId);
     if (!settings.autoReceiptEnabled) return;
 

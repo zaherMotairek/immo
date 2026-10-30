@@ -16,6 +16,7 @@ import { TodaySection } from './TodaySection';
 import { UpcomingSection } from './UpcomingSection';
 import { compareUpcomingRows } from './types';
 import type { DashboardPaymentAlert, Overview, UpcomingSortKey } from './types';
+import { OnboardingChecklist } from '@/features/onboarding/OnboardingChecklist';
 
 function DashboardSkeleton() {
   return (
@@ -155,6 +156,8 @@ export function DashboardPage() {
         hintTitle="Aujourd’hui (actions) + synthèse du mois. Les montants viennent de FinanceSummary (source unique)."
         subtitle="Ce qu’il faut faire aujourd’hui, puis le mois en cours."
       />
+
+      <OnboardingChecklist />
 
       {!isEmptyPortfolio ? (
         <TodaySection

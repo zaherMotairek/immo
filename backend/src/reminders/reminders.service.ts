@@ -264,6 +264,14 @@ export class RemindersService {
     template: string,
     actor?: JwtAuthUser,
   ) {
+    const demo = await this.prisma.organization.findUnique({
+      where: { id: row.organizationId },
+      select: { isDemo: true },
+    });
+    if (demo?.isDemo) {
+      await this.mark(row.id, ReminderOutboxStatus.SKIPPED, 'Org démo : pas d’envoi réel.');
+      return;
+    }
     const vars = this.buildVars(row.payment, template);
     if (row.channel === ReminderChannel.EMAIL) {
       const email = row.payment.lease.tenant.email?.trim();

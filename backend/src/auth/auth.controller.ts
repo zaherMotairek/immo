@@ -24,6 +24,7 @@ import { CurrentUser } from './current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordTokenDto } from './dto/reset-password-token.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { WebAuthnLoginOptionsDto, WebAuthnLoginVerifyDto } from './dto/webauthn-login.dto';
@@ -38,6 +39,26 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly webauthn: WebAuthnService,
   ) {}
+
+  @Get('signup-status')
+  signupStatus() {
+    return this.auth.signupStatus();
+  }
+
+  @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto);
+  }
+
+  @Post('verify-email')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  verifyEmail(@Body() body: { token?: string }) {
+    if (!body?.token?.trim()) {
+      throw new BadRequestException('Token manquant.');
+    }
+    return this.auth.verifyEmail(body.token.trim());
+  }
 
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

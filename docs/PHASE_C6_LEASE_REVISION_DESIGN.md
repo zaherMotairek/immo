@@ -1,6 +1,6 @@
 # C6 — Design : fin de bail, renouvellement, révision de loyer
 
-**Statut :** design only — **ne pas implémenter** le modèle tant que non approuvé.
+**Statut :** **implémenté (option A)** sur local — voir `docs/PHASE_D12_REPORT.md`.
 
 ## Objectifs produit
 

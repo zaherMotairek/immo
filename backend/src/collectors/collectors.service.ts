@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 
 @Injectable()
 export class CollectorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   async list(organizationId: string) {
     const rows = (await this.prisma.$queryRawUnsafe(
@@ -36,6 +40,7 @@ export class CollectorsService {
     organizationId: string,
     dto: { name: string; phone: string; notes?: string | null },
   ) {
+    await this.entitlements.assertFeature(organizationId, 'collectors');
     const name = dto.name.trim();
     const phone = dto.phone.trim();
     if (!name) throw new BadRequestException('Nom du collecteur requis.');

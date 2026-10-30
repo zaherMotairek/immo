@@ -2,12 +2,14 @@ import { HelpHint } from '@/components/ui';
 import { Button } from '@/components/ui/index';
 import { LeaseContractSection } from '@/components/LeaseContractSection';
 import { LocationLeaseForm } from './LocationLeaseForm';
+import { LocationReviseSection } from './LocationReviseSection';
 import type { Fiche } from './types';
 import type { LocationFicheModel } from './useLocationFiche';
 
 type LocationBailTabProps = {
   data: Fiche;
   lease: LocationFicheModel['lease'];
+  revise: LocationFicheModel['revise'];
   onReload: () => void;
   onDelete: () => void;
 };
@@ -21,8 +23,8 @@ function SectionHeader({ title, hintTitle }: { title: string; hintTitle?: string
   );
 }
 
-/** Onglet « Contrat & bail » : pièce jointe, conditions, zone danger. */
-export function LocationBailTab({ data, lease, onReload, onDelete }: LocationBailTabProps) {
+/** Onglet « Contrat & bail » : pièce jointe, conditions, révision, zone danger. */
+export function LocationBailTab({ data, lease, revise, onReload, onDelete }: LocationBailTabProps) {
   return (
     <div className="text-[15px] leading-relaxed text-[var(--color-ink)]">
       <div className="!p-1 sm:!p-2">
@@ -31,6 +33,7 @@ export function LocationBailTab({ data, lease, onReload, onDelete }: LocationBai
       </div>
 
       <LocationLeaseForm lease={lease} />
+      <LocationReviseSection revise={revise} />
 
       <div className="border-t border-[var(--status-late)]/40 bg-[var(--status-late-bg)] !px-5 !py-4">
         <h2 className="text-base font-bold text-[var(--status-late)]">Supprimer ce bail</h2>

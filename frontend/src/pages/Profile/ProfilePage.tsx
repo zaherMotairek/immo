@@ -1,26 +1,21 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { HelpHint } from '@/components/ui';
 import { Card, Tabs } from '@/components/ui/index';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
+import { useOrgEntitlements } from '@/hooks/useOrgEntitlements';
 import { ProfileBanner } from './ProfileBanner';
 import { ProfileInfoTab } from './ProfileInfoTab';
 import { ProfileSecurityTab } from './ProfileSecurityTab';
 import { ProfileSignatureTab } from './ProfileSignatureTab';
 import { ProfileAutomationTab } from './ProfileAutomationTab';
+import { ProfileMembersTab } from './ProfileMembersTab';
 import { useProfileAccount } from './useProfileAccount';
 import { useProfilePasskeys } from './useProfilePasskeys';
 import { useProfilePassword } from './useProfilePassword';
 import { useProfileSignature } from './useProfileSignature';
 
-const PROFILE_TABS = [
-  { id: 'profil', label: 'Profil' },
-  { id: 'securite', label: 'Sécurité' },
-  { id: 'signature', label: 'Signature PDF' },
-  { id: 'automation', label: 'Automation' },
-] as const;
-
-type ProfileTabId = (typeof PROFILE_TABS)[number]['id'];
+type ProfileTabId = 'profil' | 'securite' | 'signature' | 'automation' | 'equipe';
 
 /** Page Mon compte : bandeau + onglets Profil / Sécurité / Signature. */
 export function ProfilePage() {
@@ -28,8 +23,20 @@ export function ProfilePage() {
   const account = useProfileAccount();
   const password = useProfilePassword();
   const signature = useProfileSignature();
+  const { can } = useOrgEntitlements();
   const [tab, setTab] = useState<ProfileTabId>('profil');
   const passkeys = useProfilePasskeys(tab === 'securite');
+
+  const tabs = useMemo(() => {
+    const base: { id: ProfileTabId; label: string }[] = [
+      { id: 'profil', label: 'Profil' },
+      { id: 'securite', label: 'Sécurité' },
+      { id: 'signature', label: 'Signature PDF' },
+    ];
+    if (can('automation:write')) base.push({ id: 'automation', label: 'Automation' });
+    if (can('users:invite')) base.push({ id: 'equipe', label: 'Équipe' });
+    return base;
+  }, [can]);
 
   const displayName = account.userName.trim() || account.user?.name?.trim() || '';
 
@@ -51,7 +58,7 @@ export function ProfilePage() {
 
       <Card padding="none" className="overflow-hidden">
         <Tabs
-          tabs={[...PROFILE_TABS]}
+          tabs={tabs}
           activeId={tab}
           onChange={(id) => setTab(id as ProfileTabId)}
           ariaLabel="Sections du compte"
@@ -60,7 +67,8 @@ export function ProfilePage() {
           {tab === 'profil' ? <ProfileInfoTab account={account} /> : null}
           {tab === 'securite' ? <ProfileSecurityTab password={password} passkeys={passkeys} /> : null}
           {tab === 'signature' ? <ProfileSignatureTab sig={signature} /> : null}
-          {tab === 'automation' ? <ProfileAutomationTab /> : null}
+          {tab === 'automation' && can('automation:write') ? <ProfileAutomationTab /> : null}
+          {tab === 'equipe' && can('users:invite') ? <ProfileMembersTab /> : null}
         </div>
       </Card>
     </div>

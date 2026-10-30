@@ -32,6 +32,14 @@ export function useLocationFiche(id: string | undefined) {
   const [waiveErr, setWaiveErr] = useState<string | null>(null);
   const [scheduleSortKey, setScheduleSortKey] = useState<ScheduleSortKey>('period');
   const [scheduleSortDir, setScheduleSortDir] = useState<TableSortDir>('asc');
+  const [reviseRent, setReviseRent] = useState('');
+  const [revisePercent, setRevisePercent] = useState('');
+  const [reviseFrom, setReviseFrom] = useState('');
+  const [reviseEnd, setReviseEnd] = useState('');
+  const [reviseRenew, setReviseRenew] = useState(false);
+  const [reviseNote, setReviseNote] = useState('');
+  const [reviseBusy, setReviseBusy] = useState(false);
+  const [reviseErr, setReviseErr] = useState<string | null>(null);
 
   const sortedPaymentSchedule = useMemo(() => {
     const raw = data?.paymentSchedule ?? [];
@@ -69,6 +77,17 @@ export function useLocationFiche(id: string | undefined) {
     setStartDate(formatDateFr(data.startDate));
     setEndDate(data.endDate ? formatDateFr(data.endDate) : '');
     setLeaseErr(null);
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    setReviseFrom(`${d}/${m}/${y}`);
+    setReviseRent('');
+    setRevisePercent('');
+    setReviseEnd('');
+    setReviseRenew(false);
+    setReviseNote('');
+    setReviseErr(null);
   }, [data]);
 
   const leaseFormDirty = useMemo(() => {
@@ -244,6 +263,59 @@ export function useLocationFiche(id: string | undefined) {
     setDepositAmount(String(Math.round(rent * months)));
   }
 
+  async function submitRevise(e: FormEvent) {
+    e.preventDefault();
+    if (!data) return;
+    setReviseErr(null);
+    const fromIso = isoDateFromUnknown(reviseFrom);
+    if (!fromIso) {
+      setReviseErr('Date d’effet invalide. Format : jj/mm/aaaa.');
+      return;
+    }
+    const rentRaw = reviseRent.trim();
+    const pctRaw = revisePercent.trim();
+    const body: Record<string, unknown> = { effectiveFrom: fromIso };
+    if (rentRaw) {
+      const n = Number(rentRaw);
+      if (!Number.isFinite(n) || n < 1) {
+        setReviseErr('Nouveau loyer invalide.');
+        return;
+      }
+      body.newMonthlyRent = Math.round(n);
+    } else if (pctRaw) {
+      const p = Number(pctRaw);
+      if (!Number.isFinite(p)) {
+        setReviseErr('Pourcentage invalide.');
+        return;
+      }
+      body.percent = p;
+    } else {
+      setReviseErr('Indiquez un nouveau loyer ou un pourcentage.');
+      return;
+    }
+    const endRaw = reviseEnd.trim();
+    if (endRaw) {
+      const endIso = isoDateFromUnknown(endRaw);
+      if (!endIso) {
+        setReviseErr('Nouvelle date de fin invalide.');
+        return;
+      }
+      body.newEndDate = endIso;
+    }
+    if (reviseRenew) body.renew = true;
+    if (reviseNote.trim()) body.note = reviseNote.trim();
+    setReviseBusy(true);
+    try {
+      await api(`/leases/${data.leaseId}/revise`, { method: 'POST', json: body });
+      toast('Révision appliquée.', { variant: 'success' });
+      await reload();
+    } catch (e2) {
+      setReviseErr(e2 instanceof Error ? e2.message : 'Révision impossible.');
+    } finally {
+      setReviseBusy(false);
+    }
+  }
+
   async function requestDeleteLocation(headline: string, tenantName: string) {
     if (!data) return;
     const msg = `Supprimer définitivement ce bail (${tenantName} — ${headline}) ? Les paiements, échéances et le fichier de contrat seront supprimés. Le bien, l’unité et le locataire ne sont pas supprimés. Irréversible.`;
@@ -306,6 +378,23 @@ export function useLocationFiche(id: string | undefined) {
     deposit: { depositActBusy, markDepositReceived, clearDepositReceived },
     prepay: { prepayMonths, setPrepayMonths, prepayBusy, prepayErr, prepayRent },
     waive: { waiveTargetId, waiveReason, setWaiveReason, waiveBusy, waiveErr, submitWaiveRent, closeWaive },
+    revise: {
+      newMonthlyRent: reviseRent,
+      setNewMonthlyRent: setReviseRent,
+      percent: revisePercent,
+      setPercent: setRevisePercent,
+      effectiveFrom: reviseFrom,
+      setEffectiveFrom: setReviseFrom,
+      newEndDate: reviseEnd,
+      setNewEndDate: setReviseEnd,
+      renew: reviseRenew,
+      setRenew: setReviseRenew,
+      note: reviseNote,
+      setNote: setReviseNote,
+      reviseBusy,
+      reviseErr,
+      submitRevise,
+    },
     requestDeleteLocation,
   };
 }

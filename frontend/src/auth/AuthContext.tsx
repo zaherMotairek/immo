@@ -5,6 +5,7 @@ import { ApiError, api, getStoredUser, getToken, setStoredUser, setToken } from 
 import { runPasskeyAuthentication } from '@/lib/webauthn';
 
 export type AuthUserRole = 'USER' | 'PLATFORM_ADMIN';
+export type AuthOrgMemberRole = 'OWNER' | 'ACCOUNTANT' | 'COLLECTOR' | 'READONLY';
 
 export type AuthUser = {
   id: string;
@@ -13,6 +14,13 @@ export type AuthUser = {
   organizationId: string;
   organizationName: string | null;
   role: AuthUserRole;
+  /** F1 : rôle métier dans l’organisation. */
+  orgRole?: AuthOrgMemberRole;
+  /** D3 : vue client lecture seule. */
+  readOnly?: boolean;
+  impersonatorId?: string;
+  /** D4 : session sandbox. */
+  isDemo?: boolean;
 };
 
 type AuthState = {
@@ -51,6 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         organizationId: u.organizationId ?? '',
         organizationName: u.organizationName ?? null,
         role: u.role ?? 'USER',
+        orgRole: (u as AuthUser).orgRole ?? 'OWNER',
+        readOnly: (u as AuthUser).readOnly,
+        impersonatorId: (u as AuthUser).impersonatorId,
+        isDemo: (u as AuthUser).isDemo,
       });
     }
     setReady(true);
@@ -73,7 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const u = await api<AuthUser>('/auth/profile');
-        if (!cancelled) applyUser(u);
+        if (!cancelled) {
+          const stored = getStoredUser() as AuthUser | null;
+          applyUser({
+            ...u,
+            readOnly: stored?.readOnly,
+            impersonatorId: stored?.impersonatorId,
+            isDemo: stored?.isDemo ?? u.isDemo,
+          });
+        }
       } catch (e) {
         if (!cancelled && e instanceof ApiError && e.status === 403) {
           setToken(null);

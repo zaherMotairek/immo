@@ -21,9 +21,13 @@ import { HealthModule } from './health/health.module';
 import { AutomationModule } from './automation/automation.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { FinanceModule } from './finance/finance.module';
+import { EntitlementsModule } from './entitlements/entitlements.module';
+import { DemoModule } from './demo/demo.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
+import { ReadOnlyInterceptor } from './auth/read-only.interceptor';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -59,11 +63,18 @@ import { APP_GUARD } from '@nestjs/core';
     AutomationModule,
     RemindersModule,
     FinanceModule,
+    EntitlementsModule,
+    DemoModule,
+    OnboardingModule,
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ReadOnlyInterceptor,
     },
   ],
 })

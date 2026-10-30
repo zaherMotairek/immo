@@ -3,12 +3,16 @@ import { BuildingStructureKind, Prisma, UnitKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { selectApartmentsPerFloorColumn } from '../buildings/apartments-per-floor-column';
 import { sortByNaturalLabel } from '../common/sort.util';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 
 @Injectable()
 export class UnitsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   async listByBuilding(buildingId: string, organizationId: string) {
     await this.ensureBuilding(buildingId, organizationId);
@@ -27,6 +31,7 @@ export class UnitsService {
   }
 
   async create(buildingId: string, dto: CreateUnitDto, organizationId: string) {
+    await this.entitlements.assertCanCreateUnit(organizationId);
     const buildingRow = await this.prisma.building.findFirst({
       where: { id: buildingId, organizationId },
       include: { _count: { select: { units: true } } },

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
-import { apartmentCapacityOnFloor, immeubleGridLayout } from './buildingUtils';
+import { immeubleGridLayout } from './buildingUtils';
 import type { Building, Unit, UnitDraft } from './types';
 import type { BuildingLayout } from './useBuildingLayout';
 
@@ -17,8 +17,8 @@ type Options = {
   load: (opts?: { silent?: boolean }) => Promise<void>;
 };
 
-/** Actions sur les unités : génération auto, suppression, changement de nature, surface / pièces. */
-export function useUnitActions({ id, b, setB, layout, unitDrafts, setErr, load }: Options) {
+/** Actions sur les unités : génération auto (C8-B API), suppression, nature, surface / pièces. */
+export function useUnitActions({ id, b, setB, layout: _layout, unitDrafts, setErr, load }: Options) {
   const [autoGenBusy, setAutoGenBusy] = useState(false);
 
   const canAutoGenerateUnits =
@@ -32,46 +32,9 @@ export function useUnitActions({ id, b, setB, layout, unitDrafts, setErr, load }
       toast('Génération auto disponible pour immeuble en grille ou terrain multi-lots.', { variant: 'warning' });
       return;
     }
-    const payloads: Array<Record<string, unknown>> = [];
-
-    if (b.structureKind === 'IMMEUBLE' && immeubleGridLayout(b)) {
-      const floors = b.hasRezDeChaussee === false ? Array.from({ length: b.floorCount ?? 0 }, (_, i) => i + 1) : [0, ...Array.from({ length: b.floorCount ?? 0 }, (_, i) => i + 1)];
-      for (const f of floors) {
-        const cap = apartmentCapacityOnFloor(b, f);
-        if (!Number.isFinite(cap) || cap <= 0) continue;
-        const used = layout.usedApartmentSlotsByFloor.get(f) ?? new Set<number>();
-        for (let slot = 1; slot <= cap; slot += 1) {
-          if (used.has(slot)) continue;
-          payloads.push({
-            label: f === 0 ? `Appartement RDC-${slot}` : `Appartement ${f}-${slot}`,
-            floor: f,
-            kind: 'APARTMENT',
-            apartmentSlot: slot,
-          });
-        }
-      }
-    } else if (b.structureKind === 'TERRAIN_LOTS' && (b.terrainLotCount ?? 0) > 0) {
-      const usedTerrainSlots = new Set<number>();
-      for (const u of b.units ?? []) {
-        if (u.apartmentSlot != null) usedTerrainSlots.add(u.apartmentSlot);
-      }
-      for (let slot = 1; slot <= (b.terrainLotCount ?? 0); slot += 1) {
-        if (usedTerrainSlots.has(slot)) continue;
-        payloads.push({
-          label: `Unité ${slot}`,
-          kind: 'LAND',
-          apartmentSlot: slot,
-        });
-      }
-    }
-
-    if (payloads.length === 0) {
-      toast('Aucune unité manquante à générer.', { variant: 'info' });
-      return;
-    }
     const ok = await confirmDialog({
       title: 'Générer les unités',
-      message: `Créer automatiquement ${payloads.length} unité(s) manquante(s) ?`,
+      message: 'Créer automatiquement les unités manquantes selon l’organisation du bien ?',
       confirmLabel: 'Créer',
     });
     if (!ok) return;
@@ -79,8 +42,13 @@ export function useUnitActions({ id, b, setB, layout, unitDrafts, setErr, load }
     setAutoGenBusy(true);
     setErr(null);
     try {
-      for (const json of payloads) {
-        await api(`/buildings/${id}/units`, { method: 'POST', json });
+      const res = await api<{ createdCount: number }>(`/buildings/${id}/generate-units`, {
+        method: 'POST',
+      });
+      if (res.createdCount === 0) {
+        toast('Aucune unité manquante à générer.', { variant: 'info' });
+      } else {
+        toast(`${res.createdCount} unité(s) créée(s).`, { variant: 'success' });
       }
       await load({ silent: true });
     } catch (e2) {

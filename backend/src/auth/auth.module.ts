@@ -1,14 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { MailModule } from '../mail/mail.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { OrgMembersController } from './org-members.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { WebAuthnService } from './webauthn.service';
 import { LoginLockoutService } from './login-lockout.service';
+import { OrgPermGuard } from './org-perm.guard';
 
+/** Global pour OrgPermGuard (F1) sur tous les controllers métier. */
+@Global()
 @Module({
   imports: [
     MailModule,
@@ -29,8 +33,8 @@ import { LoginLockoutService } from './login-lockout.service';
       },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, WebAuthnService, JwtStrategy, LoginLockoutService],
-  exports: [AuthService],
+  controllers: [AuthController, OrgMembersController],
+  providers: [AuthService, WebAuthnService, JwtStrategy, LoginLockoutService, OrgPermGuard],
+  exports: [AuthService, OrgPermGuard],
 })
 export class AuthModule {}

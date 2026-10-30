@@ -15,19 +15,25 @@ import { memoryStorage } from 'multer';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrgPermGuard } from '../auth/org-perm.guard';
+import { RequireOrgPerm } from '../auth/require-org-perm.decorator';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { ReportsService } from './reports.service';
 import { ExcelImportService } from './excel-import.service';
 
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrgPermGuard)
 export class ReportsController {
   constructor(
     private readonly reports: ReportsService,
     private readonly excelImport: ExcelImportService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   @Get('summary.pdf')
+  @RequireOrgPerm('exports:read')
   async pdf(@CurrentUser() user: JwtAuthUser, @Query('year') year: string | undefined, @Res() res: Response) {
+    await this.entitlements.assertFeature(user.organizationId, 'exports');
     const y = year ? parseInt(year, 10) : new Date().getFullYear();
     const buf = await this.reports.buildPdf(Number.isFinite(y) ? y : new Date().getFullYear(), user.organizationId);
     res.setHeader('Content-Type', 'application/pdf');
@@ -73,11 +79,24 @@ export class ReportsController {
   }
 
   @Get('summary.xlsx')
+  @RequireOrgPerm('exports:read')
   async xlsx(@CurrentUser() user: JwtAuthUser, @Query('year') year: string | undefined, @Res() res: Response) {
+    await this.entitlements.assertFeature(user.organizationId, 'exports');
     const y = year ? parseInt(year, 10) : new Date().getFullYear();
     const buf = await this.reports.buildExcel(Number.isFinite(y) ? y : new Date().getFullYear(), user.organizationId);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="immopilot-rapport-${y}.xlsx"`);
+    res.send(buf);
+  }
+
+  /** Modèle vide (mêmes feuilles / en-têtes que l’export) — Phase E3. */
+  @Get('import-template.xlsx')
+  @RequireOrgPerm('exports:read')
+  async importTemplate(@CurrentUser() user: JwtAuthUser, @Res() res: Response) {
+    await this.entitlements.assertFeature(user.organizationId, 'exports');
+    const buf = await this.reports.buildImportTemplateExcel();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="immopilot-modele-import.xlsx"');
     res.send(buf);
   }
 
@@ -100,10 +119,12 @@ export class ReportsController {
   }
 
   @Post('accounting-closures/close')
-  closeAccountingPeriod(
+  @RequireOrgPerm('closures:write')
+  async closeAccountingPeriod(
     @CurrentUser() user: JwtAuthUser,
     @Body() body: { year?: number; month?: number },
   ) {
+    await this.entitlements.assertFeature(user.organizationId, 'closures');
     return this.reports.closeAccountingPeriod(
       user.organizationId,
       Number(body?.year),
@@ -113,14 +134,17 @@ export class ReportsController {
   }
 
   @Post('accounting-closures/open')
-  openAccountingPeriod(
+  @RequireOrgPerm('closures:write')
+  async openAccountingPeriod(
     @CurrentUser() user: JwtAuthUser,
     @Body() body: { year?: number; month?: number },
   ) {
+    await this.entitlements.assertFeature(user.organizationId, 'closures');
     return this.reports.openAccountingPeriod(user.organizationId, Number(body?.year), Number(body?.month));
   }
 
   @Post('import.xlsx')
+  @RequireOrgPerm('exports:write')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

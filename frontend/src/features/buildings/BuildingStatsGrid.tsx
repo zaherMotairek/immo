@@ -6,16 +6,16 @@ import type { BuildingStats } from './buildingStats';
 export function BuildingStatsGrid({ stats }: { stats: BuildingStats }) {
   return (
     <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:max-w-2xl lg:grid-cols-3">
-      <StatTile label="Unités" value={String(stats.total)} sub={stats.unitsSub} />
+      <StatTile label="Unités (réel)" value={String(stats.total)} sub={stats.unitsSub} />
       {stats.declaredCapacity != null && stats.missingFromDeclared != null ? (
         <StatTile
-          label="Non créé(s)"
+          label="Manquant(s)"
           value={String(stats.missingFromDeclared)}
           emphasize={stats.missingFromDeclared > 0}
           sub={
             stats.structureKind === 'TERRAIN_LOTS'
-              ? `sur ${stats.declaredCapacity} lot${stats.declaredCapacity !== 1 ? 's' : ''} déclaré${stats.declaredCapacity !== 1 ? 's' : ''}`
-              : `sur ${stats.declaredCapacity} logement${stats.declaredCapacity !== 1 ? 's' : ''} prévu${stats.declaredCapacity !== 1 ? 's' : ''} sur ce bien`
+              ? `vs structure indicative (${stats.declaredCapacity})`
+              : `vs structure indicative (${stats.declaredCapacity})`
           }
         />
       ) : null}

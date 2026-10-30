@@ -525,6 +525,117 @@ export class LeasesService {
     }
   }
 
+  /**
+   * C6-A : révision de loyer (+ renouvellement optionnel de endDate).
+   * N’écrase pas les échéances PAID/WAIVED/CANCELLED.
+   */
+  async reviseRent(
+    id: string,
+    organizationId: string,
+    dto: {
+      newMonthlyRent?: number;
+      percent?: number;
+      effectiveFrom: string;
+      newEndDate?: string;
+      renew?: boolean;
+      note?: string;
+    },
+    actor?: JwtAuthUser,
+  ) {
+    await this.ensure(id, organizationId);
+    const lease = await this.prisma.lease.findUnique({ where: { id } });
+    if (!lease) throw new NotFoundException('Bail introuvable');
+    if (!lease.active) throw new BadRequestException('Bail inactif.');
+
+    const previous = lease.monthlyRent.toNumber();
+    let newRent = dto.newMonthlyRent;
+    let percent: number | null = dto.percent ?? null;
+    if (newRent == null && percent != null) {
+      newRent = Math.round(previous * (1 + percent / 100));
+    }
+    if (newRent == null || !Number.isFinite(newRent) || newRent < 1) {
+      throw new BadRequestException('Indiquez newMonthlyRent ou percent.');
+    }
+    if (percent == null && previous > 0) {
+      percent = Math.round(((newRent - previous) / previous) * 10000) / 100;
+    }
+
+    const effectiveFrom = new Date(dto.effectiveFrom);
+    const effY = effectiveFrom.getUTCFullYear();
+    const effM = effectiveFrom.getUTCMonth() + 1;
+    const renew = Boolean(dto.renew || dto.newEndDate);
+    let newEndDate: Date | undefined;
+    if (dto.newEndDate) {
+      newEndDate = new Date(dto.newEndDate);
+    } else if (renew && lease.endDate) {
+      newEndDate = addOneYearSameDay(lease.endDate);
+    } else if (renew) {
+      newEndDate = addOneYearSameDay(lease.startDate);
+    }
+
+    const updated = await this.prisma.lease.update({
+      where: { id },
+      data: {
+        monthlyRent: newRent,
+        ...(newEndDate ? { endDate: newEndDate } : {}),
+      },
+      include: { tenant: true, unit: { include: { building: true } } },
+    });
+
+    const mutable = await this.prisma.payment.findMany({
+      where: {
+        leaseId: id,
+        status: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
+      },
+    });
+    for (const p of mutable) {
+      const seq = p.periodYear * 12 + p.periodMonth;
+      if (seq < effY * 12 + effM) continue;
+      await this.prisma.payment.update({
+        where: { id: p.id },
+        data: { amountDue: newRent },
+      });
+    }
+
+    if (newEndDate) {
+      await this.ensureScheduleMonthsAhead(id, {
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        monthlyRent: updated.monthlyRent,
+        rentDueDay: updated.rentDueDay,
+        createdAt: lease.createdAt,
+      }, 12);
+    }
+
+    await this.prisma.leaseRentRevision.create({
+      data: {
+        leaseId: id,
+        effectiveFrom,
+        previousRent: previous,
+        newRent,
+        percent: percent ?? undefined,
+        note: dto.note?.trim() || null,
+        createdByUserId: actor?.id ?? null,
+        renewed: renew,
+        newEndDate: newEndDate ?? null,
+      },
+    });
+
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: renew ? 'LEASE_RENEWED' : 'LEASE_RENT_REVISED',
+      entityType: 'lease',
+      entityId: id,
+      summary: renew
+        ? `Bail renouvelé / loyer ${previous} → ${newRent} FCFA`
+        : `Révision loyer ${previous} → ${newRent} FCFA`,
+      metadata: { previous, newRent, percent, effectiveFrom: dto.effectiveFrom, newEndDate: dto.newEndDate ?? null },
+    });
+
+    return updated;
+  }
+
   async update(id: string, organizationId: string, dto: UpdateLeaseDto, actor?: JwtAuthUser) {
     await this.ensure(id, organizationId);
     const before = await this.prisma.lease.findUnique({

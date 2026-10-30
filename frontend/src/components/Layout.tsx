@@ -3,32 +3,34 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { saveScrollForPath } from '@/lib/navigation';
 import { useAuth } from '@/auth/AuthContext';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
+import { useOrgEntitlements } from '@/hooks/useOrgEntitlements';
 import { GlobalSearchBar } from './GlobalSearchBar';
 import { SidebarNavIcon } from './SidebarNavIcons';
 import { ThemeToggle } from './ThemeToggle';
 import { InstallAppButton } from './InstallAppButton';
 import { BottomSheet, Button } from '@/components/ui/index';
+import { exitImpersonation } from '@/pages/AdminClients/AdminClientDetailPage';
 
-type NavItem = { to: string; label: string; end?: boolean; short?: string };
+type NavItem = { to: string; label: string; end?: boolean; short?: string; perm?: string };
 
 /** Ce qu’un bailleur ouvre 80 % du temps : le reste est sous « Plus ». */
 const navPrimary: NavItem[] = [
   { to: '/', label: 'Accueil', short: 'Accueil', end: true },
-  { to: '/biens', label: 'Mes biens', short: 'Biens' },
-  { to: '/locataires', label: 'Locataires', short: 'Locat.' },
-  { to: '/baux', label: 'Baux', short: 'Baux' },
-  { to: '/paiements', label: 'Paiements', short: 'Loyers' },
+  { to: '/biens', label: 'Mes biens', short: 'Biens', perm: 'buildings:read' },
+  { to: '/locataires', label: 'Locataires', short: 'Locat.', perm: 'tenants:read' },
+  { to: '/baux', label: 'Baux', short: 'Baux', perm: 'leases:read' },
+  { to: '/paiements', label: 'Paiements', short: 'Loyers', perm: 'payments:read' },
 ];
 
 const navSecondary: NavItem[] = [
-  { to: '/relances', label: 'Relances' },
-  { to: '/locations', label: 'Carte des biens' },
-  { to: '/activite-loyers', label: 'Calendrier loyers' },
-  { to: '/cautions', label: 'Cautions & charges' },
-  { to: '/comptabilite', label: 'Comptabilité' },
-  { to: '/collecteurs', label: 'Collecteurs loyers' },
+  { to: '/relances', label: 'Relances', perm: 'reminders:write' },
+  { to: '/locations', label: 'Carte des biens', perm: 'buildings:read' },
+  { to: '/activite-loyers', label: 'Calendrier loyers', perm: 'payments:read' },
+  { to: '/cautions', label: 'Cautions & charges', perm: 'charges:read' },
+  { to: '/comptabilite', label: 'Comptabilité', perm: 'charges:read' },
+  { to: '/collecteurs', label: 'Collecteurs loyers', perm: 'collectors:read' },
   { to: '/journal-securite', label: 'Journal sécurité' },
-  { to: '/exports', label: 'Fichiers Excel' },
+  { to: '/exports', label: 'Fichiers Excel', perm: 'exports:read' },
 ];
 
 const navAccount: NavItem[] = [{ to: '/profil', label: 'Mon compte' }];
@@ -36,9 +38,9 @@ const navAccount: NavItem[] = [{ to: '/profil', label: 'Mon compte' }];
 /** Onglets barre du bas (mobile) — Baux accessible via Plus. */
 const mobileBottomTabs: NavItem[] = [
   { to: '/', label: 'Accueil', short: 'Accueil', end: true },
-  { to: '/biens', label: 'Mes biens', short: 'Biens' },
-  { to: '/locataires', label: 'Locataires', short: 'Locat.' },
-  { to: '/paiements', label: 'Paiements', short: 'Loyers' },
+  { to: '/biens', label: 'Mes biens', short: 'Biens', perm: 'buildings:read' },
+  { to: '/locataires', label: 'Locataires', short: 'Locat.', perm: 'tenants:read' },
+  { to: '/paiements', label: 'Paiements', short: 'Loyers', perm: 'payments:read' },
 ];
 
 const NAV_MORE_STORAGE = 'immopilot-nav-plus-open';
@@ -69,7 +71,13 @@ function pathMatches(pathname: string, item: NavItem): boolean {
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { can } = useOrgEntitlements();
   const location = useLocation();
+
+  const filterNav = useCallback((items: NavItem[]) => items.filter((i) => !i.perm || can(i.perm)), [can]);
+  const primaryNav = useMemo(() => filterNav(navPrimary), [filterNav]);
+  const secondaryNav = useMemo(() => filterNav(navSecondary), [filterNav]);
+  const mobileTabs = useMemo(() => filterNav(mobileBottomTabs), [filterNav]);
 
   const [moreToolsOpen, setMoreToolsOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -105,10 +113,10 @@ export function Layout() {
   }, [moreToolsOpen]);
 
   useEffect(() => {
-    const inSecondary = navSecondary.some((i) => location.pathname === i.to);
+    const inSecondary = secondaryNav.some((i) => location.pathname === i.to);
     const inAdmin = user?.role === 'PLATFORM_ADMIN' && location.pathname.startsWith('/admin');
     if (inSecondary || inAdmin) setMoreToolsOpen(true);
-  }, [location.pathname, user?.role]);
+  }, [location.pathname, user?.role, secondaryNav]);
 
   /** Fermer le tiroir « Plus » à chaque navigation. */
   useEffect(() => {
@@ -143,10 +151,10 @@ export function Layout() {
   }, [location.pathname, location.search]);
 
   const moreIsActive = useMemo(() => {
-    const paths = [...navSecondary, ...navAccount, { to: '/baux', label: 'Baux' }];
+    const paths = [...secondaryNav, ...navAccount, { to: '/baux', label: 'Baux' }];
     if (adminItem) paths.push(adminItem);
     return paths.some((i) => pathMatches(location.pathname, i));
-  }, [location.pathname, adminItem]);
+  }, [location.pathname, adminItem, secondaryNav]);
 
   return (
     <div className="safe-pt app-shell min-h-dvh flex flex-col print:min-h-0 lg:flex-row">
@@ -195,7 +203,7 @@ export function Layout() {
         >
           <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Menu</p>
           <div className="flex flex-col gap-0.5">
-            {navPrimary.map((l) => (
+            {primaryNav.map((l) => (
               <NavLink
                 key={`${l.to}-${l.end ? '1' : '0'}`}
                 to={l.to}
@@ -229,7 +237,7 @@ export function Layout() {
                 role="region"
                 aria-label="Outils supplémentaires"
               >
-                {navSecondary.map((l) => (
+                {secondaryNav.map((l) => (
                   <NavLink key={l.to} to={l.to} className={navClass} onClick={saveScrollBeforeMenuNav}>
                     <span className="flex items-center gap-2.5">
                       <SidebarNavIcon to={l.to} />
@@ -309,6 +317,40 @@ export function Layout() {
         <div className="app-main-pad flex-1 print:p-4">
           <div className="mx-auto w-full min-w-0 max-w-[min(100%,96rem)]">
             <ScrollRestoration />
+            {user?.readOnly ? (
+              <div
+                className="mb-4 flex flex-col gap-2 rounded-[var(--radius-card)] border border-amber-500/40 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+                role="status"
+              >
+                <p>
+                  <strong>Vue client (lecture seule)</strong>
+                  {user.organizationName ? ` — ${user.organizationName}` : ''}. Modifications
+                  bloquées · session 30 min.
+                </p>
+                <Button type="button" variant="secondary" className="shrink-0 text-xs" onClick={() => exitImpersonation()}>
+                  Quitter la vue client
+                </Button>
+              </div>
+            ) : null}
+            {user?.isDemo && !user.readOnly ? (
+              <div
+                className="mb-4 flex flex-col gap-2 rounded-[var(--radius-card)] border border-sky-500/35 bg-sky-50 px-3 py-2.5 text-sm text-sky-950 sm:flex-row sm:items-center sm:justify-between"
+                role="status"
+              >
+                <p>
+                  <strong>Mode démo</strong> — les données ne sont pas conservées (purge sous 24 h).
+                </p>
+                <NavLink
+                  to="/inscription"
+                  className="shrink-0 text-xs font-semibold underline"
+                  onClick={() => {
+                    /* laisser la session démo jusqu’à inscription */
+                  }}
+                >
+                  Créer mon compte
+                </NavLink>
+              </div>
+            ) : null}
             <Outlet />
           </div>
         </div>
@@ -322,7 +364,7 @@ export function Layout() {
             aria-label="Navigation principale mobile"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' } as CSSProperties}
           >
-            {mobileBottomTabs.map((l) => (
+            {mobileTabs.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
@@ -365,7 +407,7 @@ export function Layout() {
                   <SidebarNavIcon to="/baux" />
                   Baux
                 </NavLink>
-                {navSecondary.map((l) => (
+                {secondaryNav.map((l) => (
                   <NavLink key={l.to} to={l.to} className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
                     <SidebarNavIcon to={l.to} />
                     {l.label}

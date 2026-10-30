@@ -52,7 +52,14 @@ describeDb('Isolation organisation (caractérisation)', () => {
       storage as never,
       { getSettings: jest.fn().mockResolvedValue({ autoGenerateSchedules: false }) } as never,
     );
-    buildings = new BuildingsService(prisma as never);
+    buildings = new BuildingsService(prisma as never, {
+      assertCanCreateUnit: async () => undefined,
+      getEntitlements: async () => ({
+        unitLimit: null,
+        unitsUsed: 0,
+        status: 'ACTIVE',
+      }),
+    } as never);
     tenants = new TenantsService(prisma as never, audit as never, storage as never);
 
     orgA = await seedOrgFixture(prisma, { label: 'orgA', year: 2037, months: [1] });
