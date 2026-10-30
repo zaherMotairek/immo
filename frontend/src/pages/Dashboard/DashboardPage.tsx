@@ -7,10 +7,12 @@ import { Button, Callout, EmptyState, Skeleton } from '@/components/ui/index';
 import { api } from '@/lib/api';
 import { toggleTableSortColumn } from '@/lib/tableSort';
 import type { TableSortDir } from '@/lib/tableSort';
+import { useTodayAgenda } from '@/hooks/useFinanceSummary';
 import { AlertsSection } from './AlertsSection';
 import { ChartsSection } from './ChartsSection';
 import { FinanceSection } from './FinanceSection';
 import { ParkSection } from './ParkSection';
+import { TodaySection } from './TodaySection';
 import { UpcomingSection } from './UpcomingSection';
 import { compareUpcomingRows } from './types';
 import type { DashboardPaymentAlert, Overview, UpcomingSortKey } from './types';
@@ -35,6 +37,7 @@ function DashboardSkeleton() {
 export function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const today = useTodayAgenda();
 
   const load = useCallback(() => {
     setErr(null);
@@ -141,16 +144,26 @@ export function DashboardPage() {
     kpis.expectedMonthlyRent > 0
       ? Math.round((kpis.collectedThisMonth / kpis.expectedMonthlyRent) * 1000) / 10
       : null;
-  const remainingVsExpected = Math.max(0, kpis.expectedMonthlyRent - kpis.collectedThisMonth);
+  const remainingVsExpected =
+    kpis.remainingVsExpected ?? Math.max(0, kpis.expectedMonthlyRent - kpis.collectedThisMonth);
 
   return (
     <div className="dashboard-page space-y-5">
       <AppPageTitle
         iconTo="/"
-        title="Tableau de bord"
-        hintTitle="Vue d’ensemble : encaissements du mois, retards, alertes, accès rapide aux paiements. Les KPIs reflètent le mois civil en cours."
-        subtitle="Synthèse de votre parc locatif et des encaissements du mois en cours."
+        title="Accueil"
+        hintTitle="Aujourd’hui (actions) + synthèse du mois. Les montants viennent de FinanceSummary (source unique)."
+        subtitle="Ce qu’il faut faire aujourd’hui, puis le mois en cours."
       />
+
+      {!isEmptyPortfolio ? (
+        <TodaySection
+          agenda={today.data}
+          loading={today.loading}
+          error={today.error}
+          onRetry={today.reload}
+        />
+      ) : null}
 
       {!isEmptyPortfolio ? (
         <FinanceSection

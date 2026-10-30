@@ -1,6 +1,7 @@
 import { PaymentStatus, PrismaClient } from '@prisma/client';
 import { DashboardService } from '../../src/dashboard/dashboard.service';
 import { PaymentsService } from '../../src/payments/payments.service';
+import { FinanceSummaryService } from '../../src/finance/finance-summary.service';
 import { createTestPrisma, hasLocalTestDb } from '../helpers/test-prisma';
 import { destroyOrgFixture, seedOrgFixture } from '../helpers/seed-fixture';
 
@@ -24,7 +25,8 @@ describeDb('DashboardService.overview — totaux (caractérisation)', () => {
       { getSettings: jest.fn().mockResolvedValue({ autoReceiptEnabled: false }) } as never,
       { send: jest.fn() } as never,
     );
-    dashboard = new DashboardService(prisma as never, payments);
+    const finance = new FinanceSummaryService(prisma as never, payments);
+    dashboard = new DashboardService(prisma as never, payments, finance);
   });
 
   afterAll(async () => {

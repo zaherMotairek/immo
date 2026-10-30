@@ -23,6 +23,7 @@ const apiProxy = {
   '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
   '/automation': { target: 'http://localhost:4000', changeOrigin: true },
   '/reminders': { target: 'http://localhost:4000', changeOrigin: true },
+  '/finance': { target: 'http://localhost:4000', changeOrigin: true },
   '/health': { target: 'http://localhost:4000', changeOrigin: true },
   '/version': { target: 'http://localhost:4000', changeOrigin: true },
   '/public': { target: 'http://localhost:4000', changeOrigin: true },

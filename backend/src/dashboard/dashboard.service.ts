@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
+import { FinanceSummaryService } from '../finance/finance-summary.service';
 import { addDaysUtc, startOfTodayUtc } from '../common/date.util';
 import {
   drawDashboardKpiSummary,
@@ -30,99 +31,55 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payments: PaymentsService,
+    private readonly finance: FinanceSummaryService,
   ) {}
 
   async overview(organizationId: string) {
-    await this.payments.syncLateStatuses(organizationId);
-
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth() + 1;
-    const monthStartUtc = new Date(Date.UTC(y, m - 1, 1));
-    const nextMonthStartUtc = new Date(Date.UTC(y, m, 1));
-
     const leaseInOrg = { unit: { building: { organizationId } } };
     const todayUtc = startOfTodayUtc();
     const upcomingWindowEnd = addDaysUtc(todayUtc, 2);
 
-    const [buildings, units, tenants, paymentsThisMonth, overduePayments, expectedRent, depositLeasesThisMonth, upcomingPending] =
-      await Promise.all([
-        this.prisma.building.count({ where: { organizationId } }),
-        this.prisma.unit.count({ where: { building: { organizationId } } }),
-        this.prisma.tenant.count({ where: { organizationId } }),
-        this.prisma.payment.findMany({
-          where: {
-            periodYear: y,
-            periodMonth: m,
-            lease: leaseInOrg,
-          },
-          select: { amountPaid: true, amountDue: true, status: true },
-        }),
-        this.prisma.payment.findMany({
-          where: {
-            lease: leaseInOrg,
-            OR: [
-              { status: PaymentStatus.LATE },
-              { status: PaymentStatus.PENDING, dueDate: { lt: startOfTodayUtc() } },
-            ],
-          },
-          include: {
-            lease: {
-              include: {
-                tenant: true,
-                unit: { include: { building: true } },
-              },
+    const [snap, overduePayments, upcomingPending] = await Promise.all([
+      this.finance.getMonthSnapshot(organizationId),
+      this.prisma.payment.findMany({
+        where: {
+          lease: leaseInOrg,
+          OR: [
+            { status: PaymentStatus.LATE },
+            { status: PaymentStatus.PENDING, dueDate: { lt: todayUtc } },
+          ],
+        },
+        include: {
+          lease: {
+            include: {
+              tenant: true,
+              unit: { include: { building: true } },
             },
           },
-          orderBy: { dueDate: 'asc' },
-          take: 50,
-        }),
-        this.prisma.lease.aggregate({
-          where: { active: true, ...leaseInOrg },
-          _sum: { monthlyRent: true },
-        }),
-        this.prisma.lease.findMany({
-          where: {
-            ...leaseInOrg,
-            depositPaidAt: { gte: monthStartUtc, lt: nextMonthStartUtc },
-            depositAmount: { not: null, gt: 0 },
-          },
-          select: { depositAmount: true },
-        }),
-        this.prisma.payment.findMany({
-          where: {
-            lease: leaseInOrg,
-            status: PaymentStatus.PENDING,
-            dueDate: { gte: todayUtc, lte: upcomingWindowEnd },
-          },
-          include: {
-            lease: {
-              include: {
-                tenant: true,
-                unit: { include: { building: true } },
-              },
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 50,
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          lease: leaseInOrg,
+          status: PaymentStatus.PENDING,
+          dueDate: { gte: todayUtc, lte: upcomingWindowEnd },
+        },
+        include: {
+          lease: {
+            include: {
+              tenant: true,
+              unit: { include: { building: true } },
             },
           },
-          orderBy: { dueDate: 'asc' },
-        }),
-      ]);
+        },
+        orderBy: { dueDate: 'asc' },
+      }),
+    ]);
 
     const paymentIdsForBadges = [...new Set([...overduePayments.map((p) => p.id), ...upcomingPending.map((p) => p.id)])];
     const collectionSummaries = await this.payments.getCollectionTaskSummaries(paymentIdsForBadges, organizationId);
-
-    const collectedThisMonth = paymentsThisMonth.reduce((s, p) => {
-      const enc = p.amountPaid?.toNumber() ?? (p.status === PaymentStatus.PAID ? p.amountDue.toNumber() : 0);
-      return s + enc;
-    }, 0);
-    const depositsCollectedThisMonth = depositLeasesThisMonth.reduce(
-      (s, l) => s + (l.depositAmount?.toNumber() ?? 0),
-      0,
-    );
-    const overdueAmount = overduePayments.reduce((s, p) => {
-      const due = p.amountDue.toNumber();
-      const paid = p.amountPaid?.toNumber() ?? 0;
-      return s + Math.max(0, due - paid);
-    }, 0);
 
     const upcomingItems: Array<{
       paymentId: string;
@@ -180,14 +137,17 @@ export class DashboardService {
 
     return {
       kpis: {
-        buildings,
-        units,
-        tenants,
-        expectedMonthlyRent: expectedRent._sum.monthlyRent?.toNumber() ?? 0,
-        collectedThisMonth,
-        depositsCollectedThisMonth,
-        overdueCount: overduePayments.length,
-        overdueAmount,
+        buildings: snap.buildings,
+        units: snap.units,
+        tenants: snap.tenants,
+        expectedMonthlyRent: snap.expectedMonthlyRent,
+        collectedThisMonth: snap.collectedThisMonth,
+        depositsCollectedThisMonth: snap.depositsCollectedThisMonth,
+        overdueCount: snap.overdueCount,
+        overdueAmount: snap.overdueAmount,
+        remainingVsExpected: snap.remainingVsExpected,
+        financeYear: snap.year,
+        financeMonth: snap.month,
       },
       upcomingCollections: {
         count: upcomingCollectionsCount,
