@@ -44,6 +44,25 @@ const defaultReset: ResetOptions = {
   collectors: false,
 };
 
+const API_STALE_MSG =
+  'L’API Render n’a pas encore les routes « Données ». Dashboard Render → service API → Manual Deploy (branche main), attendez la fin, puis Ctrl+F5 sur le site.';
+
+async function postOrgData<T>(paths: string[], json?: unknown): Promise<T> {
+  let last: ApiError | null = null;
+  for (const path of paths) {
+    try {
+      return await api<T>(path, { method: 'POST', ...(json !== undefined ? { json } : {}) });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        last = e;
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw last ?? new ApiError(API_STALE_MSG, 404);
+}
+
 /** Données d’exemple + réinitialisation sélective (OWNER). */
 export function ProfileDataTab() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -98,10 +117,14 @@ export function ProfileDataTab() {
     if (!ok) return;
     setLoadingDemo(true);
     try {
-      const r = await api<{ message: string }>('/me/org-data/seed-rich-demo', { method: 'POST' });
+      const r = await postOrgData<{ message: string }>([
+        '/me/org-data/seed-rich-demo',
+        '/me/onboarding/seed-rich-demo',
+      ]);
       toast(r.message, { variant: 'success' });
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Chargement impossible', { variant: 'error' });
+      const msg = e instanceof ApiError ? e.message : 'Chargement impossible';
+      toast(e instanceof ApiError && e.status === 404 ? API_STALE_MSG : msg, { variant: 'error' });
     } finally {
       setLoadingDemo(false);
     }
@@ -140,10 +163,10 @@ export function ProfileDataTab() {
 
     setResetting(true);
     try {
-      const r = await api<{ message: string; counts?: Record<string, number> }>('/me/org-data/reset', {
-        method: 'POST',
-        json: { ...reset, confirmPhrase: 'EFFACER' },
-      });
+      const r = await postOrgData<{ message: string; counts?: Record<string, number> }>(
+        ['/me/org-data/reset', '/me/onboarding/reset-data'],
+        { ...reset, confirmPhrase: 'EFFACER' },
+      );
       const detail = r.counts
         ? Object.entries(r.counts)
             .filter(([, n]) => n > 0)
@@ -154,7 +177,8 @@ export function ProfileDataTab() {
       setReset(defaultReset);
       setConfirmPhrase('');
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Suppression impossible', { variant: 'error' });
+      const msg = e instanceof ApiError ? e.message : 'Suppression impossible';
+      toast(e instanceof ApiError && e.status === 404 ? API_STALE_MSG : msg, { variant: 'error' });
     } finally {
       setResetting(false);
     }
