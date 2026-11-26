@@ -17,6 +17,13 @@ Périmètre : **aucun code applicatif** — scripts + `docs/marketing/` uniqueme
 | Légendes pub | OK | `docs/marketing/captions.md` |
 | Install / PR GitHub | Scripts | `scripts/install-github-cli.ps1`, `create-pr-fix-design-polish.ps1` |
 
+## Mis à jour (session en cours)
+
+- **Seed démo** : `node scripts/seed-marketing-demo.mjs` — OK (local).
+- **Captures** : 34 PNG dans `docs/marketing/shots/` (mobile + desktop).
+- **PDF démo** : `docs/marketing/ImmoPilot-brochure-demo.pdf` (~9 pages écran).
+- **Synchronisation GitHub** : script `scripts/sync-github-when-online.ps1` lancé en arrière-plan (retry automatique).
+
 ## Non livré (prochaine itération Prompt 2)
 
 - Brochure PDF **14–20 pages** complète, repères sur captures, légendes numérotées.
