@@ -6,10 +6,12 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
+const require = createRequire(path.join(root, 'frontend/package.json'));
+const { chromium } = require('playwright');
 const html = path.join(root, 'docs/marketing/brochure/brochure.html');
 const pdf = path.join(root, 'docs/marketing/ImmoPilot-brochure-demo.pdf');
 

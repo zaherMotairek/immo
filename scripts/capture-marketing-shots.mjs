@@ -7,13 +7,15 @@
  *   cd frontend && npm run build && npm run preview -- --host 127.0.0.1 --port 4173
  *   node scripts/capture-marketing-shots.mjs
  */
-import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
+const require = createRequire(path.join(root, 'frontend/package.json'));
+const { chromium } = require('playwright');
 const outRoot = path.join(root, 'docs/marketing/shots');
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:4173';
@@ -63,14 +65,14 @@ async function capture(page, vp, slug, scrollY = 0) {
   if (scrollY) await page.evaluate((y) => window.scrollTo(0, y), scrollY);
   await page.waitForTimeout(500);
   await page.screenshot({ path: file, fullPage: false });
-  assertNotLogin(page, file);
+  if (slug !== 'login') assertNotLogin(page, file);
   console.log('OK', vp, file);
 }
 
 async function main() {
   fs.mkdirSync(outRoot, { recursive: true });
   const browser = await chromium.launch();
-  const context = await browser.newContext({ locale: 'fr-FR' });
+  const context = await browser.newContext({ locale: 'fr-FR', deviceScaleFactor: 2 });
   const page = await context.newPage();
 
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {

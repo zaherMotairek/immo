@@ -7,29 +7,78 @@
   </head>
   <body>
     <section class="page cover">
-      <p class="kicker">Gestion locative</p>
-      <h1 id="cover-title">ImmoPilot</h1>
-      <p class="lead" id="cover-subtitle">Gérez vos locations comme un pro, depuis votre téléphone.</p>
-      <p class="note" id="demo-notice">Données de démonstration uniquement.</p>
+      <p class="kicker">Gestion locative · Abidjan</p>
+      <h1>ImmoPilot</h1>
+      <p class="lead">Gérez vos locations comme un pro, depuis votre téléphone.</p>
+      <p class="note">Brochure avec données fictives de démonstration.</p>
     </section>
 
     <section class="page">
-      <h2 id="pain-title">Le quotidien d'un propriétaire</h2>
-      <article id="pain-body"></article>
+      <h2>Le quotidien d'un propriétaire</h2>
+      <p>Entre le cahier, Excel et WhatsApp, on perd le fil des loyers chaque mois.</p>
+      <p>Relances oubliées, quittances à refaire, charges qui se perdent…</p>
+      <p>Vous gardez le contrôle sans payer une agence à chaque encaissement.</p>
     </section>
 
+    <section class="page">
+      <h2>Tableau de bord — mobile et ordinateur</h2>
+      <div class="shot-row">
+        <figure class="phone-frame"><img src="../shots/mobile/dashboard.png" alt="Accueil mobile" /></figure>
+        <figure class="desktop-frame"><img src="../shots/desktop/dashboard.png" alt="Accueil bureau" /></figure>
+      </div>
+      <p class="caption">Voyez tout de suite les encaissements du mois, les retards et les relances.</p>
+    </section>
+
+    <section class="page">
+      <h2>Mes biens</h2>
+      <div class="shot-row">
+        <figure class="phone-frame"><img src="../shots/mobile/biens.png" alt="Liste des biens" /></figure>
+        <figure class="desktop-frame"><img src="../shots/desktop/biens.png" alt="Biens bureau" /></figure>
+      </div>
+      <p class="caption">Immeubles, villas, terrains : structure par étages, lots et unités.</p>
+    </section>
+
+    <section class="page">
+      <h2>Locataires et baux</h2>
+      <div class="shot-row">
+        <figure class="phone-frame"><img src="../shots/mobile/locataires.png" alt="Locataires" /></figure>
+        <figure class="phone-frame"><img src="../shots/mobile/baux.png" alt="Baux" /></figure>
+      </div>
+      <p class="caption">Fiche locataire, bail, loyer mensuel et génération des échéances.</p>
+    </section>
+
+    <section class="page">
+      <h2>Paiements et encaissement</h2>
+      <figure class="desktop-frame wide"><img src="../shots/desktop/paiements.png" alt="Paiements" /></figure>
+      <p class="caption">Par mois : encaisser (Orange Money, MTN, espèces…), loyer offert, paiement partiel.</p>
+    </section>
+
+    <section class="page">
+      <h2>Cautions, charges, comptabilité</h2>
+      <div class="shot-row">
+        <figure class="phone-frame"><img src="../shots/mobile/cautions.png" alt="Cautions" /></figure>
+        <figure class="phone-frame"><img src="../shots/mobile/comptabilite.png" alt="Comptabilité" /></figure>
+      </div>
+    </section>
+
+    <section class="page">
+      <h2>Nos formules</h2>
+      <table class="plans">
+        <tr><th>Essai</th><th>Gratuit</th><th>Pro</th></tr>
+        <tr><td>30 jours (à confirmer)</td><td>Fonctions de base</td><td>Illimité selon forfait</td></tr>
+        <tr><td colspan="3" class="price">Montants : à définir (voir pricing.json)</td></tr>
+      </table>
+    </section>
+
+    <section class="page">
+      <h2>Contact</h2>
+      <p class="contact-placeholder">WhatsApp · Téléphone · E-mail · Site — <strong>À compléter</strong></p>
+      <p class="note">Renseignez docs/marketing/contact.json puis régénérez le PDF.</p>
+    </section>
+
+    <section class="page cover back">
+      <h2>ImmoPilot</h2>
+      <p class="lead">Vos biens. Vos loyers. Votre sérénité.</p>
+    </section>
   </body>
-  <script type="module">
-    const content = await fetch('../content.fr.json').then((r) => r.json());
-    document.getElementById('cover-title').textContent = content.cover.title;
-    document.getElementById('cover-subtitle').textContent = content.cover.subtitle;
-    document.getElementById('demo-notice').textContent = content.cover.footnote;
-    document.getElementById('pain-title').textContent = content.ownerPain.title;
-    const art = document.getElementById('pain-body');
-    for (const p of content.ownerPain.paragraphs) {
-      const el = document.createElement('p');
-      el.textContent = p;
-      art.appendChild(el);
-    }
-  </script>
 </html>

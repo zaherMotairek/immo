@@ -73,3 +73,76 @@ p {
   line-height: 1.55;
   margin: 0 0 12px;
 }
+
+.shot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+  align-items: flex-start;
+}
+
+.phone-frame img,
+.desktop-frame img {
+  max-width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+}
+
+.phone-frame {
+  max-width: 200px;
+  border: 3px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.desktop-frame {
+  flex: 1;
+  min-width: 280px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.desktop-frame.wide {
+  max-width: 100%;
+}
+
+.caption {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.plans {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.plans th,
+.plans td {
+  border: 1px solid #e2e8f0;
+  padding: 10px;
+  text-align: left;
+}
+
+.plans .price {
+  text-align: center;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.contact-placeholder {
+  font-size: 16px;
+  padding: 20px;
+  border: 2px dashed var(--brand);
+  border-radius: 8px;
+}
+
+.back {
+  justify-content: center;
+  text-align: center;
+  border-left-color: var(--ink);
+}
