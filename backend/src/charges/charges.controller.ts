@@ -2,12 +2,14 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrgPermGuard } from '../auth/org-perm.guard';
+import { RequireOrgPerm } from '../auth/require-org-perm.decorator';
 import { ChargesService, type ChargeListMonth } from './charges.service';
 import { CreateChargeDto } from './dto/create-charge.dto';
 import { UpdateChargeDto } from './dto/update-charge.dto';
 
 @Controller('charges')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrgPermGuard)
 export class ChargesController {
   constructor(private readonly charges: ChargesService) {}
 
@@ -40,16 +42,19 @@ export class ChargesController {
   }
 
   @Post()
+  @RequireOrgPerm('charges:write')
   create(@CurrentUser() user: JwtAuthUser, @Body() dto: CreateChargeDto) {
     return this.charges.create(dto, user.organizationId);
   }
 
   @Patch(':id')
+  @RequireOrgPerm('charges:write')
   update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateChargeDto) {
     return this.charges.update(id, user.organizationId, dto);
   }
 
   @Delete(':id')
+  @RequireOrgPerm('charges:write')
   remove(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.charges.remove(id, user.organizationId);
   }

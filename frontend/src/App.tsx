@@ -50,8 +50,36 @@ const ExportsPage = lazy(() =>
 const ProfilePage = lazy(() =>
   import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 );
+const RemindersPage = lazy(() =>
+  import('./pages/RemindersPage').then((m) => ({ default: m.RemindersPage })),
+);
 const AdminClientsPage = lazy(() =>
   import('./pages/AdminClientsPage').then((m) => ({ default: m.AdminClientsPage })),
+);
+const AdminClientDetailPage = lazy(() =>
+  import('./pages/AdminClients/AdminClientDetailPage').then((m) => ({
+    default: m.AdminClientDetailPage,
+  })),
+);
+const DemoPage = lazy(() => import('./pages/DemoPage').then((m) => ({ default: m.DemoPage })));
+const InscriptionPage = lazy(() =>
+  import('./pages/InscriptionPage').then((m) => ({ default: m.InscriptionPage })),
+);
+const VerifyEmailPage = lazy(() =>
+  import('./pages/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })),
+);
+const TermsPage = lazy(() => import('./pages/Legal/TermsPage').then((m) => ({ default: m.TermsPage })));
+const PrivacyPage = lazy(() =>
+  import('./pages/Legal/PrivacyPage').then((m) => ({ default: m.PrivacyPage })),
+);
+const CookiesPage = lazy(() =>
+  import('./pages/Legal/CookiesPage').then((m) => ({ default: m.CookiesPage })),
+);
+const SupportPage = lazy(() =>
+  import('./pages/Legal/SupportPage').then((m) => ({ default: m.SupportPage })),
+);
+const DataRightsPage = lazy(() =>
+  import('./pages/Legal/DataRightsPage').then((m) => ({ default: m.DataRightsPage })),
 );
 const ComptabilitePage = lazy(() =>
   import('./pages/ComptabilitePage').then((m) => ({ default: m.ComptabilitePage })),
@@ -132,6 +160,14 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/mot-de-passe-oubli" element={<ForgotPasswordPage />} />
       <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
+      <Route path="/demo" element={<DemoPage />} />
+      <Route path="/inscription" element={<InscriptionPage />} />
+      <Route path="/verifier-email" element={<VerifyEmailPage />} />
+      <Route path="/cgu" element={<TermsPage />} />
+      <Route path="/confidentialite" element={<PrivacyPage />} />
+      <Route path="/cookies" element={<CookiesPage />} />
+      <Route path="/support" element={<SupportPage />} />
+      <Route path="/mes-donnees" element={<DataRightsPage />} />
       {import.meta.env.DEV ? <Route path="/design" element={<DesignSystemPage />} /> : null}
       <Route
         path="/"
@@ -151,6 +187,7 @@ export default function App() {
         <Route path="locataires" element={<TenantsPage />} />
         <Route path="baux" element={<LeasesPage />} />
         <Route path="paiements" element={<PaymentsPage />} />
+        <Route path="relances" element={<RemindersPage />} />
         <Route path="activite-loyers" element={<YearlyRentActivityPage />} />
         <Route path="cautions" element={<CautionsChargesPage />} />
         <Route path="charges" element={<Navigate to="/cautions?tab=charges" replace />} />
@@ -164,6 +201,14 @@ export default function App() {
           element={
             <PlatformAdminOnly>
               <AdminClientsPage />
+            </PlatformAdminOnly>
+          }
+        />
+        <Route
+          path="admin/clients/:id"
+          element={
+            <PlatformAdminOnly>
+              <AdminClientDetailPage />
             </PlatformAdminOnly>
           }
         />

@@ -1,13 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { MailModule } from '../mail/mail.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { OrgMembersController } from './org-members.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { WebAuthnService } from './webauthn.service';
+import { LoginLockoutService } from './login-lockout.service';
+import { OrgPermGuard } from './org-perm.guard';
 
+/** Global pour OrgPermGuard (F1) sur tous les controllers métier. */
+@Global()
 @Module({
   imports: [
     MailModule,
@@ -15,14 +20,21 @@ import { WebAuthnService } from './webauthn.service';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'dev-secret-change-me',
-        signOptions: { expiresIn: '7d' },
-      }),
+      useFactory: (config: ConfigService) => {
+        const isProd = (config.get<string>('NODE_ENV') || '').toLowerCase() === 'production';
+        const secret = config.get<string>('JWT_SECRET') || (isProd ? '' : 'dev-secret-change-me');
+        if (!secret) {
+          throw new Error('JWT_SECRET manquant en production.');
+        }
+        return {
+          secret,
+          signOptions: { expiresIn: '7d' },
+        };
+      },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, WebAuthnService, JwtStrategy],
-  exports: [AuthService],
+  controllers: [AuthController, OrgMembersController],
+  providers: [AuthService, WebAuthnService, JwtStrategy, LoginLockoutService, OrgPermGuard],
+  exports: [AuthService, OrgPermGuard],
 })
 export class AuthModule {}

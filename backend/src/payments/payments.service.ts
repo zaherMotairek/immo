@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -12,9 +13,13 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { AuthService } from '../auth/auth.service';
+import { AutomationService } from '../automation/automation.service';
+import { WHATSAPP_PROVIDER } from '../whatsapp/whatsapp.module';
+import type { WhatsAppProvider } from '../whatsapp/whatsapp.provider';
 import { startOfTodayUtc } from '../common/date.util';
 import { amountXofToFrenchWords } from '../common/number-to-french-words';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
+import type { BulkCollectDto, BulkCollectItemDto } from './dto/bulk-collect.dto';
 import {
   COLLECTION_TASK_STATUSES,
   type CollectionTaskStatus,
@@ -31,6 +36,8 @@ import {
   formatFcfaPdf,
   type PaymentsWorksheetRow,
 } from '../common/immo-pdf';
+import { maybeSendAutoReceipt } from './auto-receipt';
+import { matchStatementLines, parseStatementCsv } from './statement-match';
 
 @Injectable()
 export class PaymentsService {
@@ -40,15 +47,24 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly auth: AuthService,
     private readonly config: ConfigService,
+    private readonly automation: AutomationService,
+    @Inject(WHATSAPP_PROVIDER) private readonly whatsapp: WhatsAppProvider,
   ) {}
 
-  /** Met à jour les statuts PENDING → LATE si la date d’échéance est passée. */
-  async syncLateStatuses() {
+  /**
+   * Met à jour PENDING → LATE si échéance passée.
+   * **Toujours** scoper par organisation sur les chemins HTTP (B6).
+   * Sans `organizationId` : réservé au job planifié (B7).
+   */
+  async syncLateStatuses(organizationId?: string) {
     const today = startOfTodayUtc();
     const res = await this.prisma.payment.updateMany({
       where: {
         status: PaymentStatus.PENDING,
         dueDate: { lt: today },
+        ...(organizationId
+          ? { lease: { unit: { building: { organizationId } } } }
+          : {}),
       },
       data: { status: PaymentStatus.LATE },
     });
@@ -70,7 +86,7 @@ export class PaymentsService {
       tenantId?: string;
     },
   ) {
-    await this.syncLateStatuses();
+    await this.syncLateStatuses(organizationId);
     /** Échéances des baux actifs uniquement (baux désactivés = historique hors vue liste). */
     const leaseScope =
       filters?.leaseId != null && filters.leaseId.trim() !== ''
@@ -141,7 +157,7 @@ export class PaymentsService {
 
   /** Relance locataire par e-mail pour une échéance en retard (LATE ou PENDING dépassé). */
   async sendOverdueReminder(id: string, organizationId: string, actor?: JwtAuthUser) {
-    await this.syncLateStatuses();
+    await this.syncLateStatuses(organizationId);
     const p = await this.prisma.payment.findFirst({
       where: { id, lease: { unit: { building: { organizationId } } } },
       include: {
@@ -211,7 +227,7 @@ export class PaymentsService {
 
   /** Enregistre une relance WhatsApp (après envoi manuel depuis le lien — pas d’API WhatsApp). */
   async logReminder(id: string, organizationId: string, channel: ReminderChannel, actor?: JwtAuthUser) {
-    await this.syncLateStatuses();
+    await this.syncLateStatuses(organizationId);
     await this.ensure(id, organizationId);
     const p = await this.prisma.payment.findFirst({
       where: { id, lease: { unit: { building: { organizationId } } } },
@@ -371,6 +387,9 @@ export class PaymentsService {
         },
       });
       await this.syncCollectionTaskFromPaymentStatus(updated.id, organizationId, updated.status);
+      if (paidFull) {
+        await this.dispatchAutoReceipt(id, organizationId, actor);
+      }
       return this.attachCollectionMetaOne(updated, organizationId);
     }
 
@@ -426,7 +445,96 @@ export class PaymentsService {
       },
     });
     await this.syncCollectionTaskFromPaymentStatus(updated.id, organizationId, updated.status);
+    if (data.status === PaymentStatus.PAID) {
+      await this.dispatchAutoReceipt(id, organizationId, actor);
+    }
     return this.attachCollectionMetaOne(updated, organizationId);
+  }
+
+  /** C4 : encaissement multi-lignes (une transaction métier = N updates + audit chacun). */
+  async bulkCollect(organizationId: string, dto: BulkCollectDto, actor?: JwtAuthUser) {
+    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+    for (const item of dto.items) {
+      try {
+        await this.update(
+          item.id,
+          organizationId,
+          {
+            status: PaymentStatus.PAID,
+            amountPaid: item.amountPaid,
+            paidAt: item.paidAt ?? dto.paidAt,
+            collectionMethod: item.collectionMethod ?? dto.collectionMethod,
+            collectionReference: item.collectionReference ?? dto.collectionReference,
+          },
+          actor,
+        );
+        results.push({ id: item.id, ok: true });
+      } catch (err) {
+        results.push({
+          id: item.id,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    const ok = results.filter((r) => r.ok).length;
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_BULK_COLLECT',
+      entityType: 'payment',
+      summary: `Encaissement groupé : ${ok}/${results.length}`,
+      metadata: { results },
+    });
+    return { ok, failed: results.length - ok, results };
+  }
+
+  /** C4 : suggestions de rapprochement relevé Mobile Money (jamais d’auto-pay). */
+  async suggestStatementMatches(organizationId: string, csvText: string) {
+    const lines = parseStatementCsv(csvText);
+    if (lines.length === 0) {
+      throw new BadRequestException('Aucune ligne exploitable (montant requis).');
+    }
+    if (lines.length > 200) {
+      throw new BadRequestException('Maximum 200 lignes par import.');
+    }
+    const suggestions = await matchStatementLines(this.prisma, organizationId, lines);
+    return { suggestions };
+  }
+
+  async confirmStatementMatches(
+    organizationId: string,
+    items: BulkCollectItemDto[],
+    actor?: JwtAuthUser,
+  ) {
+    return this.bulkCollect(
+      organizationId,
+      {
+        items: items.map((it) => ({
+          ...it,
+          collectionMethod: it.collectionMethod ?? CollectionMethod.ORANGE_MONEY,
+        })),
+      },
+      actor,
+    );
+  }
+
+  private async dispatchAutoReceipt(
+    paymentId: string,
+    organizationId: string,
+    actor?: JwtAuthUser,
+  ) {
+    await maybeSendAutoReceipt({
+      prisma: this.prisma,
+      mail: this.mail,
+      audit: this.audit,
+      automation: this.automation,
+      whatsapp: this.whatsapp,
+      createShareLink: (pid, orgId, act) => this.createReceiptShareLink(pid, orgId, act),
+      paymentId,
+      organizationId,
+      actor,
+    });
   }
 
   async upsertCollectionTask(
@@ -1372,23 +1480,25 @@ export class PaymentsService {
   async createReceiptShareLink(
     paymentId: string,
     organizationId: string,
-    actor: JwtAuthUser,
+    actor?: JwtAuthUser,
     req?: { protocol?: string; get?: (name: string) => string | undefined; headers?: Record<string, unknown> },
   ) {
     await this.ensure(paymentId, organizationId);
     const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    const ttlHours = Number(this.config.get<string>('RECEIPT_SHARE_TTL_HOURS') || 720); // 30 j par défaut
+    const hours = Number.isFinite(ttlHours) && ttlHours > 0 ? ttlHours : 720;
+    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
     await this.prisma.$executeRawUnsafe(
       `
       INSERT INTO "receipt_share_tokens"
-      ("id","token","organization_id","payment_id","created_by_user_id","expires_at","created_at")
-      VALUES ($1,$2,$3,$4,$5,$6,NOW())
+      ("id","token","organization_id","payment_id","created_by_user_id","expires_at","created_at","access_count")
+      VALUES ($1,$2,$3,$4,$5,$6,NOW(),0)
       `,
       randomUUID(),
       token,
       organizationId,
       paymentId,
-      actor.id,
+      actor?.id ?? null,
       expiresAt,
     );
     const apiBase = this.resolvePublicApiBase(req);
@@ -1436,16 +1546,54 @@ export class PaymentsService {
   async buildReceiptPdfFromShareToken(token: string): Promise<Buffer | null> {
     const rows = (await this.prisma.$queryRawUnsafe(
       `
-      SELECT "payment_id" AS "paymentId", "organization_id" AS "organizationId", "expires_at" AS "expiresAt"
+      SELECT "id", "payment_id" AS "paymentId", "organization_id" AS "organizationId",
+             "expires_at" AS "expiresAt", "revoked_at" AS "revokedAt"
       FROM "receipt_share_tokens"
       WHERE "token" = $1
       LIMIT 1
       `,
       token,
-    )) as Array<{ paymentId: string; organizationId: string; expiresAt: Date }>;
+    )) as Array<{
+      id: string;
+      paymentId: string;
+      organizationId: string;
+      expiresAt: Date;
+      revokedAt: Date | null;
+    }>;
     const row = rows[0];
     if (!row) return null;
-    if (row.expiresAt.getTime() <= Date.now()) return null;
+    if (row.revokedAt) return null;
+    if (new Date(row.expiresAt).getTime() <= Date.now()) return null;
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "receipt_share_tokens" SET "access_count" = COALESCE("access_count",0) + 1 WHERE "id" = $1`,
+      row.id,
+    );
     return this.buildReceiptPdf([row.paymentId], row.organizationId);
+  }
+
+  /** Révoque les liens publics encore valides pour une échéance. */
+  async revokeReceiptShareLinks(paymentId: string, organizationId: string, actor?: JwtAuthUser) {
+    await this.ensure(paymentId, organizationId);
+    const res = await this.prisma.$executeRawUnsafe(
+      `
+      UPDATE "receipt_share_tokens"
+      SET "revoked_at" = NOW()
+      WHERE "payment_id" = $1 AND "organization_id" = $2
+        AND "revoked_at" IS NULL
+        AND "expires_at" > NOW()
+      `,
+      paymentId,
+      organizationId,
+    );
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: 'PAYMENT_RECEIPT_SHARE_LINK_REVOKED',
+      entityType: 'payment',
+      entityId: paymentId,
+      summary: 'Liens publics de quittance revoques',
+      metadata: { rawResult: res },
+    });
+    return { ok: true as const };
   }
 }

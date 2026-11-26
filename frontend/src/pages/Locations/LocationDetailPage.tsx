@@ -117,6 +117,7 @@ export function LocationDetailPage() {
             <LocationBailTab
               data={fiche.data}
               lease={fiche.lease}
+              revise={fiche.revise}
               onReload={fiche.reload}
               onDelete={() => void fiche.requestDeleteLocation(locationHeadline, tenant.fullName)}
             />

@@ -11,6 +11,9 @@ import { runWebAuthnBootstrap } from './webauthn-bootstrap';
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     await this.$connect();
+    /** Phase B5 : migrer via Prisma ; laisser ENABLE_SCHEMA_BOOTSTRAP=true uniquement en transition. */
+    const boot = (process.env.ENABLE_SCHEMA_BOOTSTRAP ?? 'true').toLowerCase() !== 'false';
+    if (!boot) return;
     await runImmeubleSchemaBootstrap(this);
     await runAuditSchemaBootstrap(this);
     await runAccountingClosureBootstrap(this);

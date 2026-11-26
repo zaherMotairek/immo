@@ -29,6 +29,9 @@ export type SessionUser = {
   organizationId?: string;
   organizationName?: string | null;
   role?: 'USER' | 'PLATFORM_ADMIN';
+  readOnly?: boolean;
+  impersonatorId?: string;
+  isDemo?: boolean;
 };
 
 export function getStoredUser(): SessionUser | null {
@@ -350,18 +353,16 @@ export function downloadBulkPaymentReceipts(paymentIds: string[]) {
     );
 }
 
-export function downloadReport(kind: 'pdf' | 'xlsx', year: number) {
+function downloadAuthedBlob(path: string, filename: string, failMsg: string) {
   const token = getToken();
-  const q = `?year=${year}`;
-  const path = kind === 'pdf' ? `/reports/summary.pdf${q}` : `/reports/summary.xlsx${q}`;
   const url = `${baseUrl()}${path}`;
   const a = document.createElement('a');
   a.href = url;
-  a.download = `immopilot-rapport-${year}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`;
+  a.download = filename;
   if (token) {
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
-        if (!r.ok) throw new Error('Export impossible');
+        if (!r.ok) throw new Error(failMsg);
         return r.blob();
       })
       .then((blob) => {
@@ -369,10 +370,29 @@ export function downloadReport(kind: 'pdf' | 'xlsx', year: number) {
         a.click();
         URL.revokeObjectURL(a.href);
       })
-      .catch(() => toast('Export impossible. Vérifiez la connexion et votre session.', { variant: 'error' }));
+      .catch(() => toast(failMsg, { variant: 'error' }));
   } else {
     a.click();
   }
+}
+
+export function downloadReport(kind: 'pdf' | 'xlsx', year: number) {
+  const q = `?year=${year}`;
+  const path = kind === 'pdf' ? `/reports/summary.pdf${q}` : `/reports/summary.xlsx${q}`;
+  downloadAuthedBlob(
+    path,
+    `immopilot-rapport-${year}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`,
+    'Export impossible. Vérifiez la connexion et votre session.',
+  );
+}
+
+/** Modèle Excel vide (mêmes feuilles que l’export) pour premier import. */
+export function downloadImportTemplate() {
+  downloadAuthedBlob(
+    '/reports/import-template.xlsx',
+    'immopilot-modele-import.xlsx',
+    'Modèle indisponible. Vérifiez la connexion, votre session et le plan (exports).',
+  );
 }
 
 /** Ouvre un PDF généré par l’API (JWT) dans un nouvel onglet — aperçu / impression. */

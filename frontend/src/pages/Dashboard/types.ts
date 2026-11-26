@@ -33,6 +33,10 @@ export type Overview = {
     depositsCollectedThisMonth: number;
     overdueCount: number;
     overdueAmount: number;
+    /** C7 — même formule que FinanceSummaryService */
+    remainingVsExpected?: number;
+    financeYear?: number;
+    financeMonth?: number;
   };
   alerts: DashboardPaymentAlert[];
   upcomingCollections?: {

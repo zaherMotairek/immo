@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -15,6 +15,19 @@ import { SearchModule } from './search/search.module';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { CollectorsModule } from './collectors/collectors.module';
+import { StorageModule } from './storage/storage.module';
+import { JobsModule } from './jobs/jobs.module';
+import { HealthModule } from './health/health.module';
+import { AutomationModule } from './automation/automation.module';
+import { RemindersModule } from './reminders/reminders.module';
+import { FinanceModule } from './finance/finance.module';
+import { EntitlementsModule } from './entitlements/entitlements.module';
+import { DemoModule } from './demo/demo.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
+import { RequestIdMiddleware } from './common/request-id.middleware';
+import { ReadOnlyInterceptor } from './auth/read-only.interceptor';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -23,6 +36,14 @@ import { CollectorsModule } from './collectors/collectors.module';
       // Toujours charger backend/.env (UTF-8), même si le cwd n’est pas le dossier backend.
       envFilePath: join(__dirname, '..', '.env'),
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
+    StorageModule,
     PrismaModule,
     AuthModule,
     BuildingsModule,
@@ -37,6 +58,28 @@ import { CollectorsModule } from './collectors/collectors.module';
     AdminModule,
     AuditModule,
     CollectorsModule,
+    JobsModule,
+    HealthModule,
+    AutomationModule,
+    RemindersModule,
+    FinanceModule,
+    EntitlementsModule,
+    DemoModule,
+    OnboardingModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ReadOnlyInterceptor,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

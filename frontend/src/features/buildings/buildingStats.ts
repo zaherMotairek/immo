@@ -55,20 +55,20 @@ export function computeBuildingStats(b: Building | null) {
     if (missingFromDeclared != null && missingFromDeclared > 0) {
       unitsSub =
         b.structureKind === 'TERRAIN_LOTS'
-          ? `Lots déclarés : ${declaredCapacity}`
-          : `Logements prévus : ${declaredCapacity} place${declaredCapacity !== 1 ? 's' : ''}`;
+          ? `Structure indicative : ${declaredCapacity} lot${declaredCapacity !== 1 ? 's' : ''}`
+          : `Structure indicative : ${declaredCapacity} logement${declaredCapacity !== 1 ? 's' : ''}`;
     } else if (overDeclared != null && overDeclared > 0) {
       unitsSub =
         b.structureKind === 'IMMEUBLE'
-          ? `${overDeclared} appartement${overDeclared !== 1 ? 's' : ''} au-delà du nombre déclaré (${declaredCapacity} prévu${declaredCapacity !== 1 ? 's' : ''})`
-          : `${overDeclared} unité${overDeclared !== 1 ? 's' : ''} au-delà du nombre déclaré (${declaredCapacity} prévu${declaredCapacity !== 1 ? 's' : ''})`;
+          ? `${overDeclared} au-delà de la structure indicative (${declaredCapacity})`
+          : `${overDeclared} au-delà de la structure indicative (${declaredCapacity})`;
     } else {
       const onePerEtage =
         b.structureKind === 'IMMEUBLE' && immeubleOnePerFloorMatch(b) ? ' · 1 app./étage' : '';
       unitsSub =
         b.structureKind === 'TERRAIN_LOTS'
-          ? `Tous les lots déclarés sont créés (${declaredCapacity})`
-          : `Tous les logements prévus sont créés (${declaredCapacity})${onePerEtage}`;
+          ? `Tous les lots de la structure sont créés (${declaredCapacity})`
+          : `Tous les logements de la structure sont créés (${declaredCapacity})${onePerEtage}`;
     }
   }
   if (b.structureKind === 'IMMEUBLE' && total > 0) {

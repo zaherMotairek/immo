@@ -3,20 +3,38 @@ import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertOrganizationPlatformAccess } from './organization-platform-access';
+import { startOfTodayUtc } from '../common/date.util';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import type { JwtAuthUser, JwtAuthUserRole } from './jwt-user.types';
+import { RegisterDto } from './dto/register.dto';
+import type { JwtAuthUser, JwtAuthUserRole, JwtOrgMemberRole } from './jwt-user.types';
+import { parseOrgMemberRole } from './org-permissions';
 import type { Express } from 'express';
+import { LoginLockoutService } from './login-lockout.service';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+const EMAIL_VERIFY_TTL_MS = 48 * 60 * 60 * 1000;
+
+export function isSelfSignupEnabled(config: ConfigService): boolean {
+  const v = (config.get<string>('SELF_SIGNUP_ENABLED') ?? 'true').toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
 
 export type AuthUserPayload = {
   id: string;
@@ -25,6 +43,7 @@ export type AuthUserPayload = {
   organizationId: string;
   organizationName: string | null;
   role: JwtAuthUserRole;
+  orgRole: JwtOrgMemberRole;
 };
 
 @Injectable()
@@ -34,12 +53,13 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    private readonly lockout: LoginLockoutService,
   ) {}
 
-  async getUserPayload(userId: string): Promise<AuthUserPayload> {
+  async getUserPayload(userId: string): Promise<AuthUserPayload & { isDemo?: boolean }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { organization: { select: { name: true } } },
+      include: { organization: { select: { name: true, isDemo: true } } },
     });
     if (!user) throw new UnauthorizedException();
     return {
@@ -49,11 +69,118 @@ export class AuthService {
       organizationId: user.organizationId,
       organizationName: user.organization.name ?? null,
       role: user.role === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'USER',
+      orgRole: parseOrgMemberRole(user.orgRole),
+      isDemo: user.organization.isDemo || undefined,
     };
+  }
+
+  signupStatus() {
+    return { enabled: isSelfSignupEnabled(this.config) };
+  }
+
+  async register(dto: RegisterDto) {
+    if (!isSelfSignupEnabled(this.config)) {
+      throw new ForbiddenException('Les inscriptions en ligne sont désactivées.');
+    }
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Un compte existe déjà avec cet e-mail.');
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const trialEnds = startOfTodayUtc();
+    trialEnds.setUTCDate(trialEnds.getUTCDate() + 14);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name: dto.organizationName.trim(),
+          planCode: 'TRIAL',
+          trialEndsAt: trialEnds,
+        },
+      });
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          name: dto.ownerName.trim(),
+          organizationId: org.id,
+          role: 'USER',
+          emailVerifiedAt: null,
+        },
+        select: { id: true, email: true },
+      });
+      await tx.planChangeLog.create({
+        data: {
+          organizationId: org.id,
+          fromPlanCode: null,
+          toPlanCode: 'TRIAL',
+          note: 'Inscription self-serve',
+        },
+      });
+      return { org, user };
+    });
+
+    const verify = await this.createAndSendEmailVerification(result.user.id, result.user.email);
+    return {
+      ok: true,
+      message: 'Compte créé. Vérifiez votre e-mail pour activer la connexion.',
+      organizationId: result.org.id,
+      ...(verify.devVerifyUrl ? { devVerifyUrl: verify.devVerifyUrl } : {}),
+    };
+  }
+
+  async verifyEmail(token: string) {
+    const row = await this.prisma.emailVerificationToken.findFirst({
+      where: { token, expiresAt: { gt: new Date() } },
+    });
+    if (!row) {
+      throw new BadRequestException('Lien de vérification invalide ou expiré.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: row.userId },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      this.prisma.emailVerificationToken.deleteMany({ where: { userId: row.userId } }),
+    ]);
+    return { ok: true, message: 'E-mail vérifié. Vous pouvez vous connecter.' };
+  }
+
+  private async createAndSendEmailVerification(userId: string, email: string) {
+    await this.prisma.emailVerificationToken.deleteMany({ where: { userId } });
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        userId,
+        token,
+        expiresAt: new Date(Date.now() + EMAIL_VERIFY_TTL_MS),
+      },
+    });
+    const base = (this.config.get<string>('PUBLIC_APP_URL') ?? 'http://localhost:5173').replace(/\/$/, '');
+    const verifyUrl = `${base}/verifier-email?token=${encodeURIComponent(token)}`;
+    const mailResult = await this.mail.sendTextEmail(
+      email,
+      'ImmoPilot — confirmez votre e-mail',
+      `Bonjour,\n\nConfirmez votre adresse e-mail en ouvrant ce lien (valide 48 h) :\n\n${verifyUrl}\n\n— ImmoPilot`,
+    );
+    if (process.env.NODE_ENV !== 'production' && mailResult.simulated) {
+      return { devVerifyUrl: verifyUrl };
+    }
+    return {};
   }
 
   async login(dto: LoginDto) {
     const email = dto.email.trim();
+    const lockedMs = this.lockout.getLockRemainingMs(email);
+    if (lockedMs > 0) {
+      throw new HttpException(
+        `Trop de tentatives. Réessayez dans ${Math.ceil(lockedMs / 1000)} s.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const user = await this.prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
       include: {
@@ -65,12 +192,38 @@ export class AuthService {
         },
       },
     });
-    if (!user) throw new UnauthorizedException('Identifiants invalides');
+    if (!user) {
+      this.lockout.recordFailure(email);
+      throw new UnauthorizedException('Identifiants invalides');
+    }
+    if (user.deactivatedAt) {
+      throw new UnauthorizedException('Ce compte a été désactivé. Contactez le support.');
+    }
+    if (!user.emailVerifiedAt && user.role !== 'PLATFORM_ADMIN') {
+      throw new UnauthorizedException(
+        'E-mail non vérifié. Ouvrez le lien reçu par e-mail, ou demandez un nouvel envoi.',
+      );
+    }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Identifiants invalides');
+    if (!ok) {
+      const { lockedMs: wait } = this.lockout.recordFailure(email);
+      if (wait > 0) {
+        throw new HttpException(
+          `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 1000)} s.`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw new UnauthorizedException('Identifiants invalides');
+    }
 
     const role: JwtAuthUserRole = user.role === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'USER';
     assertOrganizationPlatformAccess(role, user.organization);
+    this.lockout.recordSuccess(email);
+
+    await this.prisma.organization.update({
+      where: { id: user.organizationId },
+      data: { lastLoginAt: new Date() },
+    });
 
     const payload: { sub: string; email: string; organizationId: string } = {
       sub: user.id,

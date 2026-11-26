@@ -167,6 +167,29 @@ export function LoginPage() {
           ) : null}
         </form>
 
+        <p className="relative mt-5 text-center text-sm text-[var(--color-muted)]">
+          <Link to="/demo" className="font-semibold underline-offset-2 hover:underline">
+            Essayer la démo
+          </Link>
+          {' · '}
+          <Link to="/inscription" className="font-semibold underline-offset-2 hover:underline">
+            Créer un compte
+          </Link>
+        </p>
+        <p className="relative mt-3 text-center text-xs text-[var(--color-muted)]">
+          <Link to="/cgu" className="underline-offset-2 hover:underline">
+            CGU
+          </Link>
+          {' · '}
+          <Link to="/confidentialite" className="underline-offset-2 hover:underline">
+            Confidentialité
+          </Link>
+          {' · '}
+          <Link to="/support" className="underline-offset-2 hover:underline">
+            Support
+          </Link>
+        </p>
+
         <div className="relative mt-6 border-t border-[var(--odoo-border)] pt-5">
           <InstallAppButton variant="auth" />
         </div>

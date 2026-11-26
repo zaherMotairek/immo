@@ -1,6 +1,3 @@
-import { existsSync } from 'fs';
-import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 import {
   BadRequestException,
@@ -13,6 +10,8 @@ import type { Express } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
+import { assertAllowedUploadMagic } from '../common/file-magic';
+import { StorageService } from '../storage/storage.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import {
@@ -26,6 +25,7 @@ export class TenantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   list(organizationId: string) {
@@ -102,17 +102,8 @@ export class TenantsService {
     if (!n) throw new NotFoundException('Locataire introuvable');
   }
 
-  private idDocUploadDir(): string {
-    const root = process.env.LEASE_CONTRACT_UPLOAD_SUBDIR || 'uploads';
-    return join(process.cwd(), root, 'tenant-id-docs');
-  }
-
-  private idDocIndexDir(): string {
-    return join(this.idDocUploadDir(), '_index');
-  }
-
-  private idDocIndexPath(tenantId: string): string {
-    return join(this.idDocIndexDir(), `${tenantId}.json`);
+  private idDocIndexKey(tenantId: string): string {
+    return `_index/${tenantId}.json`;
   }
 
   private async readIdDocIndex(tenantId: string): Promise<Array<{
@@ -122,20 +113,19 @@ export class TenantsService {
     size: number;
     uploadedAt: string;
   }>> {
-    const p = this.idDocIndexPath(tenantId);
-    if (!existsSync(p)) return [];
+    const buf = await this.storage.get('tenant-id-docs', this.idDocIndexKey(tenantId));
+    if (!buf) return [];
     try {
-      const raw = await readFile(p, 'utf-8');
-      const j = JSON.parse(raw) as unknown;
+      const j = JSON.parse(buf.toString('utf-8')) as unknown;
       if (!Array.isArray(j)) return [];
       return j.filter(
         (x): x is { fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string } =>
           !!x &&
-          typeof (x as any).fileKey === 'string' &&
-          typeof (x as any).fileName === 'string' &&
-          typeof (x as any).mimeType === 'string' &&
-          typeof (x as any).size === 'number' &&
-          typeof (x as any).uploadedAt === 'string',
+          typeof (x as { fileKey?: unknown }).fileKey === 'string' &&
+          typeof (x as { fileName?: unknown }).fileName === 'string' &&
+          typeof (x as { mimeType?: unknown }).mimeType === 'string' &&
+          typeof (x as { size?: unknown }).size === 'number' &&
+          typeof (x as { uploadedAt?: unknown }).uploadedAt === 'string',
       );
     } catch {
       return [];
@@ -146,8 +136,12 @@ export class TenantsService {
     tenantId: string,
     files: Array<{ fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string }>,
   ) {
-    await mkdir(this.idDocIndexDir(), { recursive: true });
-    await writeFile(this.idDocIndexPath(tenantId), JSON.stringify(files, null, 2), 'utf-8');
+    await this.storage.put(
+      'tenant-id-docs',
+      this.idDocIndexKey(tenantId),
+      Buffer.from(JSON.stringify(files, null, 2), 'utf-8'),
+      'application/json',
+    );
   }
 
   async listIdDocuments(tenantId: string, organizationId: string) {
@@ -158,34 +152,24 @@ export class TenantsService {
 
   private async removeIdDocFromDisk(key: string | null | undefined) {
     if (!key) return;
-    const full = join(this.idDocUploadDir(), key);
-    try {
-      await unlink(full);
-    } catch {
-      /* ignoré */
-    }
+    await this.storage.delete('tenant-id-docs', key);
   }
 
   async saveIdDocument(tenantId: string, organizationId: string, file: Express.Multer.File, actor?: JwtAuthUser) {
-    if (!TENANT_ID_DOC_ALLOWED_MIMES.has(file.mimetype)) {
-      throw new BadRequestException(
-        'Format non accepté. Utilisez un PDF ou une image (JPEG, PNG, WebP).',
-      );
-    }
     if (file.size > TENANT_ID_DOC_MAX_BYTES) {
       throw new BadRequestException('Fichier trop volumineux (15 Mo maximum).');
     }
-    const ext = TENANT_ID_DOC_MIME_TO_EXT[file.mimetype];
+    const magic = assertAllowedUploadMagic(file.buffer, TENANT_ID_DOC_ALLOWED_MIMES, file.mimetype);
+    if (!magic.ok) throw new BadRequestException(magic.reason);
+    const mime = magic.mime;
+    const ext = TENANT_ID_DOC_MIME_TO_EXT[mime];
     if (!ext) throw new BadRequestException('Extension non reconnue pour ce type MIME.');
 
     const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId, organizationId } });
     if (!tenant) throw new NotFoundException('Locataire introuvable');
 
-    const dir = this.idDocUploadDir();
-    await mkdir(dir, { recursive: true });
     const key = `${randomUUID()}${ext}`;
-    const fullPath = join(dir, key);
-    await writeFile(fullPath, file.buffer);
+    await this.storage.put('tenant-id-docs', key, file.buffer, mime);
 
     const safeOriginal =
       file.originalname.replace(/[^\w.\-\s()[\]]/g, '_').slice(0, 240) || `piece-identite${ext}`;
@@ -195,7 +179,7 @@ export class TenantsService {
     current.push({
       fileKey: key,
       fileName: safeOriginal,
-      mimeType: file.mimetype,
+      mimeType: mime,
       size: file.size,
       uploadedAt: uploadedAtIso,
     });
@@ -206,7 +190,7 @@ export class TenantsService {
       data: {
         idDocFileKey: key,
         idDocOriginalName: safeOriginal,
-        idDocMime: file.mimetype,
+        idDocMime: mime,
         idDocSize: file.size,
         idDocUploadedAt: new Date(uploadedAtIso),
       },
@@ -219,13 +203,13 @@ export class TenantsService {
       entityType: 'tenant',
       entityId: tenantId,
       summary: `Piece identite ajoutee: ${safeOriginal}`,
-      metadata: { fileKey: key, size: file.size, mimeType: file.mimetype },
+      metadata: { fileKey: key, size: file.size, mimeType: mime },
     });
 
     return {
       ok: true,
       fileName: safeOriginal,
-      mimeType: file.mimetype,
+      mimeType: mime,
       size: file.size,
       uploadedAt: uploadedAtIso,
     };
@@ -237,11 +221,8 @@ export class TenantsService {
     const list = await this.readIdDocIndex(tenantId);
     const f = list.find((x) => x.fileKey === fileKey);
     if (!f) throw new NotFoundException('Pièce d’identité introuvable.');
-    const fullPath = join(this.idDocUploadDir(), f.fileKey);
-    if (!existsSync(fullPath)) {
-      throw new NotFoundException('Fichier introuvable sur le serveur.');
-    }
-    const buffer = await readFile(fullPath);
+    const buffer = await this.storage.get('tenant-id-docs', f.fileKey);
+    if (!buffer) throw new NotFoundException('Fichier introuvable sur le serveur.');
     const safeName = (f.fileName?.replace(/[^\w.\-]/g, '_') || 'piece-identite').slice(0, 120);
     return new StreamableFile(buffer, {
       type: f.mimeType,
@@ -254,19 +235,12 @@ export class TenantsService {
     if (!tenant?.idDocFileKey || !tenant.idDocMime) {
       throw new NotFoundException('Aucune pièce d’identité n’a été enregistrée pour ce locataire.');
     }
-    const fullPath = join(this.idDocUploadDir(), tenant.idDocFileKey);
-    if (!existsSync(fullPath)) {
+    const buffer = await this.storage.get('tenant-id-docs', tenant.idDocFileKey);
+    if (!buffer) {
       throw new NotFoundException(
         'Fichier introuvable sur le serveur. Envoyez une nouvelle copie depuis la fiche locataire.',
       );
     }
-    let buffer: Buffer;
-    try {
-      buffer = await readFile(fullPath);
-    } catch {
-      throw new NotFoundException('Impossible de lire le fichier sur le serveur.');
-    }
-    /** Nom ASCII pour Content-Disposition (évite les 500 si caractères spéciaux / encodage HTTP). */
     const safeName = (tenant.idDocOriginalName?.replace(/[^\w.\-]/g, '_') || 'piece-identite').slice(0, 120);
     return new StreamableFile(buffer, {
       type: tenant.idDocMime,

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * Garde-fou : refuse toute opération DB si l’hôte n’est pas localhost / 127.0.0.1.
  * Usage :

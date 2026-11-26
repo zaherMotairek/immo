@@ -180,7 +180,7 @@ export class ReportsService {
   }
 
   async buildAccountingSummary(year: number, organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const leaseInOrg = { unit: { building: { organizationId } } };
     const [payments, charges] = await Promise.all([
       this.prisma.payment.findMany({
@@ -243,7 +243,7 @@ export class ReportsService {
   }
 
   async buildAccountingWorkspace(year: number, organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const leaseInOrg = { unit: { building: { organizationId } } };
     const [summary, payments, charges] = await Promise.all([
       this.buildAccountingSummary(year, organizationId),
@@ -325,7 +325,7 @@ export class ReportsService {
   }
 
   async buildPdf(year: number, organizationId: string): Promise<Buffer> {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const leaseInOrg = { unit: { building: { organizationId } } };
     const [chargeSummary, overdue, allPaidYear, org] = await Promise.all([
       this.charges.summary(organizationId, year),
@@ -423,7 +423,7 @@ export class ReportsService {
   }
 
   async buildExcel(year: number, organizationId: string): Promise<Buffer> {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const today = startOfTodayUtc();
     const leaseInOrg = { unit: { building: { organizationId } } };
 
@@ -763,6 +763,119 @@ export class ReportsService {
     return Buffer.from(buf);
   }
 
+  /**
+   * Modèle Excel vide (mêmes en-têtes que l’export) pour import initial — Phase E3.
+   */
+  async buildImportTemplateExcel(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ImmoPilot';
+    wb.created = new Date();
+
+    const guide = wb.addWorksheet('Lisez-moi', { properties: { tabColor: { argb: 'FF2563EB' } } });
+    guide.getColumn(1).width = 92;
+    const lines = [
+      'ImmoPilot — modèle d’import Excel',
+      '',
+      '1. Remplissez les feuilles Biens, Locataires, Baux, Paiements, Charges (en-têtes à conserver).',
+      '2. Réimportez le fichier via Export / import dans l’application.',
+      '3. L’import renvoie un rapport : lignes créées / mises à jour, erreurs, avertissements.',
+      '4. Ne renommez pas les onglets ni les colonnes d’en-tête.',
+      '',
+      'Valeurs utiles : statut paiement = Payé | Impayé | En retard | Annulé | Loyer offert',
+      'Bail actif = Oui | Non · Unités : Appartement, Maison, Bureau, etc. (comme à l’écran).',
+    ];
+    for (const line of lines) {
+      const row = guide.addRow([line]);
+      if (line.startsWith('ImmoPilot')) row.font = { bold: true, size: 14 };
+    }
+
+    this.addDataSheet(
+      wb,
+      'Biens',
+      ['Bien', 'Ville', 'Commune', 'Adresse', "Nombre d'unités", 'Unités occupées', 'Unités vacantes'],
+      [],
+      { tabColor: 'FFCA8A04' },
+    );
+    this.addDataSheet(
+      wb,
+      'Locataires',
+      [
+        'Nom',
+        'Prénom',
+        'E-mail',
+        'Téléphone',
+        'Notes locataire',
+        'Bien',
+        'Commune',
+        'Ville',
+        'Unité',
+        "Type d'unité",
+        'Loyer mensuel',
+        'Jour échéance',
+        'Début bail',
+        'Fin bail',
+        'Caution',
+      ],
+      [],
+      { tabColor: 'FF059669' },
+    );
+    this.addDataSheet(
+      wb,
+      'Baux',
+      [
+        'Bail actif',
+        'Nom',
+        'Prénom',
+        'E-mail',
+        'Téléphone',
+        'Bien',
+        'Ville',
+        'Commune',
+        'Unité',
+        "Type d'unité",
+        'Loyer mensuel',
+        'Caution',
+        'Jour échéance',
+        'Début',
+        'Fin',
+      ],
+      [],
+      { tabColor: 'FF7C3AED' },
+    );
+    this.addDataSheet(
+      wb,
+      'Paiements',
+      [
+        'Période',
+        'Échéance',
+        'Statut',
+        'Montant dû',
+        'Payé le',
+        'Montant payé',
+        'Locataire',
+        'E-mail',
+        'Téléphone',
+        'Unité',
+        'Bien',
+        'Ville',
+        "Mode d'encaissement",
+        'Référence encaissement',
+      ],
+      [],
+      { tabColor: 'FFDC2626' },
+    );
+    this.addDataSheet(
+      wb,
+      'Charges',
+      ['Catégorie', 'Libellé', 'Montant', 'Année', 'Mois', 'Payé', 'Bien', 'Unité', 'Notes'],
+      [],
+      { tabColor: 'FF0891B2' },
+    );
+
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf);
+  }
+
   private addDataSheet(
     wb: ExcelJS.Workbook,
     name: string,
@@ -826,7 +939,7 @@ export class ReportsService {
 
   /** Tableau récapitulatif (paysage) pour export « comme à l’écran ». */
   async buildLeasesTablePdf(organizationId: string): Promise<Buffer> {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const list = await this.leases.list(organizationId);
     const sorted = [...list].sort(
       (a, b) =>

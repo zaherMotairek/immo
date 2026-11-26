@@ -7,6 +7,28 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const apiProxy = {
+  '/auth': { target: 'http://localhost:4000', changeOrigin: true },
+  '/admin': { target: 'http://localhost:4000', changeOrigin: true },
+  '/buildings': { target: 'http://localhost:4000', changeOrigin: true },
+  '/units': { target: 'http://localhost:4000', changeOrigin: true },
+  '/tenants': { target: 'http://localhost:4000', changeOrigin: true },
+  '/leases': { target: 'http://localhost:4000', changeOrigin: true },
+  '/payments': { target: 'http://localhost:4000', changeOrigin: true },
+  '/charges': { target: 'http://localhost:4000', changeOrigin: true },
+  '/dashboard': { target: 'http://localhost:4000', changeOrigin: true },
+  '/reports': { target: 'http://localhost:4000', changeOrigin: true },
+  '/search': { target: 'http://localhost:4000', changeOrigin: true },
+  '/audit': { target: 'http://localhost:4000', changeOrigin: true },
+  '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
+  '/automation': { target: 'http://localhost:4000', changeOrigin: true },
+  '/reminders': { target: 'http://localhost:4000', changeOrigin: true },
+  '/finance': { target: 'http://localhost:4000', changeOrigin: true },
+  '/health': { target: 'http://localhost:4000', changeOrigin: true },
+  '/version': { target: 'http://localhost:4000', changeOrigin: true },
+  '/public': { target: 'http://localhost:4000', changeOrigin: true },
+} as const;
+
 export default defineConfig({
   plugins: [
     react(),
@@ -46,40 +68,12 @@ export default defineConfig({
     port: 5173,
     /** Ouvre l’app sur le LAN (téléphone sur le même Wi‑Fi) : http://IP_DU_PC:5173 */
     host: true,
-    proxy: {
-      '/auth': { target: 'http://localhost:4000', changeOrigin: true },
-      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
-      '/buildings': { target: 'http://localhost:4000', changeOrigin: true },
-      '/units': { target: 'http://localhost:4000', changeOrigin: true },
-      '/tenants': { target: 'http://localhost:4000', changeOrigin: true },
-      '/leases': { target: 'http://localhost:4000', changeOrigin: true },
-      '/payments': { target: 'http://localhost:4000', changeOrigin: true },
-      '/charges': { target: 'http://localhost:4000', changeOrigin: true },
-      '/dashboard': { target: 'http://localhost:4000', changeOrigin: true },
-      '/reports': { target: 'http://localhost:4000', changeOrigin: true },
-      '/search': { target: 'http://localhost:4000', changeOrigin: true },
-      '/audit': { target: 'http://localhost:4000', changeOrigin: true },
-      '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
-    },
+    proxy: { ...apiProxy },
   },
   /** Même proxy pour `vite preview` (baselines Playwright Phase 0). */
   preview: {
     host: '127.0.0.1',
     port: 4173,
-    proxy: {
-      '/auth': { target: 'http://localhost:4000', changeOrigin: true },
-      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
-      '/buildings': { target: 'http://localhost:4000', changeOrigin: true },
-      '/units': { target: 'http://localhost:4000', changeOrigin: true },
-      '/tenants': { target: 'http://localhost:4000', changeOrigin: true },
-      '/leases': { target: 'http://localhost:4000', changeOrigin: true },
-      '/payments': { target: 'http://localhost:4000', changeOrigin: true },
-      '/charges': { target: 'http://localhost:4000', changeOrigin: true },
-      '/dashboard': { target: 'http://localhost:4000', changeOrigin: true },
-      '/reports': { target: 'http://localhost:4000', changeOrigin: true },
-      '/search': { target: 'http://localhost:4000', changeOrigin: true },
-      '/audit': { target: 'http://localhost:4000', changeOrigin: true },
-      '/collectors': { target: 'http://localhost:4000', changeOrigin: true },
-    },
+    proxy: { ...apiProxy },
   },
 });

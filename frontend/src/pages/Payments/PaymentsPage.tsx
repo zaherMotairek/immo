@@ -6,9 +6,11 @@ import { Button, Callout, EmptyState, Skeleton } from '@/components/ui/index';
 import { usePartialPayment } from '@/components/usePartialPayment';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { PaymentsBulkBar } from './PaymentsBulkBar';
+import { PaymentsBulkCollectModal } from './PaymentsBulkCollectModal';
 import { PaymentsFilters } from './PaymentsFilters';
 import { PaymentsHeader } from './PaymentsHeader';
 import { PaymentsMonthList } from './PaymentsMonthList';
+import { PaymentsStatementImport } from './PaymentsStatementImport';
 import { PaymentsSummary } from './PaymentsSummary';
 import { PaymentsToolbar } from './PaymentsToolbar';
 import { usePaymentsFilters } from './usePaymentsFilters';
@@ -67,6 +69,8 @@ export function PaymentsPage() {
 
       <PaymentsFilters f={filters} leaseFocusSummary={list.leaseFocusSummary} />
 
+      <PaymentsStatementImport onDone={list.load} />
+
       {list.listErr ? (
         <Callout variant="danger" title="Les échéances n’ont pas pu être chargées">
           <p>{list.listErr}</p>
@@ -93,10 +97,17 @@ export function PaymentsPage() {
             selectedCount={selection.selectedPaymentIds.length}
             payableCount={selection.selectableCount}
             submitting={selection.bulkSubmitting}
-            onMarkPaid={() => void selection.markSelectedPaid()}
+            onMarkPaid={selection.openCollectModal}
             onClear={selection.clearSelection}
           />
         ) : null}
+      <PaymentsBulkCollectModal
+        open={selection.collectOpen}
+        count={selection.selectableCount}
+        submitting={selection.bulkSubmitting}
+        onClose={() => selection.setCollectOpen(false)}
+        onConfirm={(v) => void selection.confirmCollect(v)}
+      />
         {!list.listErr && list.monthGroups.length > 0 ? (
           <PaymentsMonthList
             monthGroups={list.monthGroups}

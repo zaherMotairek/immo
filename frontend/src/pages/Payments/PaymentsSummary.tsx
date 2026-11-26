@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { SmartLink } from '@/components/SmartLink';
 import { Card, StatTile } from '@/components/ui/index';
+import { useFinanceSummary } from '@/hooks/useFinanceSummary';
 import { fcfa } from '@/lib/format';
 import type { CollectionTotal, PaymentStats } from './types';
 
@@ -41,8 +42,16 @@ function MoneyHero({
 
 /** Synthèse du filtre actif : reste à encaisser et encaissé en grand, puis volumes et encaissements par mode. */
 export function PaymentsSummary({ stats, monthCount, collectionTotals }: PaymentsSummaryProps) {
+  const { data: monthRef } = useFinanceSummary();
   return (
     <section aria-label="Synthèse du filtre actif">
+      {monthRef ? (
+        <p className="mb-2 text-xs text-[var(--color-muted)]">
+          Réf. mois {String(monthRef.month).padStart(2, '0')}/{monthRef.year} (source unique) : attendu{' '}
+          {fcfa(monthRef.expectedMonthlyRent)} · encaissé {fcfa(monthRef.collectedThisMonth)} · retards{' '}
+          {monthRef.overdueCount}
+        </p>
+      ) : null}
       <p className={`mb-3 ${eyebrow}`}>Synthèse (filtre actif)</p>
       <div className="grid gap-4 md:grid-cols-2">
         <MoneyHero label="Reste à encaisser (loyers)" amount={stats.aEncaisser} accent="--status-pending">

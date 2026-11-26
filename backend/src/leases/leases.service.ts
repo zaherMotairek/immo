@@ -1,6 +1,3 @@
-import { createReadStream, existsSync } from 'fs';
-import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { BadRequestException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
 import { PaymentStatus, type Lease } from '@prisma/client';
@@ -9,7 +6,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { PaymentsService } from '../payments/payments.service';
+import { AutomationService } from '../automation/automation.service';
 import { addOneYearSameDay, rentDueDateForBilledPeriod, startOfTodayUtc } from '../common/date.util';
+import { assertAllowedUploadMagic } from '../common/file-magic';
+import { StorageService } from '../storage/storage.service';
 import { CreateLeaseDto } from './dto/create-lease.dto';
 import { UpdateLeaseDto } from './dto/update-lease.dto';
 import {
@@ -72,6 +72,8 @@ export class LeasesService {
     private readonly prisma: PrismaService,
     private readonly payments: PaymentsService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
+    private readonly automation: AutomationService,
   ) {}
 
   list(organizationId: string) {
@@ -87,7 +89,7 @@ export class LeasesService {
 
   /** Liste synthétique pour cartes « locations » (tableau de bord métier). */
   async listOverview(organizationId: string, activeOnly = true) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
@@ -167,7 +169,7 @@ export class LeasesService {
   }
 
   async getFiche(id: string, organizationId: string) {
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const l = await this.prisma.lease.findFirst({
       where: { id, ...leaseBelongsToOrg(organizationId) },
       include: {
@@ -299,9 +301,13 @@ export class LeasesService {
     }
 
     const startDate = new Date(dto.startDate);
-    const endDate =
-      dto.endDate != null && String(dto.endDate).trim() !== ''
-        ? new Date(dto.endDate)
+    const automation = await this.automation.getSettings(organizationId);
+    const hasExplicitEnd = dto.endDate != null && String(dto.endDate).trim() !== '';
+    /** C1 : sans date de fin + opt-in → bail open-ended (horizon 12 mois). Sinon +1 an. */
+    const endDate = hasExplicitEnd
+      ? new Date(dto.endDate!)
+      : automation.autoGenerateSchedules
+        ? null
         : addOneYearSameDay(startDate);
 
     const lease = await this.prisma.lease.create({
@@ -319,7 +325,12 @@ export class LeasesService {
     });
 
     if (lease.active) {
-      await this.generatePaymentsFromLeaseStartUntilContractEnd(lease.id, lease);
+      if (lease.endDate) {
+        await this.generatePaymentsFromLeaseStartUntilContractEnd(lease.id, lease);
+      }
+      if (automation.autoGenerateSchedules) {
+        await this.ensureScheduleMonthsAhead(lease.id, lease, 12);
+      }
     }
 
     return lease;
@@ -353,17 +364,69 @@ export class LeasesService {
     lease: Pick<Lease, 'startDate' | 'endDate' | 'monthlyRent' | 'rentDueDay' | 'createdAt'>,
   ) {
     if (!lease.endDate) return;
-
     const { y: firstY, m: firstM } = this.firstBillingPeriodMonth(lease.startDate, lease.createdAt);
     const lastY = lease.endDate.getFullYear();
     const lastM = lease.endDate.getMonth() + 1;
+    await this.createPaymentRange(leaseId, lease, firstY, firstM, lastY, lastM);
+  }
 
+  /**
+   * C1 : crée les échéances manquantes jusqu’à `monthsAhead` mois après aujourd’hui
+   * (ou jusqu’à endDate si plus tôt). N’écrase jamais (unique leaseId+year+month).
+   */
+  async ensureScheduleMonthsAhead(
+    leaseId: string,
+    lease: Pick<Lease, 'startDate' | 'endDate' | 'monthlyRent' | 'rentDueDay' | 'createdAt'>,
+    monthsAhead: number,
+  ): Promise<number> {
+    const { y: firstY, m: firstM } = this.firstBillingPeriodMonth(lease.startDate, lease.createdAt);
+    const today = startOfTodayUtc();
+    let lastY = today.getUTCFullYear();
+    let lastM = today.getUTCMonth() + 1 + monthsAhead;
+    while (lastM > 12) {
+      lastM -= 12;
+      lastY += 1;
+    }
+    if (lease.endDate) {
+      const ey = lease.endDate.getFullYear();
+      const em = lease.endDate.getMonth() + 1;
+      if (ey * 12 + em < lastY * 12 + lastM) {
+        lastY = ey;
+        lastM = em;
+      }
+    }
+    return this.createPaymentRange(leaseId, lease, firstY, firstM, lastY, lastM);
+  }
+
+  /** Job annuel / manuel : org avec autoGenerateSchedules. */
+  async extendSchedulesForOrganization(
+    organizationId: string,
+    monthsAhead = 12,
+  ): Promise<{ created: number; leases: number }> {
+    const leases = await this.prisma.lease.findMany({
+      where: { active: true, ...leaseBelongsToOrg(organizationId) },
+    });
+    let created = 0;
+    for (const lease of leases) {
+      created += await this.ensureScheduleMonthsAhead(lease.id, lease, monthsAhead);
+    }
+    return { created, leases: leases.length };
+  }
+
+  private async createPaymentRange(
+    leaseId: string,
+    lease: Pick<Lease, 'monthlyRent' | 'rentDueDay'>,
+    firstY: number,
+    firstM: number,
+    lastY: number,
+    lastM: number,
+  ): Promise<number> {
     const firstSeq = firstY * 12 + firstM;
     const lastSeq = lastY * 12 + lastM;
-    if (firstSeq > lastSeq) return;
-
+    if (firstSeq > lastSeq) return 0;
     let y = firstY;
     let mo = firstM;
+    let created = 0;
     while (y * 12 + mo <= lastSeq) {
       const due = rentDueDateForBilledPeriod(y, mo, lease.rentDueDay);
       try {
@@ -377,6 +440,7 @@ export class LeasesService {
             status: PaymentStatus.PENDING,
           },
         });
+        created += 1;
       } catch {
         /* déjà créé */
       }
@@ -386,6 +450,7 @@ export class LeasesService {
         y += 1;
       }
     }
+    return created;
   }
 
   /** Recalcule les échéances modifiables d’un bail selon ses conditions actuelles. */
@@ -460,6 +525,117 @@ export class LeasesService {
     }
   }
 
+  /**
+   * C6-A : révision de loyer (+ renouvellement optionnel de endDate).
+   * N’écrase pas les échéances PAID/WAIVED/CANCELLED.
+   */
+  async reviseRent(
+    id: string,
+    organizationId: string,
+    dto: {
+      newMonthlyRent?: number;
+      percent?: number;
+      effectiveFrom: string;
+      newEndDate?: string;
+      renew?: boolean;
+      note?: string;
+    },
+    actor?: JwtAuthUser,
+  ) {
+    await this.ensure(id, organizationId);
+    const lease = await this.prisma.lease.findUnique({ where: { id } });
+    if (!lease) throw new NotFoundException('Bail introuvable');
+    if (!lease.active) throw new BadRequestException('Bail inactif.');
+
+    const previous = lease.monthlyRent.toNumber();
+    let newRent = dto.newMonthlyRent;
+    let percent: number | null = dto.percent ?? null;
+    if (newRent == null && percent != null) {
+      newRent = Math.round(previous * (1 + percent / 100));
+    }
+    if (newRent == null || !Number.isFinite(newRent) || newRent < 1) {
+      throw new BadRequestException('Indiquez newMonthlyRent ou percent.');
+    }
+    if (percent == null && previous > 0) {
+      percent = Math.round(((newRent - previous) / previous) * 10000) / 100;
+    }
+
+    const effectiveFrom = new Date(dto.effectiveFrom);
+    const effY = effectiveFrom.getUTCFullYear();
+    const effM = effectiveFrom.getUTCMonth() + 1;
+    const renew = Boolean(dto.renew || dto.newEndDate);
+    let newEndDate: Date | undefined;
+    if (dto.newEndDate) {
+      newEndDate = new Date(dto.newEndDate);
+    } else if (renew && lease.endDate) {
+      newEndDate = addOneYearSameDay(lease.endDate);
+    } else if (renew) {
+      newEndDate = addOneYearSameDay(lease.startDate);
+    }
+
+    const updated = await this.prisma.lease.update({
+      where: { id },
+      data: {
+        monthlyRent: newRent,
+        ...(newEndDate ? { endDate: newEndDate } : {}),
+      },
+      include: { tenant: true, unit: { include: { building: true } } },
+    });
+
+    const mutable = await this.prisma.payment.findMany({
+      where: {
+        leaseId: id,
+        status: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
+      },
+    });
+    for (const p of mutable) {
+      const seq = p.periodYear * 12 + p.periodMonth;
+      if (seq < effY * 12 + effM) continue;
+      await this.prisma.payment.update({
+        where: { id: p.id },
+        data: { amountDue: newRent },
+      });
+    }
+
+    if (newEndDate) {
+      await this.ensureScheduleMonthsAhead(id, {
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        monthlyRent: updated.monthlyRent,
+        rentDueDay: updated.rentDueDay,
+        createdAt: lease.createdAt,
+      }, 12);
+    }
+
+    await this.prisma.leaseRentRevision.create({
+      data: {
+        leaseId: id,
+        effectiveFrom,
+        previousRent: previous,
+        newRent,
+        percent: percent ?? undefined,
+        note: dto.note?.trim() || null,
+        createdByUserId: actor?.id ?? null,
+        renewed: renew,
+        newEndDate: newEndDate ?? null,
+      },
+    });
+
+    await this.audit.log({
+      organizationId,
+      actor,
+      action: renew ? 'LEASE_RENEWED' : 'LEASE_RENT_REVISED',
+      entityType: 'lease',
+      entityId: id,
+      summary: renew
+        ? `Bail renouvelé / loyer ${previous} → ${newRent} FCFA`
+        : `Révision loyer ${previous} → ${newRent} FCFA`,
+      metadata: { previous, newRent, percent, effectiveFrom: dto.effectiveFrom, newEndDate: dto.newEndDate ?? null },
+    });
+
+    return updated;
+  }
+
   async update(id: string, organizationId: string, dto: UpdateLeaseDto, actor?: JwtAuthUser) {
     await this.ensure(id, organizationId);
     const before = await this.prisma.lease.findUnique({
@@ -518,6 +694,16 @@ export class LeasesService {
         createdAt: before.createdAt,
         active: updated.active,
       });
+      const automation = await this.automation.getSettings(organizationId);
+      if (automation.autoGenerateSchedules && updated.active) {
+        await this.ensureScheduleMonthsAhead(id, {
+          startDate: updated.startDate,
+          endDate: updated.endDate,
+          monthlyRent: updated.monthlyRent,
+          rentDueDay: updated.rentDueDay,
+          createdAt: before.createdAt,
+        }, 12);
+      }
     }
     await this.audit.log({
       organizationId,
@@ -545,17 +731,8 @@ export class LeasesService {
     return { ok: true };
   }
 
-  private contractUploadDir(): string {
-    const root = process.env.LEASE_CONTRACT_UPLOAD_SUBDIR || 'uploads';
-    return join(process.cwd(), root, 'lease-contracts');
-  }
-
-  private contractIndexDir(): string {
-    return join(this.contractUploadDir(), '_index');
-  }
-
-  private contractIndexPath(leaseId: string): string {
-    return join(this.contractIndexDir(), `${leaseId}.json`);
+  private contractIndexKey(leaseId: string): string {
+    return `_index/${leaseId}.json`;
   }
 
   private async readContractIndex(leaseId: string): Promise<Array<{
@@ -565,20 +742,19 @@ export class LeasesService {
     size: number;
     uploadedAt: string;
   }>> {
-    const p = this.contractIndexPath(leaseId);
-    if (!existsSync(p)) return [];
+    const buf = await this.storage.get('lease-contracts', this.contractIndexKey(leaseId));
+    if (!buf) return [];
     try {
-      const raw = await readFile(p, 'utf-8');
-      const j = JSON.parse(raw) as unknown;
+      const j = JSON.parse(buf.toString('utf-8')) as unknown;
       if (!Array.isArray(j)) return [];
       return j.filter(
         (x): x is { fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string } =>
           !!x &&
-          typeof (x as any).fileKey === 'string' &&
-          typeof (x as any).fileName === 'string' &&
-          typeof (x as any).mimeType === 'string' &&
-          typeof (x as any).size === 'number' &&
-          typeof (x as any).uploadedAt === 'string',
+          typeof (x as { fileKey?: unknown }).fileKey === 'string' &&
+          typeof (x as { fileName?: unknown }).fileName === 'string' &&
+          typeof (x as { mimeType?: unknown }).mimeType === 'string' &&
+          typeof (x as { size?: unknown }).size === 'number' &&
+          typeof (x as { uploadedAt?: unknown }).uploadedAt === 'string',
       );
     } catch {
       return [];
@@ -589,11 +765,11 @@ export class LeasesService {
     leaseId: string,
     files: Array<{ fileKey: string; fileName: string; mimeType: string; size: number; uploadedAt: string }>,
   ) {
-    await mkdir(this.contractIndexDir(), { recursive: true });
-    await writeFile(
-      this.contractIndexPath(leaseId),
-      JSON.stringify(files, null, 2),
-      'utf-8',
+    await this.storage.put(
+      'lease-contracts',
+      this.contractIndexKey(leaseId),
+      Buffer.from(JSON.stringify(files, null, 2), 'utf-8'),
+      'application/json',
     );
   }
 
@@ -607,24 +783,17 @@ export class LeasesService {
 
   private async removeContractFileFromDisk(key: string | null | undefined) {
     if (!key) return;
-    const full = join(this.contractUploadDir(), key);
-    try {
-      await unlink(full);
-    } catch {
-      /* ignoré */
-    }
+    await this.storage.delete('lease-contracts', key);
   }
 
   async saveContract(leaseId: string, organizationId: string, file: Express.Multer.File, actor?: JwtAuthUser) {
-    if (!LEASE_CONTRACT_ALLOWED_MIMES.has(file.mimetype)) {
-      throw new BadRequestException(
-        'Format non accepté. Utilisez un PDF ou une image (JPEG, PNG, WebP).',
-      );
-    }
     if (file.size > LEASE_CONTRACT_MAX_BYTES) {
       throw new BadRequestException('Fichier trop volumineux (15 Mo maximum).');
     }
-    const ext = LEASE_CONTRACT_MIME_TO_EXT[file.mimetype];
+    const magic = assertAllowedUploadMagic(file.buffer, LEASE_CONTRACT_ALLOWED_MIMES, file.mimetype);
+    if (!magic.ok) throw new BadRequestException(magic.reason);
+    const mime = magic.mime;
+    const ext = LEASE_CONTRACT_MIME_TO_EXT[mime];
     if (!ext) throw new BadRequestException('Extension non reconnue pour ce type MIME.');
 
     const lease = await this.prisma.lease.findFirst({
@@ -632,11 +801,8 @@ export class LeasesService {
     });
     if (!lease) throw new NotFoundException('Bail introuvable');
 
-    const dir = this.contractUploadDir();
-    await mkdir(dir, { recursive: true });
     const key = `${randomUUID()}${ext}`;
-    const fullPath = join(dir, key);
-    await writeFile(fullPath, file.buffer);
+    await this.storage.put('lease-contracts', key, file.buffer, mime);
 
     const safeOriginal = file.originalname.replace(/[^\w.\-\s()[\]]/g, '_').slice(0, 240) || `contrat${ext}`;
     const uploadedAtIso = new Date().toISOString();
@@ -645,7 +811,7 @@ export class LeasesService {
     current.push({
       fileKey: key,
       fileName: safeOriginal,
-      mimeType: file.mimetype,
+      mimeType: mime,
       size: file.size,
       uploadedAt: uploadedAtIso,
     });
@@ -656,7 +822,7 @@ export class LeasesService {
       data: {
         contractFileKey: key,
         contractFileOriginalName: safeOriginal,
-        contractFileMime: file.mimetype,
+        contractFileMime: mime,
         contractFileSize: file.size,
         contractUploadedAt: new Date(uploadedAtIso),
       },
@@ -669,13 +835,13 @@ export class LeasesService {
       entityType: 'lease',
       entityId: leaseId,
       summary: `Contrat ajoute: ${safeOriginal}`,
-      metadata: { fileKey: key, size: file.size, mimeType: file.mimetype },
+      metadata: { fileKey: key, size: file.size, mimeType: mime },
     });
 
     return {
       ok: true,
       fileName: safeOriginal,
-      mimeType: file.mimetype,
+      mimeType: mime,
       size: file.size,
       uploadedAt: uploadedAtIso,
     };
@@ -689,10 +855,10 @@ export class LeasesService {
     const list = await this.readContractIndex(leaseId);
     const f = list.find((x) => x.fileKey === fileKey);
     if (!f) throw new NotFoundException('Fichier de contrat introuvable.');
-    const fullPath = join(this.contractUploadDir(), f.fileKey);
-    const stream = createReadStream(fullPath);
+    const buffer = await this.storage.get('lease-contracts', f.fileKey);
+    if (!buffer) throw new NotFoundException('Fichier introuvable sur le serveur.');
     const downloadName = f.fileName?.replace(/[^\w.\-\s]/g, '_') || 'contrat-bail';
-    return new StreamableFile(stream, {
+    return new StreamableFile(buffer, {
       type: f.mimeType,
       disposition: `inline; filename="${encodeURIComponent(downloadName)}"`,
     });
@@ -705,11 +871,11 @@ export class LeasesService {
     if (!lease?.contractFileKey || !lease.contractFileMime) {
       throw new NotFoundException('Aucun contrat de bail n’a été enregistré pour ce bail.');
     }
-    const fullPath = join(this.contractUploadDir(), lease.contractFileKey);
-    const stream = createReadStream(fullPath);
+    const buffer = await this.storage.get('lease-contracts', lease.contractFileKey);
+    if (!buffer) throw new NotFoundException('Fichier introuvable sur le serveur.');
     const downloadName =
       lease.contractFileOriginalName?.replace(/[^\w.\-\s]/g, '_') || 'contrat-bail';
-    return new StreamableFile(stream, {
+    return new StreamableFile(buffer, {
       type: lease.contractFileMime,
       disposition: `inline; filename="${encodeURIComponent(downloadName)}"`,
     });
@@ -803,7 +969,7 @@ export class LeasesService {
     if (!Number.isInteger(months) || months < 1 || months > 12) {
       throw new BadRequestException('Nombre de mois invalide (indiquer un entier entre 1 et 12).');
     }
-    await this.payments.syncLateStatuses();
+    await this.payments.syncLateStatuses(organizationId);
     const lease = await this.prisma.lease.findFirst({
       where: { id: leaseId, ...leaseBelongsToOrg(organizationId) },
     });

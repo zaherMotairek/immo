@@ -154,9 +154,9 @@ export function OrganisationTab({ b, layout, drafts, profile, open, onToggleOpen
               ) : null}
               <HintedField
                 className="w-full min-w-[8rem] sm:w-auto"
-                label="Nombre total de logements (manuel si pas de grille par étage)"
+                label="Structure indicative — logements prévus (optionnel)"
                 htmlFor="building-apartment-count"
-                help={`${IMMEUBLE_LOGEMENT_TOTAL_HINT} Si vous renseignez des logements par étage, le total est calculé automatiquement. À l’ajout d’unités, les numéros déjà attribués sont masqués.`}
+                help={`${IMMEUBLE_LOGEMENT_TOTAL_HINT} Le total réel = unités créées. Ce champ guide la grille / génération auto. Si logements/étage renseignés, le total est calculé.`}
               >
                 <Input
                   id="building-apartment-count"

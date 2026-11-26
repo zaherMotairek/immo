@@ -16,6 +16,8 @@ import type { Express } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrgPermGuard } from '../auth/org-perm.guard';
+import { RequireOrgPerm } from '../auth/require-org-perm.decorator';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -25,7 +27,7 @@ import {
 } from './tenant-id-doc.constants';
 
 @Controller('tenants')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrgPermGuard)
 export class TenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
@@ -55,6 +57,7 @@ export class TenantsController {
   }
 
   @Post(':id/id-document')
+  @RequireOrgPerm('tenants:write')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: TENANT_ID_DOC_MAX_BYTES },
@@ -77,11 +80,13 @@ export class TenantsController {
   }
 
   @Delete(':id/id-document')
+  @RequireOrgPerm('tenants:write')
   deleteIdDocument(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.tenants.removeIdDocument(id, user.organizationId, user);
   }
 
   @Delete(':id/id-documents/:fileKey')
+  @RequireOrgPerm('tenants:write')
   deleteIdDocumentByKey(
     @CurrentUser() user: JwtAuthUser,
     @Param('id') id: string,
@@ -96,16 +101,19 @@ export class TenantsController {
   }
 
   @Post()
+  @RequireOrgPerm('tenants:write')
   create(@CurrentUser() user: JwtAuthUser, @Body() dto: CreateTenantDto) {
     return this.tenants.create(dto, user.organizationId);
   }
 
   @Patch(':id')
+  @RequireOrgPerm('tenants:write')
   update(@CurrentUser() user: JwtAuthUser, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
     return this.tenants.update(id, user.organizationId, dto, user);
   }
 
   @Delete(':id')
+  @RequireOrgPerm('tenants:write')
   remove(@CurrentUser() user: JwtAuthUser, @Param('id') id: string) {
     return this.tenants.remove(id, user.organizationId);
   }

@@ -12,10 +12,12 @@ export class CreateClientDto {
   @MaxLength(320)
   email!: string;
 
+  /** Optionnel (D3) : si absent, mot de passe aléatoire + lien de réinit. */
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: 'Mot de passe provisoire : au moins 8 caractères.' })
   @MaxLength(128)
-  password!: string;
+  password?: string;
 
   /** Nom du contact (optionnel). */
   @IsOptional()

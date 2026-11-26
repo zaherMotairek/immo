@@ -17,6 +17,7 @@ import {
   type BuildingsWorksheetRow,
 } from '../common/immo-pdf';
 import { sortByNaturalLabel } from '../common/sort.util';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
 import {
@@ -27,7 +28,10 @@ import {
 
 @Injectable()
 export class BuildingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   /**
    * @param unitKind Si défini : biens qui ont au moins une unité de ce type.
@@ -57,6 +61,10 @@ export class BuildingsService {
       ...row,
       units: sortByNaturalLabel(row.units),
       apartmentsPerFloor: apfMap.get(row.id) ?? null,
+      /** C8-A : total réel = count Units (source de vérité). */
+      unitsCount: row._count.units,
+      /** Capacité structure (indicatif) — ne remplace pas unitsCount. */
+      structureCapacityIndicative: this.structureCapacityIndicative(row),
     }));
   }
 
@@ -82,10 +90,130 @@ export class BuildingsService {
       },
     });
     if (!b) throw new NotFoundException('Bien introuvable');
-    const withSorted = { ...b, units: sortByNaturalLabel(b.units) };
+    const withSorted = {
+      ...b,
+      units: sortByNaturalLabel(b.units),
+      unitsCount: b.units.length,
+      structureCapacityIndicative: this.structureCapacityIndicative(b),
+    };
     const apf = await selectApartmentsPerFloorColumn(this.prisma, b.id);
     if (apf === undefined) return withSorted;
     return { ...withSorted, apartmentsPerFloor: apf };
+  }
+
+  /** Capacité déclarée (structure) — indicative vs unitsCount (C8-A). */
+  private structureCapacityIndicative(b: {
+    structureKind: BuildingStructureKind;
+    apartmentCount?: number | null;
+    terrainLotCount?: number | null;
+  }): number | null {
+    if (b.structureKind === BuildingStructureKind.IMMEUBLE && b.apartmentCount != null && b.apartmentCount > 0) {
+      return b.apartmentCount;
+    }
+    if (
+      b.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+      b.terrainLotCount != null &&
+      b.terrainLotCount > 0
+    ) {
+      return b.terrainLotCount;
+    }
+    return null;
+  }
+
+  /**
+   * C8-B : génère les unités manquantes selon la structure (idempotent, pas d’overwrite).
+   * Immeuble grille (étages × logements/étage) ou terrain multi-lots.
+   */
+  async generateMissingUnits(buildingId: string, organizationId: string) {
+    const buildingRow = await this.prisma.building.findFirst({
+      where: { id: buildingId, organizationId },
+      include: { units: { select: { floor: true, apartmentSlot: true, kind: true } } },
+    });
+    if (!buildingRow) throw new NotFoundException('Bien introuvable');
+    const apf = await selectApartmentsPerFloorColumn(this.prisma, buildingId);
+    const apartmentsPerFloor = apf ?? null;
+    const created: Array<{ id: string; label: string }> = [];
+    const ent = await this.entitlements.getEntitlements(organizationId);
+    let remaining =
+      ent.unitLimit == null ? Number.POSITIVE_INFINITY : Math.max(0, ent.unitLimit - ent.unitsUsed);
+    if (ent.status === 'SUSPENDED' || ent.status === 'EXPIRED') {
+      await this.entitlements.assertCanCreateUnit(organizationId);
+    }
+
+    if (
+      buildingRow.structureKind === BuildingStructureKind.IMMEUBLE &&
+      apartmentsPerFloor != null &&
+      apartmentsPerFloor > 0 &&
+      buildingRow.floorCount != null &&
+      buildingRow.floorCount > 0
+    ) {
+      const floors: number[] =
+        buildingRow.hasRezDeChaussee === false
+          ? Array.from({ length: buildingRow.floorCount }, (_, i) => i + 1)
+          : [0, ...Array.from({ length: buildingRow.floorCount }, (_, i) => i + 1)];
+      const used = new Set(
+        buildingRow.units
+          .filter((u) => u.kind === UnitKind.APARTMENT && u.floor != null && u.apartmentSlot != null)
+          .map((u) => `${u.floor}:${u.apartmentSlot}`),
+      );
+      for (const f of floors) {
+        const cap = f === 0 ? buildingRow.rezApartmentCount ?? 0 : apartmentsPerFloor;
+        if (cap <= 0) continue;
+        for (let slot = 1; slot <= cap; slot += 1) {
+          const key = `${f}:${slot}`;
+          if (used.has(key)) continue;
+          if (remaining <= 0) {
+            await this.entitlements.assertCanCreateUnit(organizationId);
+          }
+          const label = f === 0 ? `Appartement RDC-${slot}` : `Appartement ${f}-${slot}`;
+          const row = await this.prisma.unit.create({
+            data: {
+              buildingId,
+              label,
+              floor: f,
+              kind: UnitKind.APARTMENT,
+              apartmentSlot: slot,
+            },
+            select: { id: true, label: true },
+          });
+          created.push(row);
+          used.add(key);
+          remaining -= 1;
+        }
+      }
+    } else if (
+      buildingRow.structureKind === BuildingStructureKind.TERRAIN_LOTS &&
+      buildingRow.terrainLotCount != null &&
+      buildingRow.terrainLotCount > 0
+    ) {
+      const usedSlots = new Set(
+        buildingRow.units.filter((u) => u.apartmentSlot != null).map((u) => u.apartmentSlot as number),
+      );
+      for (let slot = 1; slot <= buildingRow.terrainLotCount; slot += 1) {
+        if (usedSlots.has(slot)) continue;
+        if (remaining <= 0) {
+          await this.entitlements.assertCanCreateUnit(organizationId);
+        }
+        const row = await this.prisma.unit.create({
+          data: {
+            buildingId,
+            label: `Unité ${slot}`,
+            kind: UnitKind.LAND,
+            apartmentSlot: slot,
+          },
+          select: { id: true, label: true },
+        });
+        created.push(row);
+        usedSlots.add(slot);
+        remaining -= 1;
+      }
+    } else {
+      throw new BadRequestException(
+        'Génération auto disponible pour un immeuble en grille (étages × logements/étage) ou un terrain multi-lots avec nombre déclaré.',
+      );
+    }
+
+    return { createdCount: created.length, units: created };
   }
 
   async create(dto: CreateBuildingDto, organizationId: string) {

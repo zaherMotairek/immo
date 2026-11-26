@@ -1,20 +1,37 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { json, urlencoded } from 'express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaClientExceptionFilter } from './prisma/prisma-client-exception.filter';
+import { assertEnvOrExit } from './config/validate-env';
+import { initSentryIfConfigured, captureException } from './common/sentry';
+import { REQUEST_ID_HEADER } from './common/request-id.middleware';
 
 async function bootstrap() {
+  assertEnvOrExit();
+  await initSentryIfConfigured();
+
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.useGlobalFilters(new PrismaClientExceptionFilter());
 
-  /**
-   * CORS : si `FRONTEND_ORIGIN` est défini, seules ces origines (séparées par des virgules) sont acceptées.
-   * Sinon (développement), tout origine localhost / 127.0.0.1 (tous ports) et IP LAN type 192.168.x.x / 10.x.x.x
-   * — évite les erreurs quand Vite prend 5189+ ou accès depuis le téléphone sur le Wi‑Fi.
-   */
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
+
+  const isProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
   const envOrigins = process.env.FRONTEND_ORIGIN?.split(',').map((s) => s.trim()).filter(Boolean);
+
+  if (isProd && (!envOrigins || envOrigins.length === 0)) {
+    throw new Error('FRONTEND_ORIGIN requis en production.');
+  }
+
+  /**
+   * CORS : en prod uniquement FRONTEND_ORIGIN.
+   * En dev : localhost / LAN si FRONTEND_ORIGIN absent.
+   */
   const corsOrigin =
     envOrigins?.length
       ? envOrigins
@@ -31,17 +48,18 @@ async function bootstrap() {
               h === '127.0.0.1' ||
               /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) ||
               /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) ||
-              /** Réseaux privés 172.16.0.0 – 172.31.255.255 (certains routeurs / Wi‑Fi invité) */
               /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(h);
             callback(null, local);
           } catch {
             callback(null, false);
           }
         };
+
   app.enableCors({
     origin: corsOrigin,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER],
+    exposedHeaders: [REQUEST_ID_HEADER],
     credentials: true,
   });
 
@@ -62,5 +80,6 @@ async function bootstrap() {
 
 bootstrap().catch((err) => {
   console.error(err);
+  void captureException(err);
   process.exit(1);
 });

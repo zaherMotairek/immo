@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
 import type {
@@ -23,6 +24,7 @@ import { CurrentUser } from './current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordTokenDto } from './dto/reset-password-token.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { WebAuthnLoginOptionsDto, WebAuthnLoginVerifyDto } from './dto/webauthn-login.dto';
@@ -38,17 +40,40 @@ export class AuthController {
     private readonly webauthn: WebAuthnService,
   ) {}
 
+  @Get('signup-status')
+  signupStatus() {
+    return this.auth.signupStatus();
+  }
+
+  @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto);
+  }
+
+  @Post('verify-email')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  verifyEmail(@Body() body: { token?: string }) {
+    if (!body?.token?.trim()) {
+      throw new BadRequestException('Token manquant.');
+    }
+    return this.auth.verifyEmail(body.token.trim());
+  }
+
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.auth.requestPasswordReset(dto.email);
   }
 
   @Post('reset-password-token')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   resetPasswordToken(@Body() dto: ResetPasswordTokenDto) {
     return this.auth.resetPasswordWithToken(dto.token, dto.newPassword);
   }

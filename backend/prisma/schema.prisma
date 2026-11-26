@@ -17,13 +17,88 @@ model Organization {
   platformAccessPaidUntil DateTime? @map("platform_access_paid_until") @db.Date
   /** Blocage manuel par l’admin plateforme (prioritaire). */
   platformAccessSuspended Boolean @default(false) @map("platform_access_suspended")
+  /**
+   * Automation opt-in (Phase C) : échéances auto, relances, templates…
+   * Voir `OrgAutomationSettings` côté code.
+   */
+  automationSettings Json? @map("automation_settings")
+  /** Phase D : code plan (FREE / TRIAL / PRO…). */
+  planCode String @default("PRO") @map("plan_code")
+  trialEndsAt DateTime? @map("trial_ends_at") @db.Date
+  /** Fin d’abonnement payant (synchro / miroir de platformAccessPaidUntil en transition). */
+  subscriptionEndsAt DateTime? @map("subscription_ends_at") @db.Date
+  lastLoginAt DateTime? @map("last_login_at")
+  internalNotes String? @map("internal_notes") @db.Text
+  isDemo Boolean @default(false) @map("is_demo")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   users     User[]
   buildings Building[]
   tenants   Tenant[]
+  reminderOutbox ReminderOutbox[]
+  subscriptionPayments SubscriptionPayment[]
+  planChangeLogs PlanChangeLog[]
 
   @@map("organizations")
+}
+
+/** Catalogue des plans (D1). */
+model Plan {
+  code              String  @id
+  name              String
+  unitLimit         Int?    @map("unit_limit")
+  userLimit         Int?    @map("user_limit")
+  features          Json?
+  monthlyPriceFcfa  Int     @map("monthly_price_fcfa")
+  active            Boolean @default(true)
+
+  @@map("plans")
+}
+
+enum SubscriptionPaymentMethod {
+  WAVE
+  ORANGE
+  MTN
+  MOOV
+  CASH
+  BANK
+}
+
+model SubscriptionPayment {
+  id               String                     @id @default(uuid())
+  organizationId   String                     @map("organization_id")
+  organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  amountFcfa       Int                        @map("amount_fcfa")
+  method           SubscriptionPaymentMethod
+  reference        String?                    @db.VarChar(120)
+  paidAt           DateTime                   @map("paid_at") @db.Date
+  periodStart      DateTime                   @map("period_start") @db.Date
+  periodEnd        DateTime                   @map("period_end") @db.Date
+  recordedByUserId String?                    @map("recorded_by_user_id")
+  note             String?                    @db.VarChar(500)
+  /** D6 : mois prépayés (1 / 3 / 12) — UI manuelle ; provider en ligne plus tard. */
+  prepaidMonths    Int?                       @map("prepaid_months")
+  /** Réservé branchement CinetPay / Wave API (null = saisie manuelle admin). */
+  provider         String?                    @db.VarChar(40)
+  providerRef      String?                    @map("provider_ref") @db.VarChar(120)
+  createdAt        DateTime                   @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@map("subscription_payments")
+}
+
+model PlanChangeLog {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fromPlanCode   String?  @map("from_plan_code")
+  toPlanCode     String   @map("to_plan_code")
+  actorUserId    String?  @map("actor_user_id")
+  note           String?  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@map("plan_change_logs")
 }
 
 enum UserRole {
@@ -32,21 +107,49 @@ enum UserRole {
   PLATFORM_ADMIN
 }
 
+/** F1 — rôle métier dans l’organisation (indépendant de PLATFORM_ADMIN). */
+enum OrgMemberRole {
+  OWNER
+  ACCOUNTANT
+  COLLECTOR
+  READONLY
+}
+
 model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   passwordHash        String               @map("password_hash")
   name                String?
   role                UserRole             @default(USER)
+  /** F1 : droits intra-org (grandfather OWNER). */
+  orgRole             OrgMemberRole        @default(OWNER) @map("org_role")
   organizationId      String               @map("organization_id")
   organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  /** D3 : désactivation compte (login bloqué). */
+  deactivatedAt       DateTime?            @map("deactivated_at")
+  /** D5 : e-mail vérifié (inscription). */
+  emailVerifiedAt     DateTime?            @map("email_verified_at")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
   webauthnCredentials WebAuthnCredential[]
   webauthnChallenges  WebAuthnChallenge[]
 
   @@index([organizationId])
+}
+
+/** D5 : vérification e-mail à l’inscription. */
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }
 
 /** Clé Face ID / empreinte / passkey (WebAuthn) liée à un compte. */
@@ -232,10 +335,31 @@ model Lease {
   unit          Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
   tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   payments      Payment[]
+  rentRevisions LeaseRentRevision[]
 
   @@index([unitId])
   @@index([tenantId])
   @@map("leases")
+}
+
+/** C6-A : historique des révisions de loyer (amendement). */
+model LeaseRentRevision {
+  id            String   @id @default(uuid())
+  leaseId       String   @map("lease_id")
+  lease         Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  previousRent  Decimal  @map("previous_rent") @db.Decimal(12, 2)
+  newRent       Decimal  @map("new_rent") @db.Decimal(12, 2)
+  percent       Decimal? @db.Decimal(8, 4)
+  note          String?  @db.VarChar(500)
+  createdByUserId String? @map("created_by_user_id")
+  /** Si true : endDate a été prolongée dans la même opération. */
+  renewed       Boolean  @default(false)
+  newEndDate    DateTime? @map("new_end_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([leaseId])
+  @@map("lease_rent_revisions")
 }
 
 enum PaymentStatus {
@@ -285,6 +409,7 @@ model Payment {
   updatedAt   DateTime      @updatedAt @map("updated_at")
   lease       Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
   reminders   PaymentReminder[]
+  reminderOutbox ReminderOutbox[]
 
   @@unique([leaseId, periodYear, periodMonth])
   @@index([leaseId])
@@ -303,6 +428,38 @@ model PaymentReminder {
 
   @@index([paymentId])
   @@map("payment_reminders")
+}
+
+enum ReminderOutboxStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/** File d’attente des relances automatiques (idempotente par payment+channel+offset). */
+model ReminderOutbox {
+  id              String               @id @default(uuid())
+  organizationId  String               @map("organization_id")
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymentId       String               @map("payment_id")
+  payment         Payment              @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  channel         ReminderChannel
+  ruleOffsetDays  Int                  @map("rule_offset_days")
+  tone            String?              @db.VarChar(32)
+  status          ReminderOutboxStatus @default(QUEUED)
+  bodyPreview     String?              @map("body_preview") @db.Text
+  waMeUrl         String?              @map("wa_me_url") @db.VarChar(512)
+  errorMessage    String?              @map("error_message") @db.VarChar(500)
+  scheduledFor    DateTime             @map("scheduled_for")
+  processedAt     DateTime?            @map("processed_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@unique([paymentId, channel, ruleOffsetDays])
+  @@index([organizationId, status])
+  @@index([scheduledFor, status])
+  @@map("reminder_outbox")
 }
 
 enum ChargeCategory {
