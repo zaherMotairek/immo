@@ -216,27 +216,45 @@ export class OnboardingService {
 
     await this.prisma.$transaction(async (tx) => {
       if (wipeInspections) {
-        const insp = await tx.leaseInspection.findMany({
-          where: { organizationId },
-          select: { id: true },
-        });
-        counts.inspections = insp.length;
-        if (insp.length) {
-          await tx.leaseInspectionPhoto.deleteMany({ where: { inspectionId: { in: insp.map((i) => i.id) } } });
-          await tx.leaseInspectionItem.deleteMany({ where: { inspectionId: { in: insp.map((i) => i.id) } } });
-          await tx.leaseInspection.deleteMany({ where: { organizationId } });
+        try {
+          const insp = await tx.leaseInspection.findMany({
+            where: { organizationId },
+            select: { id: true },
+          });
+          counts.inspections = insp.length;
+          if (insp.length) {
+            await tx.leaseInspectionPhoto.deleteMany({ where: { inspectionId: { in: insp.map((i) => i.id) } } });
+            await tx.leaseInspectionItem.deleteMany({ where: { inspectionId: { in: insp.map((i) => i.id) } } });
+            await tx.leaseInspection.deleteMany({ where: { organizationId } });
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/does not exist|lease_inspection/i.test(msg)) {
+            counts.inspections = 0;
+          } else {
+            throw e;
+          }
         }
       }
 
       if (wipeRepairs) {
-        const repairs = await tx.repairRequest.findMany({
-          where: { organizationId },
-          select: { id: true },
-        });
-        counts.repairs = repairs.length;
-        if (repairs.length) {
-          await tx.repairPhoto.deleteMany({ where: { repairId: { in: repairs.map((r) => r.id) } } });
-          await tx.repairRequest.deleteMany({ where: { organizationId } });
+        try {
+          const repairs = await tx.repairRequest.findMany({
+            where: { organizationId },
+            select: { id: true },
+          });
+          counts.repairs = repairs.length;
+          if (repairs.length) {
+            await tx.repairPhoto.deleteMany({ where: { repairId: { in: repairs.map((r) => r.id) } } });
+            await tx.repairRequest.deleteMany({ where: { organizationId } });
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/does not exist|repair_request/i.test(msg)) {
+            counts.repairs = 0;
+          } else {
+            throw e;
+          }
         }
       }
 

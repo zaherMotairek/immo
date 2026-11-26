@@ -134,6 +134,18 @@ async function migrationsUpToDate() {
     );
     const pending = local.filter((m) => !applied.has(m));
     if (pending.length === 0) {
+      const tableCheck = await prisma.$queryRaw`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'lease_inspections'
+        LIMIT 1
+      `;
+      const needsPhaseG = local.some((m) => m.includes('phase_g_inspections'));
+      if (needsPhaseG && (!Array.isArray(tableCheck) || tableCheck.length === 0)) {
+        console.warn(
+          '[migrate-deploy-render] _prisma_migrations OK mais tables Phase G absentes — migrate deploy forcé.',
+        );
+        return false;
+      }
       console.log(
         `[migrate-deploy-render] Schéma à jour (${local.length} migrations) — migrate deploy ignoré.`,
       );

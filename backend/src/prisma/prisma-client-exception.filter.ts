@@ -71,6 +71,16 @@ export class PrismaClientExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      if (exception.code === 'P2021') {
+        response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message:
+            'Table PostgreSQL manquante (migration non appliquée sur cette base). ' +
+            MIGRATE_HINT,
+          code: exception.code,
+        });
+        return;
+      }
       if (exception.code === 'P2022') {
         response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
