@@ -3,10 +3,14 @@
  * Déploiement Render : migrate deploy + déblocage P3009 pour migration idempotente B5
  * (déjà partiellement appliquée ou marquée failed en prod Neon).
  *
- * Neon : les migrations doivent passer par l’URL **directe** (sans `-pooler`), sinon P1002
- * (verrou advisory). Définir DATABASE_URL_DIRECT sur Render, ou on retire `-pooler` automatiquement.
+ * Neon : migrations via URL **directe** (sans `-pooler`), sinon P1002 (verrou advisory).
+ * Définir DATABASE_URL_DIRECT sur Render, ou on retire `-pooler` automatiquement.
+ *
+ * P1002 : le timeout du verrou Prisma est fixe (10 s). Sur Render (une instance), on
+ * désactive le verrou advisory. Contournement urgence : SKIP_MIGRATE_DEPLOY=1.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -19,6 +23,7 @@ function resolveMigrateDatabaseUrl() {
   const explicit =
     process.env.DATABASE_URL_DIRECT?.trim() ||
     process.env.DIRECT_URL?.trim() ||
+    process.env.DATABASE_URL_UNPOOLED?.trim() ||
     '';
   if (explicit) return explicit;
 
@@ -30,27 +35,38 @@ function resolveMigrateDatabaseUrl() {
   return url;
 }
 
-function migrateEnv() {
+function shouldDisableAdvisoryLock() {
+  const v = process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK;
+  if (v === '1' || v === 'true') return true;
+  if (process.env.MIGRATE_DISABLE_ADVISORY_LOCK === '1') return true;
+  if (process.env.RENDER && process.env.RENDER !== 'false' && process.env.RENDER !== '0') {
+    return true;
+  }
+  return false;
+}
+
+function migrateEnv(extra = {}) {
   const migrateUrl = resolveMigrateDatabaseUrl();
-  const env = { ...process.env };
-  env.PRISMA_MIGRATE_ADVISORY_LOCK_TIMEOUT =
-    env.PRISMA_MIGRATE_ADVISORY_LOCK_TIMEOUT || '120000';
+  const env = { ...process.env, ...extra };
   if (migrateUrl && migrateUrl !== process.env.DATABASE_URL) {
     env.DATABASE_URL = migrateUrl;
     console.warn(
       '[migrate-deploy-render] migrations via URL directe Neon (sans pooler). Astuce Render : DATABASE_URL_DIRECT.',
     );
   }
+  if (shouldDisableAdvisoryLock()) {
+    env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = '1';
+  }
   return env;
 }
 
-function runMigrateDeploy() {
+function runMigrateDeploy(envOverrides = {}) {
   return spawnSync('npx', ['prisma', 'migrate', 'deploy'], {
     cwd: ROOT,
     stdio: 'pipe',
     encoding: 'utf8',
     shell: true,
-    env: migrateEnv(),
+    env: migrateEnv(envOverrides),
   });
 }
 
@@ -60,6 +76,79 @@ function prismaForMigrations() {
     return new PrismaClient({ datasources: { db: { url } } });
   }
   return new PrismaClient();
+}
+
+function listLocalMigrationNames() {
+  const dir = join(ROOT, 'prisma', 'migrations');
+  return readdirSync(dir, { withFileTypes: true })
+    .filter(
+      (d) =>
+        d.isDirectory() &&
+        existsSync(join(dir, d.name, 'migration.sql')),
+    )
+    .map((d) => d.name)
+    .sort();
+}
+
+async function migrationsUpToDate() {
+  const skip = process.env.SKIP_MIGRATE_DEPLOY;
+  if (skip === '1' || skip === 'true') {
+    console.warn(
+      '[migrate-deploy-render] SKIP_MIGRATE_DEPLOY — migrate deploy ignoré (démarrage API seul).',
+    );
+    return true;
+  }
+
+  const local = listLocalMigrationNames();
+  if (local.length === 0) return false;
+
+  const prisma = prismaForMigrations();
+  try {
+    const failed = await prisma.$queryRaw`
+      SELECT migration_name FROM "_prisma_migrations"
+      WHERE finished_at IS NULL
+    `;
+    if (Array.isArray(failed) && failed.length > 0) {
+      console.warn(
+        `[migrate-deploy-render] ${failed.length} migration(s) en échec / en cours — migrate deploy requis.`,
+      );
+      return false;
+    }
+
+    const rows = await prisma.$queryRaw`
+      SELECT migration_name FROM "_prisma_migrations"
+      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+    `;
+    const applied = new Set(
+      (Array.isArray(rows) ? rows : []).map((r) => r.migration_name),
+    );
+    const pending = local.filter((m) => !applied.has(m));
+    if (pending.length === 0) {
+      console.log(
+        `[migrate-deploy-render] Schéma à jour (${local.length} migrations) — migrate deploy ignoré.`,
+      );
+      return true;
+    }
+    console.log(
+      `[migrate-deploy-render] ${pending.length} migration(s) à appliquer: ${pending.slice(0, 5).join(', ')}${pending.length > 5 ? '…' : ''}`,
+    );
+    return false;
+  } catch (e) {
+    const msg = e?.message || String(e);
+    if (/does not exist|_prisma_migrations/i.test(msg)) {
+      console.warn(
+        '[migrate-deploy-render] Table _prisma_migrations absente — première migration.',
+      );
+      return false;
+    }
+    console.warn(
+      '[migrate-deploy-render] Impossible de lire _prisma_migrations — migrate deploy quand même:',
+      msg,
+    );
+    return false;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 async function clearFailedMigrationRow(name) {
@@ -95,6 +184,16 @@ function dumpMigrateOutput(r) {
 }
 
 async function main() {
+  if (shouldDisableAdvisoryLock()) {
+    console.warn(
+      '[migrate-deploy-render] PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 (Render / config explicite, instance unique).',
+    );
+  }
+
+  if (await migrationsUpToDate()) {
+    process.exit(0);
+  }
+
   const maxAttempts = 3;
   let r = null;
   let out = '';
@@ -107,11 +206,22 @@ async function main() {
       process.exit(0);
     }
     const isP1002 = out.includes('P1002') || /advisory lock/i.test(out);
+    if (isP1002 && !shouldDisableAdvisoryLock() && attempt === maxAttempts) {
+      console.warn(
+        '[migrate-deploy-render] P1002 — nouvelle tentative avec verrou advisory désactivé.',
+      );
+      r = runMigrateDeploy({ PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: '1' });
+      out = dumpMigrateOutput(r);
+      if (r.status === 0) {
+        console.log('migrate deploy OK (verrou advisory désactivé).');
+        process.exit(0);
+      }
+    }
     if (isP1002 && attempt < maxAttempts) {
       console.warn(
-        `[migrate-deploy-render] P1002 verrou advisory (tentative ${attempt}/${maxAttempts}) — attente 20 s…`,
+        `[migrate-deploy-render] P1002 verrou advisory (tentative ${attempt}/${maxAttempts}) — attente 25 s…`,
       );
-      await sleep(20_000);
+      await sleep(25_000);
       continue;
     }
     break;
@@ -124,7 +234,7 @@ async function main() {
     console.error('migrate deploy échec (non P3009).');
     if (out.includes('P1002')) {
       console.error(
-        '[migrate-deploy-render] Sur Neon : ajoutez DATABASE_URL_DIRECT (connexion sans pooler) dans Render, ou attendez la fin d’un autre deploy.',
+        '[migrate-deploy-render] P1002 : URL directe Neon (DATABASE_URL_DIRECT), un seul deploy à la fois, ou SKIP_MIGRATE_DEPLOY=1 si le schéma est déjà à jour.',
       );
     }
     process.exit(r?.status || 1);
@@ -155,7 +265,7 @@ async function main() {
     console.log('migrate deploy OK (après déblocage).');
     process.exit(0);
   }
-  console.error('migrate deploy échec après déblocage.');
+  console.error('migrate deploy échoue après déblocage.');
   process.exit(r.status || 1);
 }
 

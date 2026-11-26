@@ -13,8 +13,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Connexion directe Neon (sans -pooler) pour migrate / scripts — obligatoire pour éviter P1002
+      - key: DATABASE_URL_DIRECT
+        sync: false
       - key: DATABASE_URL
         sync: false
+      # Instance unique Render : évite P1002 si un autre processus tient le verrou Prisma (10 s max côté CLI)
+      - key: PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK
+        value: "1"
       - key: JWT_SECRET
         sync: false
       - key: FRONTEND_ORIGIN
