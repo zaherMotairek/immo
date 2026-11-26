@@ -21,11 +21,12 @@
     "title": "La solution en un coup d'œil",
     "items": [
       "Un seul outil pour biens, locataires et baux",
-      "Échéances du mois en un clin d'œil",
-      "Encaissement et quittance PDF",
-      "Relances e-mail et WhatsApp",
-      "Charges et cautions au même endroit",
-      "Comptabilité et exports"
+      "Écran « Aujourd’hui » + synthèse du mois",
+      "Encaissement groupé et quittance PDF",
+      "Relances automatiques (e-mail) et suivi WhatsApp",
+      "Formules Essai / Gratuit / Pro dans l’app",
+      "Import Excel avec rapport de validation",
+      "Charges, cautions, comptabilité et exports"
     ]
   },
   "benefits": {
@@ -42,7 +43,7 @@
       "lines": [
         "10 logements · loyer moyen 200 000 F CFA",
         "Agence à 8 % ≈ 160 000 F CFA / mois",
-        "Abonnement ImmoPilot : montant à définir (voir nos formules)"
+        "Abonnement ImmoPilot Pro : 25 000 F CFA / mois (catalogue plans)"
       ]
     }
   },
@@ -60,9 +61,9 @@
     {
       "id": "dashboard",
       "title": "Tableau de bord",
-      "see": "Encaissements du mois, retards, accès rapide aux paiements.",
-      "do": "Repérer qui payer, ouvrir une échéance, imprimer la feuille de route PDF.",
-      "how": ["Ouvrez Accueil", "Lisez les 4 indicateurs du mois", "Touchez Paiements pour agir"],
+      "see": "Bloc « Aujourd’hui » (échéances du jour), KPI du mois, alertes sur les retards.",
+      "do": "Traiter les actions du jour, ouvrir une échéance, imprimer la feuille de route PDF.",
+      "how": ["Ouvrez Accueil", "Lisez Aujourd’hui puis les indicateurs du mois", "Touchez Paiements ou Relances"],
       "why": "Vue d'ensemble avant de descendre dans le détail.",
       "shots": { "mobile": "dashboard.png", "desktop": "dashboard.png" }
     },
@@ -97,10 +98,19 @@
       "id": "paiements",
       "title": "Paiements",
       "see": "Échéances par mois, filtres, statuts (payé, retard, partiel…).",
-      "do": "Encaisser, loyer offert, paiement partiel, reçu PDF, relance WhatsApp.",
+      "do": "Encaisser (y compris plusieurs lignes d’un coup), loyer offert, partiel, reçu PDF, relance WhatsApp.",
       "how": ["Choisir année et mois", "Ouvrir une ligne", "Saisir montant et mode d'encaissement"],
       "why": "C'est le cœur du quotidien : qui a payé, combien, comment.",
       "shots": { "mobile": "paiements.png", "desktop": "paiements.png" }
+    },
+    {
+      "id": "relances",
+      "title": "Relances automatiques",
+      "see": "File des relances planifiées et envoyées (e-mail), règles et journal.",
+      "do": "Activer l’automation, consulter les envois, ouvrir le lien WhatsApp pour le terrain.",
+      "how": ["Menu Plus → Relances", "Vérifiez la file", "Paramétrez dans Mon compte → Automation"],
+      "why": "Moins d’oublis : la relance e-mail part selon vos règles, sans double envoi.",
+      "shots": { "mobile": "relances.png", "desktop": "relances.png" }
     },
     {
       "id": "cautions",
@@ -142,7 +152,7 @@
       "id": "exports",
       "title": "Exports Excel",
       "see": "Import / export de données pour reprendre votre historique.",
-      "do": "Télécharger le modèle, importer un fichier, exporter un rapport.",
+      "do": "Télécharger le modèle, importer avec rapport d’erreurs ligne par ligne, exporter un rapport.",
       "how": ["Menu Fichiers Excel", "Télécharger le modèle", "Importer puis vérifier"],
       "why": "Passer du cahier ou d'Excel sans tout ressaisir.",
       "shots": { "mobile": "exports.png", "desktop": "exports.png" }
@@ -203,11 +213,11 @@
     },
     {
       "q": "Combien de logements puis-je gérer ?",
-      "a": "Selon la formule choisie (limites à définir dans pricing.json — actuellement non codées dans l'app)."
+      "a": "Gratuit : 5 logements ; Essai : 30 logements pendant 30 jours ; Pro : volume non plafonné dans le catalogue plans."
     },
     {
       "q": "Les relances sont-elles automatiques ?",
-      "a": "Vous pouvez enregistrer des relances e-mail et noter les relances WhatsApp ; l'envoi automatique complet n'est pas encore proposé."
+      "a": "Oui pour l’e-mail si vous activez l’automation (Mon compte). WhatsApp reste assisté (lien et journal) — pas d’envoi serveur WhatsApp."
     },
     {
       "q": "Que se passe-t-il si j'arrête l'abonnement ?",
@@ -229,7 +239,7 @@
   "comingSoon": {
     "title": "Bientôt disponible",
     "items": [
-      "Relances automatiques planifiées (sans action manuelle)",
+      "États des lieux numériques et suivi réparations (en livraison progressive)",
       "Relevé propriétaire / module agence",
       "Paiement en ligne par le locataire"
     ]

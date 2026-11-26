@@ -13,3 +13,5 @@ Copiez-collez tels quels. Aucune donnée client réelle.
 5. **Sans agence** — « Gardez vos loyers chez vous. Pas de commission sur chaque encaissement — un abonnement simple à définir avec nous. »
 
 6. **Essai** — « On peut vous montrer l’application avec des données fictives, sur votre téléphone ou ordinateur. Écrivez-nous pour réserver un créneau. »
+
+7. **Relances auto** — « Activez les relances e-mail : ImmoPilot envoie selon vos règles, vous suivez tout dans la file Relances. Essai 30 jours, Pro dès 25 000 F CFA / mois. »

@@ -35,6 +35,7 @@ const ROUTES = [
   { slug: 'locataires', path: '/locataires', auth: true },
   { slug: 'baux', path: '/baux', auth: true },
   { slug: 'paiements', path: '/paiements', auth: true },
+  { slug: 'relances', path: '/relances', auth: true },
   { slug: 'cautions', path: '/cautions', auth: true },
   { slug: 'comptabilite', path: '/comptabilite', auth: true },
   { slug: 'activite-loyers', path: '/activite-loyers', auth: true },
