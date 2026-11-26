@@ -11,8 +11,15 @@ import { createRequire } from 'node:module';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const require = createRequire(path.join(root, 'backend/package.json'));
-const { PrismaClient, PaymentStatus, ChargeCategory, ReminderChannel, BuildingStructureKind, CollectionMethod } =
-  require('@prisma/client');
+const {
+  PrismaClient,
+  PaymentStatus,
+  ChargeCategory,
+  ReminderChannel,
+  BuildingStructureKind,
+  CollectionMethod,
+  ReminderOutboxStatus,
+} = require('@prisma/client');
 
 const DEFAULT_ORG_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -23,6 +30,23 @@ function run(cmd, args, opts = {}) {
 
 async function augment(prisma) {
   const year = new Date().getFullYear();
+
+  if (prisma.organization?.update) {
+    await prisma.organization.update({
+      where: { id: DEFAULT_ORG_ID },
+      data: {
+        planCode: 'PRO',
+        isDemo: true,
+        automationSettings: {
+          enabled: true,
+          remindersAuto: true,
+          quietHoursStart: 20,
+          quietHoursEnd: 7,
+          timezone: 'Africa/Abidjan',
+        },
+      },
+    });
+  }
 
   const terrain = await prisma.building.create({
     data: {
@@ -68,6 +92,20 @@ async function augment(prisma) {
     await prisma.paymentReminder.create({
       data: { paymentId: latePayment.id, channel: ReminderChannel.EMAIL },
     });
+    if (prisma.reminderOutbox?.create) {
+      await prisma.reminderOutbox.create({
+        data: {
+          organizationId: DEFAULT_ORG_ID,
+          paymentId: latePayment.id,
+          channel: ReminderChannel.EMAIL,
+          ruleOffsetDays: 3,
+          status: ReminderOutboxStatus.SENT,
+          scheduledFor: new Date(),
+          processedAt: new Date(),
+          bodyPreview: 'Relance démo — merci de régulariser votre loyer (fictif).',
+        },
+      });
+    }
   }
 
   const building = await prisma.building.findFirst();
@@ -106,7 +144,7 @@ async function augment(prisma) {
     });
   }
 
-  console.log('Marketing seed : terrain + lots, paiement partiel, relances, charges ajoutés.');
+  console.log('Marketing seed : formule PRO démo, automation, terrain, relances file, charges.');
 }
 
 async function main() {
