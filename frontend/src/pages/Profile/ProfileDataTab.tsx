@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button, Callout, Field, Input } from '@/components/ui/index';
 import { toast } from '@/components/ui/Toast';
 import {
   api,
+  apiBaseUrl,
   ApiError,
   downloadImportExample,
   downloadImportTemplate,
@@ -44,8 +45,17 @@ const defaultReset: ResetOptions = {
   collectors: false,
 };
 
-const API_STALE_MSG =
-  'L’API Render n’a pas encore les routes « Données ». Dashboard Render → service API → Manual Deploy (branche main), attendez la fin, puis Ctrl+F5 sur le site.';
+const MIN_API_COMMIT = '4368d67';
+
+function apiStaleMessage(commit: string | null | undefined) {
+  const short = commit?.slice(0, 7) ?? 'inconnu';
+  return (
+    `L’API en ligne est encore en commit ${short} (ancienne version). ` +
+    `Il faut le service Web immopilot-api (Root Directory = backend), pas le site statique : ` +
+    `Manual Deploy → main, attendre Live, puis vérifier ${apiBaseUrl() || '…'}/version ` +
+    `(commit doit commencer par ${MIN_API_COMMIT}, et features.orgDataReset = true).`
+  );
+}
 
 async function postOrgData<T>(paths: string[], json?: unknown): Promise<T> {
   let last: ApiError | null = null;
@@ -60,7 +70,7 @@ async function postOrgData<T>(paths: string[], json?: unknown): Promise<T> {
       throw e;
     }
   }
-  throw last ?? new ApiError(API_STALE_MSG, 404);
+  throw last ?? new ApiError(apiStaleMessage(null), 404);
 }
 
 /** Données d’exemple + réinitialisation sélective (OWNER). */
@@ -73,6 +83,27 @@ export function ProfileDataTab() {
   const [reset, setReset] = useState<ResetOptions>(defaultReset);
   const [confirmPhrase, setConfirmPhrase] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [apiCommit, setApiCommit] = useState<string | null>(null);
+  const [apiHasDataRoutes, setApiHasDataRoutes] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const base = apiBaseUrl();
+    if (!base) return;
+    void fetch(`${base}/version`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { commit?: string; features?: { orgDataReset?: boolean } } | null) => {
+        setApiCommit(typeof j?.commit === 'string' ? j.commit : null);
+        setApiHasDataRoutes(j?.features?.orgDataReset === true);
+      })
+      .catch(() => {
+        setApiCommit(null);
+        setApiHasDataRoutes(false);
+      });
+  }, []);
+
+  const apiTooOld =
+    apiHasDataRoutes === false ||
+    (apiCommit != null && !apiCommit.startsWith(MIN_API_COMMIT) && apiHasDataRoutes !== true);
 
   async function onPickFile(file: File | null) {
     if (!file) return;
@@ -124,7 +155,7 @@ export function ProfileDataTab() {
       toast(r.message, { variant: 'success' });
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Chargement impossible';
-      toast(e instanceof ApiError && e.status === 404 ? API_STALE_MSG : msg, { variant: 'error' });
+      toast(e instanceof ApiError && e.status === 404 ? apiStaleMessage(apiCommit) : msg, { variant: 'error' });
     } finally {
       setLoadingDemo(false);
     }
@@ -178,7 +209,7 @@ export function ProfileDataTab() {
       setConfirmPhrase('');
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Suppression impossible';
-      toast(e instanceof ApiError && e.status === 404 ? API_STALE_MSG : msg, { variant: 'error' });
+      toast(e instanceof ApiError && e.status === 404 ? apiStaleMessage(apiCommit) : msg, { variant: 'error' });
     } finally {
       setResetting(false);
     }
@@ -212,6 +243,17 @@ export function ProfileDataTab() {
 
   return (
     <div className="space-y-8">
+      {apiTooOld ? (
+        <Callout variant="danger" title="API pas à jour sur Render">
+          <p className="text-sm">{apiStaleMessage(apiCommit)}</p>
+          {apiCommit ? (
+            <p className="mt-2 text-xs text-[var(--color-muted)]">
+              Commit actuel (prod) : <code className="text-xs">{apiCommit.slice(0, 12)}</code> — attendu ≥{' '}
+              <code className="text-xs">{MIN_API_COMMIT}</code>
+            </p>
+          ) : null}
+        </Callout>
+      ) : null}
       <Callout variant="info" title="Trois façons de remplir le compte">
         <ol className="list-decimal space-y-1 pl-5 text-sm">
           <li>
