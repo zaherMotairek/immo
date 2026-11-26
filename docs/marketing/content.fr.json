@@ -2,12 +2,12 @@
   "meta": {
     "product": "ImmoPilot",
     "tagline": "Gérez vos locations comme un pro, depuis votre téléphone.",
-    "demoNotice": "Illustrations réalisées avec des données fictives (démo Abidjan)."
+    "demoNotice": "Illustrations avec données fictives (démo Abidjan). Aucun client réel."
   },
   "cover": {
     "title": "ImmoPilot",
     "subtitle": "Gérez vos locations comme un pro, depuis votre téléphone.",
-    "footnote": "Données de démonstration — aucun client réel."
+    "footnote": "Données de démonstration uniquement."
   },
   "ownerPain": {
     "title": "Le quotidien d'un propriétaire à Abidjan",
@@ -28,5 +28,218 @@
       "Comptabilité et exports"
     ]
   },
-  "screens": {}
+  "benefits": {
+    "title": "Ce que vous gagnez",
+    "items": [
+      "Du temps chaque mois : moins de tableaux éparpillés",
+      "L'argent des loyers chez vous, sans commission par encaissement",
+      "Une vue claire sur les retards et les relances à faire",
+      "Des quittances PDF professionnelles pour vos locataires",
+      "Charges, cautions et comptabilité au même endroit"
+    ],
+    "calcExample": {
+      "title": "Exemple de calcul (chiffres d'illustration)",
+      "lines": [
+        "10 logements · loyer moyen 200 000 F CFA",
+        "Agence à 8 % ≈ 160 000 F CFA / mois",
+        "Abonnement ImmoPilot : montant à définir (voir nos formules)"
+      ]
+    }
+  },
+  "steps": {
+    "title": "Comment ça marche en 5 étapes",
+    "items": [
+      "Créez votre bien (immeuble, villa, terrain à lots)",
+      "Ajoutez le locataire et le bail (loyer, jour d'échéance)",
+      "Les échéances du mois se génèrent pour l'année",
+      "Encaissez (espèces, Orange Money, MTN, Wave…) et éditez le reçu PDF",
+      "Suivez le tableau de bord et relancez si besoin"
+    ]
+  },
+  "screens": [
+    {
+      "id": "dashboard",
+      "title": "Tableau de bord",
+      "see": "Encaissements du mois, retards, accès rapide aux paiements.",
+      "do": "Repérer qui payer, ouvrir une échéance, imprimer la feuille de route PDF.",
+      "how": ["Ouvrez Accueil", "Lisez les 4 indicateurs du mois", "Touchez Paiements pour agir"],
+      "why": "Vue d'ensemble avant de descendre dans le détail.",
+      "shots": { "mobile": "dashboard.png", "desktop": "dashboard.png" }
+    },
+    {
+      "id": "biens",
+      "title": "Mes biens",
+      "see": "Liste des biens, fiche, unités et structure (étages, lots).",
+      "do": "Créer un immeuble, une villa ou un terrain, ajouter des unités.",
+      "how": ["Menu Mes biens", "Ajouter un bien", "Organiser étages ou lots"],
+      "why": "Toute votre adresse et vos lots sont structurés une fois pour toutes.",
+      "shots": { "mobile": "biens.png", "desktop": "biens.png" }
+    },
+    {
+      "id": "locataires",
+      "title": "Locataires",
+      "see": "Fiches locataires, coordonnées, pièce d'identité (si renseignée).",
+      "do": "Ajouter, rechercher, joindre un document d'identité.",
+      "how": ["Ouvrez Locataires", "Nouveau locataire", "Liez-le au bail"],
+      "why": "Un dossier propre rassure et accélère les relances.",
+      "shots": { "mobile": "locataires.png", "desktop": "locataires.png" }
+    },
+    {
+      "id": "baux",
+      "title": "Baux",
+      "see": "Baux actifs, filtres, génération des échéances annuelles.",
+      "do": "Créer un bail, générer les loyers de l'année, joindre le contrat PDF.",
+      "how": ["Menu Baux", "Nouveau bail", "Générer les échéances pour l'année"],
+      "why": "Plus besoin de recréer les mois un par un à la main.",
+      "shots": { "mobile": "baux.png", "desktop": "baux.png" }
+    },
+    {
+      "id": "paiements",
+      "title": "Paiements",
+      "see": "Échéances par mois, filtres, statuts (payé, retard, partiel…).",
+      "do": "Encaisser, loyer offert, paiement partiel, reçu PDF, relance WhatsApp.",
+      "how": ["Choisir année et mois", "Ouvrir une ligne", "Saisir montant et mode d'encaissement"],
+      "why": "C'est le cœur du quotidien : qui a payé, combien, comment.",
+      "shots": { "mobile": "paiements.png", "desktop": "paiements.png" }
+    },
+    {
+      "id": "cautions",
+      "title": "Cautions et charges",
+      "see": "Cautions encaissées, charges par bien (gardiennage, assurance…).",
+      "do": "Suivre les dépôts et les dépenses de l'immeuble.",
+      "how": ["Menu Cautions & charges", "Saisir une charge par catégorie", "Filtrer par mois ou année"],
+      "why": "Ne plus mélanger loyers et frais de structure.",
+      "shots": { "mobile": "cautions.png", "desktop": "cautions.png" }
+    },
+    {
+      "id": "compta",
+      "title": "Comptabilité",
+      "see": "Synthèse annuelle, clôture de période si vous l'utilisez.",
+      "do": "Contrôler encaissements et charges avant clôture.",
+      "how": ["Ouvrez Comptabilité", "Choisissez l'année", "Consultez la synthèse"],
+      "why": "Une photo claire pour vous ou votre comptable.",
+      "shots": { "mobile": "comptabilite.png", "desktop": "comptabilite.png" }
+    },
+    {
+      "id": "calendrier",
+      "title": "Calendrier des loyers",
+      "see": "Activité annuelle par bail : mois payés ou en attente.",
+      "do": "Comparer les locataires sur l'année.",
+      "how": ["Menu Calendrier loyers", "Parcourir la grille", "Ouvrir Paiements avec filtre"],
+      "why": "Idéal en fin d'année ou pour un rendez-vous avec un locataire.",
+      "shots": { "mobile": "activite-loyers.png", "desktop": "activite-loyers.png" }
+    },
+    {
+      "id": "carte",
+      "title": "Carte des biens",
+      "see": "Vue cartographique des locations.",
+      "do": "Naviguer entre baux et fiches localisation.",
+      "how": ["Menu Plus → Carte des biens", "Choisir une fiche", "Voir le bail lié"],
+      "why": "Utile quand vous gérez plusieurs communes à Abidjan.",
+      "shots": { "mobile": "locations.png", "desktop": "locations.png" }
+    },
+    {
+      "id": "exports",
+      "title": "Exports Excel",
+      "see": "Import / export de données pour reprendre votre historique.",
+      "do": "Télécharger le modèle, importer un fichier, exporter un rapport.",
+      "how": ["Menu Fichiers Excel", "Télécharger le modèle", "Importer puis vérifier"],
+      "why": "Passer du cahier ou d'Excel sans tout ressaisir.",
+      "shots": { "mobile": "exports.png", "desktop": "exports.png" }
+    },
+    {
+      "id": "collecteurs",
+      "title": "Collecteurs de loyers",
+      "see": "Liste des personnes qui encaissent sur le terrain.",
+      "do": "Enregistrer un collecteur et suivre les tâches.",
+      "how": ["Menu Collecteurs", "Ajouter nom et téléphone", "Assigner depuis Paiements"],
+      "why": "Coordonner un gérant ou un proche qui récupère les loyers.",
+      "shots": { "mobile": "collecteurs.png", "desktop": "collecteurs.png" }
+    },
+    {
+      "id": "securite",
+      "title": "Journal de sécurité",
+      "see": "Historique des actions sensibles sur le compte.",
+      "do": "Contrôler qui a modifié quoi.",
+      "how": ["Menu Journal sécurité", "Filtrer par date", "Vérifier les connexions"],
+      "why": "Transparence si plusieurs personnes utilisent le compte.",
+      "shots": { "mobile": "journal-securite.png", "desktop": "journal-securite.png" }
+    }
+  ],
+  "mobileApp": {
+    "title": "Sur votre téléphone",
+    "paragraphs": [
+      "ImmoPilot s'installe comme une application (PWA) : bouton d'installation dans le programme.",
+      "Fonctionne sur Android et iPhone via le navigateur ; thème clair ou sombre.",
+      "Pensé pour une utilisation au quotidien sur réseau mobile."
+    ]
+  },
+  "security": {
+    "title": "Sécurité et confidentialité",
+    "points": [
+      "Connexion par mot de passe (et connexion biométrique si vous l'activez sur l'appareil).",
+      "Données hébergées pour votre organisation ; pas de mélange entre clients.",
+      "Journal des actions pour les opérations sensibles.",
+      "Pièces d'identité stockées côté serveur selon la configuration de déploiement.",
+      "Sauvegardes : à confirmer selon votre formule d'hébergement (voir contact commercial)."
+    ]
+  },
+  "faq": [
+    {
+      "q": "Mes locataires paient en espèces, ça marche ?",
+      "a": "Oui. Vous saisissez chaque encaissement avec le mode « espèces » (ou autre) et vous générez le reçu PDF."
+    },
+    {
+      "q": "Je n'ai que mon téléphone ?",
+      "a": "Oui. L'interface est pensée pour le mobile ; l'ordinateur donne plus d'espace pour les listes longues."
+    },
+    {
+      "q": "Mes données sont-elles à moi ?",
+      "a": "Vous gérez votre organisation ; l'export Excel permet de récupérer vos données."
+    },
+    {
+      "q": "Puis-je importer mon Excel ?",
+      "a": "Oui, via la page Fichiers Excel et le modèle fourni (avec avertissements si une ligne est refusée)."
+    },
+    {
+      "q": "Combien de logements puis-je gérer ?",
+      "a": "Selon la formule choisie (limites à définir dans pricing.json — actuellement non codées dans l'app)."
+    },
+    {
+      "q": "Les relances sont-elles automatiques ?",
+      "a": "Vous pouvez enregistrer des relances e-mail et noter les relances WhatsApp ; l'envoi automatique complet n'est pas encore proposé."
+    },
+    {
+      "q": "Que se passe-t-il si j'arrête l'abonnement ?",
+      "a": "Exportez vos données avant arrêt ; conditions contractuelles à préciser avec le commercial."
+    },
+    {
+      "q": "Paiement en ligne pour les locataires ?",
+      "a": "Non disponible aujourd'hui : encaissement saisi par vous ou votre collecteur."
+    },
+    {
+      "q": "C'est pour les agences ?",
+      "a": "L'outil convient surtout au bailleur qui gère seul ; les fonctions « relevé propriétaire » agence sont prévues plus tard."
+    },
+    {
+      "q": "Où sont les montants en F CFA ?",
+      "a": "Tous les montants s'affichent en francs CFA avec séparateurs lisibles."
+    }
+  ],
+  "comingSoon": {
+    "title": "Bientôt disponible",
+    "items": [
+      "Relances automatiques planifiées (sans action manuelle)",
+      "Relevé propriétaire / module agence",
+      "Paiement en ligne par le locataire"
+    ]
+  },
+  "cta": {
+    "title": "Démarrez en 3 étapes",
+    "steps": [
+      "Contactez-nous (WhatsApp, téléphone ou e-mail — à compléter)",
+      "Créez votre compte ou demandez une démo",
+      "Importez votre premier bien et vos baux"
+    ]
+  }
 }

@@ -146,3 +146,75 @@ p {
   text-align: center;
   border-left-color: var(--ink);
 }
+
+.icon-list,
+.page ul,
+.page ol.steps {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.calc-box {
+  margin-top: 16px;
+  padding: 14px;
+  background: #f0fdf4;
+  border-left: 4px solid var(--brand);
+  font-size: 13px;
+}
+
+.screen-page .section-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.marker {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-frame,
+.desktop-frame {
+  position: relative;
+}
+
+.screen-meta {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.screen-meta dt {
+  font-weight: 700;
+  color: var(--brand);
+  margin-top: 8px;
+}
+
+.screen-meta dd {
+  margin: 4px 0 0;
+}
+
+.faq-item {
+  margin-bottom: 14px;
+  break-inside: avoid;
+}
+
+.faq-q {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.soon li {
+  color: var(--muted);
+}
