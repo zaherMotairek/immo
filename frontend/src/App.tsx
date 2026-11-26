@@ -90,6 +90,12 @@ const AuditLogPage = lazy(() =>
 const CollectorsPage = lazy(() =>
   import('./pages/CollectorsPage').then((m) => ({ default: m.CollectorsPage })),
 );
+const InspectionsPage = lazy(() =>
+  import('./pages/InspectionsPage').then((m) => ({ default: m.InspectionsPage })),
+);
+const RepairsPage = lazy(() =>
+  import('./pages/RepairsPage').then((m) => ({ default: m.RepairsPage })),
+);
 const DesignSystemPage = lazy(() =>
   import('./pages/DesignSystemPage').then((m) => ({ default: m.DesignSystemPage })),
 );
@@ -195,6 +201,8 @@ export default function App() {
         <Route path="comptabilite" element={<ComptabilitePage />} />
         <Route path="journal-securite" element={<AuditLogPage />} />
         <Route path="collecteurs" element={<CollectorsPage />} />
+        <Route path="etats-des-lieux" element={<InspectionsPage />} />
+        <Route path="reparations" element={<RepairsPage />} />
         <Route path="profil" element={<ProfilePage />} />
         <Route
           path="admin"

@@ -28,6 +28,15 @@ export type AdminOrgRow = {
   users: AdminOrgUser[];
 };
 
+export function orgAccessStatus(o: AdminOrgRow): 'suspended' | 'expired' | 'active' {
+  if (o.platformAccessSuspended) return 'suspended';
+  if (o.status === 'EXPIRED' || o.status === 'SUSPENDED') return 'expired';
+  if (o.platformAccessPaidUntil && new Date().toISOString().slice(0, 10) > o.platformAccessPaidUntil) {
+    return 'expired';
+  }
+  return 'active';
+}
+
 export type AdminDashboard = {
   monthlyRevenueFcfa: number;
   monthlyPaymentCount: number;

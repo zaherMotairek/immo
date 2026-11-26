@@ -27,6 +27,8 @@ const navSecondary: NavItem[] = [
   { to: '/locations', label: 'Carte des biens', perm: 'buildings:read' },
   { to: '/activite-loyers', label: 'Calendrier loyers', perm: 'payments:read' },
   { to: '/cautions', label: 'Cautions & charges', perm: 'charges:read' },
+  { to: '/etats-des-lieux', label: 'États des lieux', perm: 'leases:read' },
+  { to: '/reparations', label: 'Réparations', perm: 'buildings:read' },
   { to: '/comptabilite', label: 'Comptabilité', perm: 'charges:read' },
   { to: '/collecteurs', label: 'Collecteurs loyers', perm: 'collectors:read' },
   { to: '/journal-securite', label: 'Journal sécurité' },

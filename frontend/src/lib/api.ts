@@ -617,3 +617,90 @@ export async function importReportExcel(file: File): Promise<ExcelImportResult> 
   }
   return (await res.json()) as ExcelImportResult;
 }
+
+export type LeaseInspectionItemRow = {
+  id: string;
+  room: string;
+  element: string;
+  condition: 'GOOD' | 'WORN' | 'DAMAGED' | 'UNCHECKED';
+  note: string | null;
+  sortOrder: number;
+};
+
+export type LeaseInspectionRow = {
+  id: string;
+  leaseId: string;
+  kind: 'MOVE_IN' | 'MOVE_OUT';
+  status: 'DRAFT' | 'SIGNED';
+  tenantSignatureName: string | null;
+  signedAt: string | null;
+  depositRefundDecision: 'PENDING' | 'FULL' | 'PARTIAL' | 'WITHHOLD' | null;
+  depositRefundNote: string | null;
+  createdAt: string;
+  items: LeaseInspectionItemRow[];
+};
+
+export type RepairRequestRow = {
+  id: string;
+  title: string;
+  urgency: 'LOW' | 'NORMAL' | 'HIGH';
+  status: 'TODO' | 'QUOTE_RECEIVED' | 'IN_PROGRESS' | 'DONE';
+  note: string | null;
+  contractorName: string | null;
+  contractorPhone: string | null;
+  estimatedCost: string | number | null;
+  finalCost: string | number | null;
+  deadline: string | null;
+  chargeId: string | null;
+  building?: { id: string; name: string };
+  unit?: { id: string; label: string } | null;
+};
+
+async function uploadMultipart(path: string, file: File, extraQuery?: string) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${baseUrl()}${path}${extraQuery ?? ''}`, { method: 'POST', headers, body: fd });
+  if (res.status === 401) {
+    setToken(null);
+    setStoredUser(null);
+    window.dispatchEvent(new Event('immopilot:logout'));
+  }
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const j = await res.json();
+      if (j?.message) msg = Array.isArray(j.message) ? j.message.join(', ') : String(j.message);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export function uploadInspectionPhoto(inspectionId: string, file: File, itemId?: string) {
+  const q = itemId ? `?itemId=${encodeURIComponent(itemId)}` : '';
+  return uploadMultipart(`/inspections/${inspectionId}/photos`, file, q);
+}
+
+export function uploadRepairPhoto(repairId: string, file: File) {
+  return uploadMultipart(`/repairs/${repairId}/photos`, file);
+}
+
+export async function downloadInspectionPdf(inspectionId: string) {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${baseUrl()}/inspections/${inspectionId}/pdf`, { headers });
+  if (!res.ok) throw new Error('PDF indisponible');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `etat-des-lieux-${inspectionId.slice(0, 8)}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

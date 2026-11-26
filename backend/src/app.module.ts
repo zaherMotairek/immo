@@ -24,6 +24,8 @@ import { FinanceModule } from './finance/finance.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { DemoModule } from './demo/demo.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { InspectionsModule } from './inspections/inspections.module';
+import { RepairsModule } from './repairs/repairs.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { ReadOnlyInterceptor } from './auth/read-only.interceptor';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -66,6 +68,8 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
     EntitlementsModule,
     DemoModule,
     OnboardingModule,
+    InspectionsModule,
+    RepairsModule,
   ],
   providers: [
     {

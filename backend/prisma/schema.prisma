@@ -38,6 +38,9 @@ model Organization {
   reminderOutbox ReminderOutbox[]
   subscriptionPayments SubscriptionPayment[]
   planChangeLogs PlanChangeLog[]
+  inspectionTemplates InspectionChecklistTemplate[]
+  leaseInspections      LeaseInspection[]
+  repairRequests        RepairRequest[]
 
   @@map("organizations")
 }
@@ -246,6 +249,7 @@ model Building {
   updatedAt      DateTime               @updatedAt @map("updated_at")
   units          Unit[]
   charges        Charge[]
+  repairRequests RepairRequest[]
 
   @@index([organizationId])
   @@map("buildings")
@@ -282,6 +286,7 @@ model Unit {
   building      Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   leases        Lease[]
   charges       Charge[]
+  repairRequests RepairRequest[]
 
   @@unique([buildingId, locauxSlot])
   @@index([buildingId])
@@ -336,6 +341,7 @@ model Lease {
   tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   payments      Payment[]
   rentRevisions LeaseRentRevision[]
+  inspections   LeaseInspection[]
 
   @@index([unitId])
   @@index([tenantId])
@@ -490,8 +496,179 @@ model Charge {
   updatedAt   DateTime       @updatedAt @map("updated_at")
   building    Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   unit        Unit?          @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  repairRequest RepairRequest?
 
   @@index([buildingId])
   @@index([periodYear])
   @@map("charges")
+}
+
+// ——— Phase G : états des lieux & réparations ———
+
+enum InspectionKind {
+  MOVE_IN
+  MOVE_OUT
+}
+
+enum InspectionItemCondition {
+  GOOD
+  WORN
+  DAMAGED
+  UNCHECKED
+}
+
+enum InspectionStatus {
+  DRAFT
+  SIGNED
+}
+
+enum DepositRefundDecision {
+  PENDING
+  FULL
+  PARTIAL
+  WITHHOLD
+}
+
+enum RepairUrgency {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum RepairStatus {
+  TODO
+  QUOTE_RECEIVED
+  IN_PROGRESS
+  DONE
+}
+
+model InspectionChecklistTemplate {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  unitKind       UnitKind? @map("unit_kind")
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  items          InspectionChecklistTemplateItem[]
+
+  @@index([organizationId])
+  @@map("inspection_checklist_templates")
+}
+
+model InspectionChecklistTemplateItem {
+  id         String   @id @default(uuid())
+  templateId String   @map("template_id")
+  template   InspectionChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  room       String   @db.VarChar(120)
+  element    String   @db.VarChar(200)
+  sortOrder  Int      @default(0) @map("sort_order")
+
+  @@index([templateId])
+  @@map("inspection_checklist_template_items")
+}
+
+model LeaseInspection {
+  id                    String   @id @default(uuid())
+  organizationId        String   @map("organization_id")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leaseId               String   @map("lease_id")
+  lease                 Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  kind                  InspectionKind
+  status                InspectionStatus @default(DRAFT)
+  tenantSignatureName   String?  @map("tenant_signature_name") @db.VarChar(200)
+  signedAt              DateTime? @map("signed_at")
+  depositRefundDecision DepositRefundDecision? @map("deposit_refund_decision")
+  depositRefundNote     String?  @map("deposit_refund_note") @db.VarChar(500)
+  comparedMoveInId      String?  @map("compared_move_in_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  items                 LeaseInspectionItem[]
+  photos                LeaseInspectionPhoto[]
+
+  @@index([organizationId])
+  @@index([leaseId])
+  @@map("lease_inspections")
+}
+
+model LeaseInspectionItem {
+  id           String   @id @default(uuid())
+  inspectionId String   @map("inspection_id")
+  inspection   LeaseInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  room         String   @db.VarChar(120)
+  element      String   @db.VarChar(200)
+  condition    InspectionItemCondition @default(UNCHECKED)
+  note         String?  @db.VarChar(500)
+  sortOrder    Int      @default(0) @map("sort_order")
+  photos       LeaseInspectionPhoto[]
+
+  @@index([inspectionId])
+  @@map("lease_inspection_items")
+}
+
+model LeaseInspectionPhoto {
+  id           String   @id @default(uuid())
+  inspectionId String   @map("inspection_id")
+  inspection   LeaseInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  itemId       String?  @map("item_id")
+  item         LeaseInspectionItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  fileKey      String   @map("file_key")
+  originalName String?  @map("original_name")
+  mime         String
+  size         Int
+  caption      String?  @db.VarChar(300)
+  takenAt      DateTime @default(now()) @map("taken_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([inspectionId])
+  @@index([itemId])
+  @@map("lease_inspection_photos")
+}
+
+model RepairRequest {
+  id              String        @id @default(uuid())
+  organizationId  String        @map("organization_id")
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  buildingId      String        @map("building_id")
+  building        Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  unitId          String?       @map("unit_id")
+  unit            Unit?         @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  title           String        @db.VarChar(200)
+  urgency         RepairUrgency @default(NORMAL)
+  status          RepairStatus  @default(TODO)
+  note            String?       @db.Text
+  contractorName  String?       @map("contractor_name") @db.VarChar(200)
+  contractorPhone String?       @map("contractor_phone") @db.VarChar(40)
+  estimatedCost   Decimal?      @map("estimated_cost") @db.Decimal(12, 2)
+  finalCost       Decimal?      @map("final_cost") @db.Decimal(12, 2)
+  deadline        DateTime?     @db.Date
+  completedAt     DateTime?     @map("completed_at")
+  chargeId        String?       @unique @map("charge_id")
+  charge          Charge?       @relation(fields: [chargeId], references: [id], onDelete: SetNull)
+  lateReminderAt  DateTime?     @map("late_reminder_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  photos          RepairPhoto[]
+
+  @@index([organizationId])
+  @@index([buildingId])
+  @@index([status])
+  @@map("repair_requests")
+}
+
+model RepairPhoto {
+  id           String        @id @default(uuid())
+  repairId     String        @map("repair_id")
+  repair       RepairRequest @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  fileKey      String        @map("file_key")
+  originalName String?       @map("original_name")
+  mime         String
+  size         Int
+  caption      String?       @db.VarChar(300)
+  takenAt      DateTime      @default(now()) @map("taken_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([repairId])
+  @@map("repair_photos")
 }

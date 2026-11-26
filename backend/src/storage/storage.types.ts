@@ -1,5 +1,9 @@
 /** Espaces de stockage (préfixes inchangés vs arborescence actuelle). */
-export type StorageNamespace = 'lease-contracts' | 'tenant-id-docs';
+export type StorageNamespace =
+  | 'lease-contracts'
+  | 'tenant-id-docs'
+  | 'inspection-photos'
+  | 'repair-photos';
 
 export type StorageDriverName = 'local' | 's3';
 
