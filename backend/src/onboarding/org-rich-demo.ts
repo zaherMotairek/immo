@@ -1,204 +1,126 @@
-import {
-  BuildingStructureKind,
-  CollectionMethod,
-  PaymentStatus,
-  Prisma,
-  UnitKind,
-} from '@prisma/client';
+import { CollectionMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { rentDueDateForBilledPeriod, startOfTodayUtc } from '../common/date.util';
-
-const TAG = 'Démo année complète (fictif)';
+import {
+  SEED_TAG,
+  buildRichDemoBuildingPlans,
+  buildRichDemoTenants,
+  flattenDemoLeases,
+} from '../demo/rich-demo-catalog';
 
 type Tx = Prisma.TransactionClient;
 
-/** Jeu d’exemple type seed CI : biens Abidjan + loyers janv. → mois en cours. */
+/** Jeu d’exemple volumineux : ~28 biens, ~28 locataires, loyers janv. → mois en cours. */
 export async function seedRichDemoYear(tx: Tx, organizationId: string) {
   const year = new Date().getUTCFullYear();
   const throughMonth = new Date().getUTCMonth() + 1;
+  const buildingPlans = buildRichDemoBuildingPlans(SEED_TAG);
+  const tenants = buildRichDemoTenants();
+  const leasePlans = flattenDemoLeases(buildingPlans, tenants, year);
 
-  const b1 = await tx.building.create({
-    data: {
-      organizationId,
-      name: `${TAG} — Résidence Les Palmiers`,
-      city: 'Abidjan',
-      commune: 'Cocody',
-      address: 'Riviera 3',
-      country: "Côte d'Ivoire",
-      structureKind: BuildingStructureKind.IMMEUBLE,
-      floorCount: 8,
-      apartmentCount: 32,
-      notes: TAG,
-    },
-  });
-  const b2 = await tx.building.create({
-    data: {
-      organizationId,
-      name: `${TAG} — Immeuble Ranga`,
-      city: 'Abidjan',
-      commune: 'Marcory',
-      country: "Côte d'Ivoire",
-      structureKind: BuildingStructureKind.IMMEUBLE,
-      floorCount: 4,
-      apartmentCount: 2,
-      notes: TAG,
-    },
-  });
-  const b3 = await tx.building.create({
-    data: {
-      organizationId,
-      name: `${TAG} — Villa Lagune`,
-      city: 'Grand-Bassam',
-      commune: 'Quartier France',
-      country: "Côte d'Ivoire",
-      structureKind: BuildingStructureKind.MONO_LOT,
-      notes: TAG,
-    },
-  });
+  let unitCount = 0;
+  const leaseRecords: Array<{ id: string; rentDueDay: number; monthlyRent: number }> = [];
 
-  const units = await Promise.all([
-    tx.unit.create({
-      data: {
-        buildingId: b1.id,
-        label: 'A4',
-        kind: UnitKind.APARTMENT,
-        floor: 2,
-        apartmentSlot: 4,
-        rooms: 3,
-        defaultRent: 385_000,
-      },
-    }),
-    tx.unit.create({
-      data: {
-        buildingId: b2.id,
-        label: 'Bureau R+1',
-        kind: UnitKind.OFFICE,
-        floor: 1,
-        defaultRent: 520_000,
-      },
-    }),
-    tx.unit.create({
-      data: {
-        buildingId: b2.id,
-        label: 'Entrepôt A',
-        kind: UnitKind.WAREHOUSE,
-        defaultRent: 890_000,
-      },
-    }),
-    tx.unit.create({
-      data: {
-        buildingId: b3.id,
-        label: 'Villa entière',
-        kind: UnitKind.HOUSE,
-        rooms: 5,
-        defaultRent: 1_200_000,
-      },
-    }),
-  ]);
-
-  const [t1, t2, t3] = await Promise.all([
-    tx.tenant.create({
+  for (const plan of buildingPlans) {
+    const building = await tx.building.create({
       data: {
         organizationId,
-        firstName: 'Amadou',
-        lastName: 'Koné',
-        phone: '+2250708123456',
-        email: 'demo-amadou@example.ci',
-        notes: TAG,
+        name: plan.name,
+        city: plan.city,
+        commune: plan.commune,
+        address: plan.address,
+        country: "Côte d'Ivoire",
+        structureKind: plan.structureKind,
+        floorCount: plan.floorCount ?? null,
+        apartmentCount: plan.apartmentCount ?? null,
+        terrainLotCount: plan.terrainLotCount ?? null,
+        notes: SEED_TAG,
       },
-    }),
-    tx.tenant.create({
-      data: {
-        organizationId,
-        firstName: 'Fatou',
-        lastName: 'Diabaté',
-        phone: '+2250511223344',
-        email: 'demo-fatou@example.ci',
-        notes: TAG,
-      },
-    }),
-    tx.tenant.create({
-      data: {
-        organizationId,
-        firstName: 'Koffi',
-        lastName: 'Yao',
-        phone: '+2250199887766',
-        notes: TAG,
-      },
-    }),
-  ]);
+    });
 
-  const leases = await Promise.all([
-    tx.lease.create({
-      data: {
-        unitId: units[0].id,
-        tenantId: t1.id,
-        startDate: new Date(Date.UTC(year - 1, 5, 1)),
-        monthlyRent: 385_000,
-        rentDueDay: 5,
-        depositAmount: 770_000,
-        depositPaidAt: new Date(Date.UTC(year - 1, 5, 5)),
-        active: true,
-      },
-    }),
-    tx.lease.create({
-      data: {
-        unitId: units[1].id,
-        tenantId: t2.id,
-        startDate: new Date(Date.UTC(year - 1, 8, 1)),
-        monthlyRent: 520_000,
-        rentDueDay: 10,
-        active: true,
-      },
-    }),
-    tx.lease.create({
-      data: {
-        unitId: units[2].id,
-        tenantId: t3.id,
-        startDate: new Date(Date.UTC(year - 1, 10, 1)),
-        monthlyRent: 890_000,
-        rentDueDay: 15,
-        active: true,
-      },
-    }),
-    tx.lease.create({
-      data: {
-        unitId: units[3].id,
-        tenantId: t1.id,
-        startDate: new Date(Date.UTC(year, 0, 1)),
-        monthlyRent: 1_200_000,
-        rentDueDay: 1,
-        active: true,
-      },
-    }),
-  ]);
+    for (const u of plan.units) {
+      unitCount += 1;
+      const unit = await tx.unit.create({
+        data: {
+          buildingId: building.id,
+          label: u.label,
+          kind: u.kind,
+          floor: u.floor ?? null,
+          defaultRent: u.rent,
+        },
+      });
 
-  await tx.charge.createMany({
-    data: [
-      {
-        buildingId: b1.id,
-        category: 'SECURITY',
-        label: 'Gardiennage (démo)',
-        amount: 45_000,
+      if (u.lease === false) continue;
+
+      const lp = leasePlans.find(
+        (l) => l.buildingName === plan.name && l.unitLabel === u.label,
+      );
+      if (!lp) continue;
+
+      let tenant = await tx.tenant.findFirst({
+        where: { organizationId, email: lp.tenant.email },
+      });
+      if (!tenant) {
+        tenant = await tx.tenant.create({
+          data: {
+            organizationId,
+            firstName: lp.tenant.firstName,
+            lastName: lp.tenant.lastName,
+            phone: lp.tenant.phone,
+            email: lp.tenant.email,
+            notes: SEED_TAG,
+          },
+        });
+      }
+
+      const lease = await tx.lease.create({
+        data: {
+          unitId: unit.id,
+          tenantId: tenant.id,
+          startDate: lp.start,
+          monthlyRent: lp.rent,
+          rentDueDay: lp.rentDueDay,
+          depositAmount: lp.deposit > 0 ? lp.deposit : null,
+          active: true,
+        },
+      });
+      leaseRecords.push({
+        id: lease.id,
+        rentDueDay: lp.rentDueDay,
+        monthlyRent: lp.rent,
+      });
+    }
+  }
+
+  const uniqueTenants = await tx.tenant.count({
+    where: { organizationId, notes: { contains: SEED_TAG } },
+  });
+
+  const chargeCats = ['SECURITY', 'INSURANCE', 'MAINTENANCE', 'UTILITIES', 'TAX'] as const;
+  const buildings = await tx.building.findMany({
+    where: { organizationId, notes: SEED_TAG },
+    take: 18,
+    select: { id: true },
+  });
+  for (let c = 0; c < buildings.length; c += 1) {
+    const b = buildings[c]!;
+    await tx.charge.create({
+      data: {
+        buildingId: b.id,
+        category: chargeCats[c % chargeCats.length]!,
+        label: `Charge démo ${c + 1}`,
+        amount: 35_000 + c * 4_500,
         periodYear: year,
-        periodMonth: throughMonth,
-        paid: true,
+        periodMonth: c % 3 === 0 ? throughMonth : (c % 12) + 1,
+        paid: c % 2 === 0,
       },
-      {
-        buildingId: b1.id,
-        category: 'INSURANCE',
-        label: 'Assurance multirisque (démo)',
-        amount: 120_000,
-        periodYear: year,
-        paid: false,
-      },
-    ],
-  });
+    });
+  }
 
   const today = startOfTodayUtc();
   let paymentCount = 0;
 
-  for (const le of leases) {
-    const rent = Number(le.monthlyRent);
+  for (const le of leaseRecords) {
+    const rent = le.monthlyRent;
     for (let mo = 1; mo <= throughMonth; mo += 1) {
       const due = rentDueDateForBilledPeriod(year, mo, le.rentDueDay);
       let status: PaymentStatus = PaymentStatus.PENDING;
@@ -212,10 +134,15 @@ export async function seedRichDemoYear(tx: Tx, organizationId: string) {
         paidAt = due;
         collectionMethod = mo % 3 === 0 ? CollectionMethod.ORANGE_MONEY : CollectionMethod.CASH;
       } else if (mo === throughMonth - 1) {
-        status = PaymentStatus.PAID;
-        amountPaid = Math.round(rent * 0.85);
-        paidAt = today;
-        collectionMethod = CollectionMethod.BANK_TRANSFER;
+        status = mo % 4 === 0 ? PaymentStatus.LATE : PaymentStatus.PAID;
+        if (status === PaymentStatus.PAID) {
+          amountPaid = rent;
+          paidAt = today;
+          collectionMethod = CollectionMethod.BANK_TRANSFER;
+        } else {
+          amountPaid = Math.round(rent * 0.5);
+          collectionMethod = CollectionMethod.WAVE;
+        }
       } else if (mo === throughMonth) {
         status = mo % 2 === 0 ? PaymentStatus.LATE : PaymentStatus.PENDING;
         if (status === PaymentStatus.LATE) {
@@ -242,10 +169,10 @@ export async function seedRichDemoYear(tx: Tx, organizationId: string) {
   }
 
   return {
-    buildings: 3,
-    units: units.length,
-    tenants: 3,
-    leases: leases.length,
+    buildings: buildingPlans.length,
+    units: unitCount,
+    tenants: uniqueTenants,
+    leases: leaseRecords.length,
     payments: paymentCount,
     year,
     throughMonth,

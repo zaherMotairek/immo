@@ -208,15 +208,15 @@ export function ProfileDataTab() {
       <section className="space-y-3">
         <h3 className="text-base font-semibold text-[var(--color-ink)]">Import Excel (.xlsx)</h3>
         <p className="text-sm text-[var(--color-muted)]">
-          Onglets <strong className="font-medium text-[var(--color-ink)]">Biens</strong>,{' '}
-          <strong className="font-medium text-[var(--color-ink)]">Baux</strong>,{' '}
-          <strong className="font-medium text-[var(--color-ink)]">Paiements</strong>,{' '}
-          <strong className="font-medium text-[var(--color-ink)]">Charges</strong> — les loyers utilisent la période{' '}
-          <code className="text-xs">AAAA-MM</code> (ex. {new Date().getFullYear()}-03).
+          L’exemple est généré à la demande (fichier{' '}
+          <strong className="font-medium text-[var(--color-ink)]">immopilot-exemple-import.xlsx</strong>) : environ{' '}
+          <strong className="font-medium text-[var(--color-ink)]">28 biens</strong> (immeubles, villas, lots/terrains),{' '}
+          <strong className="font-medium text-[var(--color-ink)]">28 locataires</strong>, loyers de janvier au mois en
+          cours. Téléchargez-le, puis importez-le avec le sélecteur de fichier juste en dessous.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => downloadImportExample()}>
-            Télécharger l’exemple (année en cours)
+            Télécharger l’exemple (28 biens · année en cours)
           </Button>
           <Button type="button" variant="ghost" onClick={() => downloadImportTemplate()}>
             Modèle vide
@@ -248,7 +248,7 @@ export function ProfileDataTab() {
       <section className="space-y-3 border-t border-[var(--odoo-border)] pt-6">
         <h3 className="text-base font-semibold text-[var(--color-ink)]">Jeu d’exemple (sans fichier)</h3>
         <Button type="button" disabled={loadingDemo} onClick={() => void loadRichDemo()}>
-          {loadingDemo ? 'Chargement…' : 'Charger en un clic (année en cours)'}
+          {loadingDemo ? 'Chargement…' : 'Charger en un clic (~28 biens, même jeu que l’Excel)'}
         </Button>
         <p className="text-xs text-[var(--color-muted)]">
           Préfixe « Démo année complète (fictif) » dans les notes. N’efface pas vos données existantes.
