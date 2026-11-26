@@ -1,0 +1,35 @@
+{
+  "note": "Les montants ne sont pas encore configurés dans l’application. Renseignez les champs ci-dessous avant diffusion.",
+  "plans": [
+    {
+      "id": "essai",
+      "name": "Essai",
+      "monthlyAmountFcfa": null,
+      "trialDays": 30,
+      "unitLimit": null,
+      "includedFeatures": ["Accès complet pendant la période d’essai", "Toutes les fonctions du tableau de bord"]
+    },
+    {
+      "id": "gratuit",
+      "name": "Gratuit",
+      "monthlyAmountFcfa": 0,
+      "trialDays": null,
+      "unitLimit": null,
+      "includedFeatures": ["Fonctions de base", "Limite d’unités à définir"]
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "monthlyAmountFcfa": null,
+      "trialDays": null,
+      "unitLimit": null,
+      "includedFeatures": [
+        "Biens, locataires, baux et paiements illimités (selon forfait)",
+        "Quittances PDF",
+        "Relances e-mail et WhatsApp",
+        "Comptabilité et exports"
+      ]
+    }
+  ],
+  "paymentMethodsHint": "Mobile Money, espèces, virement — modes à confirmer avec le commercial"
+}

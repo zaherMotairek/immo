@@ -1,0 +1,75 @@
+@page {
+  size: A4 portrait;
+  margin: 18mm 16mm 20mm;
+}
+
+:root {
+  --brand: #059669;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --page-bg: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: var(--page-bg);
+}
+
+.page {
+  break-after: page;
+  break-inside: avoid;
+  min-height: 250mm;
+  padding: 8mm 0;
+}
+
+.cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  border-left: 6px solid var(--brand);
+  padding-left: 12mm;
+}
+
+.kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1 {
+  font-size: 42px;
+  margin: 8px 0 12px;
+  color: var(--brand);
+}
+
+.lead {
+  font-size: 20px;
+  line-height: 1.45;
+  max-width: 140mm;
+}
+
+.note {
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+h2 {
+  font-size: 24px;
+  color: var(--brand);
+  margin-bottom: 16px;
+}
+
+p {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 12px;
+}

@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "product": "ImmoPilot",
+    "tagline": "Gérez vos locations comme un pro, depuis votre téléphone.",
+    "demoNotice": "Illustrations réalisées avec des données fictives (démo Abidjan)."
+  },
+  "cover": {
+    "title": "ImmoPilot",
+    "subtitle": "Gérez vos locations comme un pro, depuis votre téléphone.",
+    "footnote": "Données de démonstration — aucun client réel."
+  },
+  "ownerPain": {
+    "title": "Le quotidien d'un propriétaire à Abidjan",
+    "paragraphs": [
+      "Entre le cahier, Excel et les appels WhatsApp, on perd vite le fil des loyers.",
+      "Une relance oubliée, une quittance à refaire, une caution dont on ne sait plus où elle est…",
+      "L'agence prend souvent plus de 8 % : vous voulez garder le contrôle et l'argent chez vous."
+    ]
+  },
+  "solutionGlance": {
+    "title": "La solution en un coup d'œil",
+    "items": [
+      "Un seul outil pour biens, locataires et baux",
+      "Échéances du mois en un clin d'œil",
+      "Encaissement et quittance PDF",
+      "Relances e-mail et WhatsApp",
+      "Charges et cautions au même endroit",
+      "Comptabilité et exports"
+    ]
+  },
+  "screens": {}
+}

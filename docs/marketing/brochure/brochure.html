@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ImmoPilot — Brochure</title>
+    <link rel="stylesheet" href="brochure.css" />
+  </head>
+  <body>
+    <section class="page cover">
+      <p class="kicker">Gestion locative</p>
+      <h1 id="cover-title">ImmoPilot</h1>
+      <p class="lead" id="cover-subtitle">Gérez vos locations comme un pro, depuis votre téléphone.</p>
+      <p class="note" id="demo-notice">Données de démonstration uniquement.</p>
+    </section>
+
+    <section class="page">
+      <h2 id="pain-title">Le quotidien d'un propriétaire</h2>
+      <article id="pain-body"></article>
+    </section>
+
+  </body>
+  <script type="module">
+    const content = await fetch('../content.fr.json').then((r) => r.json());
+    document.getElementById('cover-title').textContent = content.cover.title;
+    document.getElementById('cover-subtitle').textContent = content.cover.subtitle;
+    document.getElementById('demo-notice').textContent = content.cover.footnote;
+    document.getElementById('pain-title').textContent = content.ownerPain.title;
+    const art = document.getElementById('pain-body');
+    for (const p of content.ownerPain.paragraphs) {
+      const el = document.createElement('p');
+      el.textContent = p;
+      art.appendChild(el);
+    }
+  </script>
+</html>
