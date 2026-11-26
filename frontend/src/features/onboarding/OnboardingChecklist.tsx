@@ -75,7 +75,12 @@ export function OnboardingChecklist() {
         </Button>
       </div>
       <p className="mt-2 text-xs text-[var(--color-muted)]">
-        Les données d’exemple ne s’activent jamais toutes seules sur un compte réel.
+        Les données d’exemple ne s’activent jamais toutes seules sur un compte réel. Jeu complet (année en cours) et
+        reset sélectif :{' '}
+        <Link to="/profil?tab=donnees" className="font-semibold underline-offset-2 hover:underline">
+          Mon compte → Données
+        </Link>
+        .
       </p>
     </Callout>
   );

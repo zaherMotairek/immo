@@ -395,6 +395,15 @@ export function downloadImportTemplate() {
   );
 }
 
+/** Exemple rempli (biens, baux, loyers janv. → mois en cours) — données fictives. */
+export function downloadImportExample() {
+  downloadAuthedBlob(
+    '/reports/import-example.xlsx',
+    'immopilot-exemple-import.xlsx',
+    'Exemple indisponible. Vérifiez la connexion, votre session et le plan (exports).',
+  );
+}
+
 /** Ouvre un PDF généré par l’API (JWT) dans un nouvel onglet — aperçu / impression. */
 export function openPrintablePdf(path: string) {
   const token = getToken();

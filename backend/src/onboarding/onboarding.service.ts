@@ -1,4 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import type { JwtAuthUser } from '../auth/jwt-user.types';
+import { ResetOrgDataDto } from './dto/reset-org-data.dto';
+import { seedRichDemoYear } from './org-rich-demo';
 import { randomUUID } from 'crypto';
 import {
   BuildingStructureKind,
@@ -15,7 +18,13 @@ export type OnboardingStepId = 'building' | 'unit' | 'tenant' | 'lease' | 'payme
 export class OnboardingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getStatus(organizationId: string) {
+  private assertOwner(user: JwtAuthUser) {
+    if (user.orgRole !== 'OWNER') {
+      throw new ForbiddenException('Réservé au propriétaire du compte (OWNER).');
+    }
+  }
+
+  async getStatus(organizationId: string, user?: JwtAuthUser) {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: { isDemo: true, automationSettings: true },
@@ -60,6 +69,8 @@ export class OnboardingService {
       dismissed,
       /** Jamais auto : uniquement si org vide et non-démo. */
       canSeedSampleData: !org?.isDemo && buildings === 0,
+      canLoadRichDemo: user?.orgRole === 'OWNER',
+      canResetData: user?.orgRole === 'OWNER',
       isDemo: Boolean(org?.isDemo),
     };
   }
@@ -163,5 +174,138 @@ export class OnboardingService {
     });
 
     return { ok: true, message: 'Données d’exemple chargées. Remplacez-les par vos vrais biens.' };
+  }
+
+  async loadRichDemoYear(user: JwtAuthUser) {
+    this.assertOwner(user);
+    const organizationId = user.organizationId;
+    const stats = await this.prisma.$transaction((tx) => seedRichDemoYear(tx, organizationId));
+    return {
+      ok: true,
+      message: `Jeu d’exemple ajouté : ${stats.buildings} biens, ${stats.leases} baux, ${stats.payments} échéances (${stats.throughMonth}/${stats.year}). Données fictives.`,
+      stats,
+    };
+  }
+
+  async resetOrgData(user: JwtAuthUser, dto: ResetOrgDataDto) {
+    this.assertOwner(user);
+    const organizationId = user.organizationId;
+    const wipePayments = Boolean(dto.payments || dto.leases || dto.buildings);
+    const wipeLeases = Boolean(dto.leases || dto.buildings);
+    const wipeBuildings = Boolean(dto.buildings);
+    const wipeTenants = Boolean(dto.tenants);
+    const wipeCharges = Boolean(dto.charges || dto.buildings);
+    const wipeRepairs = Boolean(dto.repairs);
+    const wipeInspections = Boolean(dto.inspections);
+    const wipeCollectors = Boolean(dto.collectors);
+
+    if (
+      !wipePayments &&
+      !wipeLeases &&
+      !wipeTenants &&
+      !wipeBuildings &&
+      !wipeCharges &&
+      !wipeRepairs &&
+      !wipeInspections &&
+      !wipeCollectors
+    ) {
+      throw new BadRequestException('Cochez au moins une catégorie à supprimer.');
+    }
+
+    const counts: Record<string, number> = {};
+
+    await this.prisma.$transaction(async (tx) => {
+      if (wipeInspections) {
+        const insp = await tx.leaseInspection.findMany({
+          where: { organizationId },
+          select: { id: true },
+        });
+        counts.inspections = insp.length;
+        if (insp.length) {
+          await tx.leaseInspectionPhoto.deleteMany({ where: { inspectionId: { in: insp.map((i) => i.id) } } });
+          await tx.leaseInspectionItem.deleteMany({ where: { inspectionId: { in: insp.map((i) => i.id) } } });
+          await tx.leaseInspection.deleteMany({ where: { organizationId } });
+        }
+      }
+
+      if (wipeRepairs) {
+        const repairs = await tx.repairRequest.findMany({
+          where: { organizationId },
+          select: { id: true },
+        });
+        counts.repairs = repairs.length;
+        if (repairs.length) {
+          await tx.repairPhoto.deleteMany({ where: { repairId: { in: repairs.map((r) => r.id) } } });
+          await tx.repairRequest.deleteMany({ where: { organizationId } });
+        }
+      }
+
+      const leaseFilter = { unit: { building: { organizationId } } };
+      const leaseIds = wipePayments || wipeLeases
+        ? (
+            await tx.lease.findMany({ where: leaseFilter, select: { id: true } })
+          ).map((l) => l.id)
+        : [];
+
+      if (wipePayments && leaseIds.length) {
+        const rem = await tx.paymentReminder.deleteMany({
+          where: { payment: { leaseId: { in: leaseIds } } },
+        });
+        counts.paymentReminders = rem.count;
+        await tx.reminderOutbox.deleteMany({ where: { organizationId } });
+        const p = await tx.payment.deleteMany({ where: { leaseId: { in: leaseIds } } });
+        counts.payments = p.count;
+      }
+
+      if (wipeLeases && leaseIds.length) {
+        await tx.leaseRentRevision.deleteMany({ where: { leaseId: { in: leaseIds } } });
+        const l = await tx.lease.deleteMany({ where: { id: { in: leaseIds } } });
+        counts.leases = l.count;
+      }
+
+      if (wipeCharges) {
+        const c = await tx.charge.deleteMany({ where: { building: { organizationId } } });
+        counts.charges = c.count;
+      }
+
+      if (wipeCollectors) {
+        await tx.$executeRawUnsafe(
+          `DELETE FROM payment_collection_events WHERE task_id IN (
+            SELECT id FROM payment_collection_tasks WHERE organization_id = $1::uuid
+          )`,
+          organizationId,
+        );
+        await tx.$executeRawUnsafe(`DELETE FROM payment_collection_tasks WHERE organization_id = $1::uuid`, organizationId);
+        const rc = await tx.$executeRawUnsafe(`DELETE FROM rent_collectors WHERE organization_id = $1::uuid`, organizationId);
+        counts.collectors = Number(rc) || 0;
+      }
+
+      if (wipeBuildings) {
+        await tx.unit.deleteMany({ where: { building: { organizationId } } });
+        const b = await tx.building.deleteMany({ where: { organizationId } });
+        counts.buildings = b.count;
+      }
+
+      if (wipeTenants) {
+        if (!wipeLeases) {
+          const remainingLeases = await tx.lease.count({
+            where: { unit: { building: { organizationId } } },
+          });
+          if (remainingLeases > 0) {
+            throw new BadRequestException(
+              'Des baux existent encore : cochez « Baux » (et échéances si besoin) ou supprimez-les avant les locataires.',
+            );
+          }
+        }
+        const t = await tx.tenant.deleteMany({ where: { organizationId } });
+        counts.tenants = t.count;
+      }
+    });
+
+    return {
+      ok: true,
+      message: 'Suppression terminée.',
+      counts,
+    };
   }
 }

@@ -11,7 +11,7 @@ import { LeasesService } from '../leases/leases.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { BuildingsService } from '../buildings/buildings.service';
 import { selectApartmentsPerFloorByOrg } from '../buildings/apartments-per-floor-column';
-import { startOfTodayUtc } from '../common/date.util';
+import { rentDueDateForBilledPeriod, startOfTodayUtc } from '../common/date.util';
 import type { JwtAuthUser } from '../auth/jwt-user.types';
 import {
   drawFooter,
@@ -870,6 +870,237 @@ export class ReportsService {
       ['Catégorie', 'Libellé', 'Montant', 'Année', 'Mois', 'Payé', 'Bien', 'Unité', 'Notes'],
       [],
       { tabColor: 'FF0891B2' },
+    );
+
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf);
+  }
+
+  /** Classeur rempli (fictif) : janvier → mois en cours — à télécharger puis réimporter. */
+  async buildImportExampleExcel(): Promise<Buffer> {
+    const year = new Date().getFullYear();
+    const throughMonth = new Date().getMonth() + 1;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ImmoPilot';
+    wb.created = new Date();
+
+    const guide = wb.addWorksheet('Lisez-moi', { properties: { tabColor: { argb: 'FF2563EB' } } });
+    guide.getColumn(1).width = 92;
+    const lines = [
+      'ImmoPilot — exemple d’import (données fictives)',
+      '',
+      `Ce fichier contient des biens, baux et loyers de janvier à ${String(throughMonth).padStart(2, '0')}/${year}.`,
+      '1. Téléchargez-le depuis Mon compte → Données.',
+      '2. Importez-le tel quel (ou modifiez-le comme modèle pour vos vraies lignes).',
+      '3. Les baux doivent exister avant les lignes Paiements (déjà le cas dans cet exemple).',
+      '',
+      'Période paiement : AAAA-MM (ex. 2026-03). Statut : Payé | Impayé | En retard | Annulé | Loyer offert',
+    ];
+    for (const line of lines) {
+      const row = guide.addRow([line]);
+      if (line.startsWith('ImmoPilot')) row.font = { bold: true, size: 14 };
+    }
+
+    type LeaseEx = {
+      lastName: string;
+      firstName: string;
+      email: string;
+      phone: string;
+      building: string;
+      city: string;
+      commune: string;
+      unit: string;
+      unitKind: string;
+      rent: number;
+      deposit: number;
+      dueDay: number;
+      start: Date;
+    };
+
+    const leases: LeaseEx[] = [
+      {
+        lastName: 'Koné',
+        firstName: 'Amadou',
+        email: 'exemple-amadou@immopilot.ci',
+        phone: '+2250708123456',
+        building: 'Exemple — Résidence Les Palmiers',
+        city: 'Abidjan',
+        commune: 'Cocody',
+        unit: 'A4',
+        unitKind: 'Appartement',
+        rent: 385_000,
+        deposit: 770_000,
+        dueDay: 5,
+        start: new Date(Date.UTC(year - 1, 5, 1)),
+      },
+      {
+        lastName: 'Diabaté',
+        firstName: 'Fatou',
+        email: 'exemple-fatou@immopilot.ci',
+        phone: '+2250511223344',
+        building: 'Exemple — Immeuble Ranga',
+        city: 'Abidjan',
+        commune: 'Marcory',
+        unit: 'Bureau R+1',
+        unitKind: 'Bureau',
+        rent: 520_000,
+        deposit: 520_000,
+        dueDay: 10,
+        start: new Date(Date.UTC(year - 1, 8, 1)),
+      },
+      {
+        lastName: 'Yao',
+        firstName: 'Koffi',
+        email: '',
+        phone: '+2250199887766',
+        building: 'Exemple — Immeuble Ranga',
+        city: 'Abidjan',
+        commune: 'Marcory',
+        unit: 'Entrepôt A',
+        unitKind: 'Entrepôt',
+        rent: 890_000,
+        deposit: 0,
+        dueDay: 15,
+        start: new Date(Date.UTC(year - 1, 10, 1)),
+      },
+      {
+        lastName: 'Koné',
+        firstName: 'Amadou',
+        email: 'exemple-amadou@immopilot.ci',
+        phone: '+2250708123456',
+        building: 'Exemple — Villa Lagune',
+        city: 'Grand-Bassam',
+        commune: 'Quartier France',
+        unit: 'Villa entière',
+        unitKind: 'Maison',
+        rent: 1_200_000,
+        deposit: 2_400_000,
+        dueDay: 1,
+        start: new Date(Date.UTC(year, 0, 1)),
+      },
+    ];
+
+    const biensData = [
+      ['Exemple — Résidence Les Palmiers', 'Abidjan', 'Cocody', 'Riviera 3', 8, 1, 7],
+      ['Exemple — Immeuble Ranga', 'Abidjan', 'Marcory', '', 2, 2, 0],
+      ['Exemple — Villa Lagune', 'Grand-Bassam', 'Quartier France', 'Bord de lagune', 1, 1, 0],
+    ];
+
+    const bauxData = leases.map((l) => [
+      'Oui',
+      l.lastName,
+      l.firstName,
+      l.email,
+      l.phone,
+      l.building,
+      l.city,
+      l.commune,
+      l.unit,
+      l.unitKind,
+      l.rent,
+      l.deposit > 0 ? l.deposit : '',
+      l.dueDay,
+      l.start,
+      null,
+    ]);
+
+    const paymentStatus = (month: number, leaseIdx: number): string => {
+      if (month < throughMonth - 1) return 'Payé';
+      if (month === throughMonth - 1) return leaseIdx % 2 === 0 ? 'En retard' : 'Payé';
+      if (month === throughMonth) return leaseIdx === 2 ? 'En retard' : 'Impayé';
+      return 'Payé';
+    };
+
+    const paymentsData: (string | number | Date | null)[][] = [];
+    for (let m = 1; m <= throughMonth; m++) {
+      leases.forEach((l, idx) => {
+        const status = paymentStatus(m, idx);
+        const due = rentDueDateForBilledPeriod(year, m, l.dueDay);
+        const period = `${year}-${String(m).padStart(2, '0')}`;
+        const paid = status === 'Payé';
+        paymentsData.push([
+          period,
+          due,
+          status,
+          l.rent,
+          paid ? due : null,
+          paid ? l.rent : status === 'En retard' ? l.rent * 0.5 : null,
+          `${l.firstName} ${l.lastName}`,
+          l.email,
+          l.phone,
+          l.unit,
+          l.building,
+          l.city,
+          idx % 3 === 0 ? 'Virement' : 'Espèces',
+          paid ? `REF-${period}-0${idx + 1}` : '',
+        ]);
+      });
+    }
+
+    const chargesData = [
+      ['Entretien et travaux', 'Gardiennage immeuble', 85_000, year, Math.min(3, throughMonth), 'Oui', 'Exemple — Résidence Les Palmiers', '', 'Contrat annuel (fictif)'],
+      ['Impôts et taxes', 'Taxe foncière', 120_000, year, 1, 'Oui', 'Exemple — Villa Lagune', '', ''],
+      ['Eau et énergie', 'Facture SODECI', 42_500, year, throughMonth, 'Non', 'Exemple — Immeuble Ranga', 'Entrepôt A', ''],
+    ];
+
+    this.addDataSheet(
+      wb,
+      'Biens',
+      ['Bien', 'Ville', 'Commune', 'Adresse', "Nombre d'unités", 'Unités occupées', 'Unités vacantes'],
+      biensData,
+      { tabColor: 'FFCA8A04' },
+    );
+    this.addDataSheet(
+      wb,
+      'Baux',
+      [
+        'Bail actif',
+        'Nom',
+        'Prénom',
+        'E-mail',
+        'Téléphone',
+        'Bien',
+        'Ville',
+        'Commune',
+        'Unité',
+        "Type d'unité",
+        'Loyer mensuel',
+        'Caution',
+        'Jour échéance',
+        'Début',
+        'Fin',
+      ],
+      bauxData,
+      { moneyCols: [11, 12], dateCols: [14, 15], tabColor: 'FF7C3AED' },
+    );
+    this.addDataSheet(
+      wb,
+      'Paiements',
+      [
+        'Période',
+        'Échéance',
+        'Statut',
+        'Montant dû',
+        'Payé le',
+        'Montant payé',
+        'Locataire',
+        'E-mail',
+        'Téléphone',
+        'Unité',
+        'Bien',
+        'Ville',
+        "Mode d'encaissement",
+        'Référence encaissement',
+      ],
+      paymentsData,
+      { moneyCols: [4, 6], dateCols: [2, 5], tabColor: 'FFDC2626' },
+    );
+    this.addDataSheet(
+      wb,
+      'Charges',
+      ['Catégorie', 'Libellé', 'Montant', 'Année', 'Mois', 'Payé', 'Bien', 'Unité', 'Notes'],
+      chargesData,
+      { moneyCols: [3], tabColor: 'FF0891B2' },
     );
 
     const buf = await wb.xlsx.writeBuffer();

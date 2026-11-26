@@ -100,6 +100,17 @@ export class ReportsController {
     res.send(buf);
   }
 
+  /** Exemple prérempli (loyers janv. → mois en cours) — fictif. */
+  @Get('import-example.xlsx')
+  @RequireOrgPerm('exports:read')
+  async importExample(@CurrentUser() user: JwtAuthUser, @Res() res: Response) {
+    await this.entitlements.assertFeature(user.organizationId, 'exports');
+    const buf = await this.reports.buildImportExampleExcel();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="immopilot-exemple-import.xlsx"');
+    res.send(buf);
+  }
+
   @Get('accounting-summary')
   accountingSummary(@CurrentUser() user: JwtAuthUser, @Query('year') year: string | undefined) {
     const y = year ? parseInt(year, 10) : new Date().getFullYear();

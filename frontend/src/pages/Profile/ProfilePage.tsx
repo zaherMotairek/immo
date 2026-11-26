@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppPageTitle } from '@/components/AppPageTitle';
 import { HelpHint } from '@/components/ui';
 import { Card, Tabs } from '@/components/ui/index';
@@ -10,12 +11,13 @@ import { ProfileSecurityTab } from './ProfileSecurityTab';
 import { ProfileSignatureTab } from './ProfileSignatureTab';
 import { ProfileAutomationTab } from './ProfileAutomationTab';
 import { ProfileMembersTab } from './ProfileMembersTab';
+import { ProfileDataTab } from './ProfileDataTab';
 import { useProfileAccount } from './useProfileAccount';
 import { useProfilePasskeys } from './useProfilePasskeys';
 import { useProfilePassword } from './useProfilePassword';
 import { useProfileSignature } from './useProfileSignature';
 
-type ProfileTabId = 'profil' | 'securite' | 'signature' | 'automation' | 'equipe';
+type ProfileTabId = 'profil' | 'securite' | 'signature' | 'automation' | 'equipe' | 'donnees';
 
 /** Page Mon compte : bandeau + onglets Profil / Sécurité / Signature. */
 export function ProfilePage() {
@@ -23,8 +25,15 @@ export function ProfilePage() {
   const account = useProfileAccount();
   const password = useProfilePassword();
   const signature = useProfileSignature();
-  const { can } = useOrgEntitlements();
+  const { can, entitlements } = useOrgEntitlements();
+  const isOwner = entitlements?.orgRole === 'OWNER';
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<ProfileTabId>('profil');
+
+  useEffect(() => {
+    const q = searchParams.get('tab');
+    if (q === 'donnees' && isOwner) setTab('donnees');
+  }, [searchParams, isOwner]);
   const passkeys = useProfilePasskeys(tab === 'securite');
 
   const tabs = useMemo(() => {
@@ -35,8 +44,9 @@ export function ProfilePage() {
     ];
     if (can('automation:write')) base.push({ id: 'automation', label: 'Automation' });
     if (can('users:invite')) base.push({ id: 'equipe', label: 'Équipe' });
+    if (isOwner) base.push({ id: 'donnees', label: 'Données' });
     return base;
-  }, [can]);
+  }, [can, isOwner]);
 
   const displayName = account.userName.trim() || account.user?.name?.trim() || '';
 
@@ -69,6 +79,7 @@ export function ProfilePage() {
           {tab === 'signature' ? <ProfileSignatureTab sig={signature} /> : null}
           {tab === 'automation' && can('automation:write') ? <ProfileAutomationTab /> : null}
           {tab === 'equipe' && can('users:invite') ? <ProfileMembersTab /> : null}
+          {tab === 'donnees' && isOwner ? <ProfileDataTab /> : null}
         </div>
       </Card>
     </div>
