@@ -35,6 +35,10 @@ export class HealthController {
       commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
       node: process.version,
       env: process.env.NODE_ENV || 'development',
+      features: {
+        orgDataReset: true,
+        importExampleXlsx: true,
+      },
     };
   }
 }

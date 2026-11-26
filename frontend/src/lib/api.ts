@@ -82,11 +82,21 @@ export async function api<T>(
   }
   if (!res.ok) {
     let msg = res.statusText;
+    const errCt = res.headers.get('content-type');
     try {
-      const j = await res.json();
-      if (j?.message) msg = Array.isArray(j.message) ? j.message.join(', ') : String(j.message);
+      if (errCt?.includes('application/json')) {
+        const j = (await res.json()) as { message?: string | string[] };
+        if (j?.message) msg = Array.isArray(j.message) ? j.message.join(', ') : String(j.message);
+      } else {
+        const t = await res.text();
+        if (t) msg = t;
+      }
     } catch {
       /* ignore */
+    }
+    if (res.status === 404 && /Cannot (POST|GET|PATCH|DELETE)\s+\//.test(msg)) {
+      msg =
+        'Cette fonction n’existe pas encore sur l’API en ligne : redéployez le service API sur Render (pas seulement le front), puis réessayez.';
     }
     throw new ApiError(msg, res.status);
   }

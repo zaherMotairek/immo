@@ -98,7 +98,7 @@ export function ProfileDataTab() {
     if (!ok) return;
     setLoadingDemo(true);
     try {
-      const r = await api<{ message: string }>('/me/onboarding/seed-rich-demo', { method: 'POST' });
+      const r = await api<{ message: string }>('/me/org-data/seed-rich-demo', { method: 'POST' });
       toast(r.message, { variant: 'success' });
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Chargement impossible', { variant: 'error' });
@@ -140,7 +140,7 @@ export function ProfileDataTab() {
 
     setResetting(true);
     try {
-      const r = await api<{ message: string; counts?: Record<string, number> }>('/me/onboarding/reset-data', {
+      const r = await api<{ message: string; counts?: Record<string, number> }>('/me/org-data/reset', {
         method: 'POST',
         json: { ...reset, confirmPhrase: 'EFFACER' },
       });
