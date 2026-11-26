@@ -75,7 +75,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
         aria-hidden
         className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-xs font-bold uppercase leading-none tracking-[0.2em] text-[var(--color-muted)]"
       >
-        FCFA
+        F CFA
       </span>
     </div>
   );

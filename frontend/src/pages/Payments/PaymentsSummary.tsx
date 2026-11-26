@@ -26,12 +26,12 @@ function MoneyHero({
   children: ReactNode;
 }) {
   return (
-    <Card padding="none" className="relative overflow-hidden px-5 pb-5 pt-6">
+    <Card padding="none" className="relative overflow-hidden px-4 pb-4 pt-4 max-lg:px-3 max-lg:pb-3 max-lg:pt-3 lg:px-5 lg:pb-5 lg:pt-6">
       <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: `var(${accent})` }} />
       <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: `var(${accent})` }}>
         {label}
       </p>
-      <p className="mt-2 text-3xl font-bold leading-tight tracking-tight tabular-nums text-[var(--color-ink)] sm:text-4xl">
+      <p className="mt-2 text-2xl font-bold leading-tight tracking-tight tabular-nums text-[var(--color-ink)] sm:text-3xl lg:text-4xl">
         {fcfa(amount)}
       </p>
       <div className="mt-2 text-sm text-[var(--color-muted)]">{children}</div>
@@ -65,7 +65,7 @@ export function PaymentsSummary({ stats, monthCount, collectionTotals }: Payment
         </MoneyHero>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-3 hidden grid-cols-2 gap-3 sm:grid lg:grid-cols-4">
         <StatTile label="Échéances" value={stats.total} sub="Lignes affichées" />
         <StatTile label="Regroupement" value={`${monthCount} mois`} sub="Par mois de facturation" />
         {collectionTotals.length === 0 ? (

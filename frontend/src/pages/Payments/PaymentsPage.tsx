@@ -45,7 +45,7 @@ export function PaymentsPage() {
   }, [list.rows, zoomPaymentId]);
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-4 pb-10 sm:space-y-6">
       <PaymentsHeader
         totalCount={list.visibleRows.length}
         worksheetPdfPath={filters.worksheetPdfPath}

@@ -29,13 +29,13 @@ export const IMMO_PDF = {
 export const TAGLINE = 'ImmoPilot - Gestion immobilière';
 
 /**
- * Montants FCFA pour PDFKit (Helvetica) : chiffres groupés par espaces ASCII + « FCFA ».
+ * Montants F CFA pour PDFKit (Helvetica) : chiffres groupés par espaces ASCII + « F CFA ».
  * Évite Intl / locale (U+202F, espaces insécables) qui se rendent souvent comme « / » dans les PDF.
  */
 export function formatFcfaPdf(n: number): string {
   const r = Math.round(Math.abs(Number(n)));
   const s = r.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${s} FCFA`;
+  return `${s} F CFA`;
 }
 
 /**

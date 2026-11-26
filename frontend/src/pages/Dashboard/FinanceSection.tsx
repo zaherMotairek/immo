@@ -4,7 +4,7 @@ import { PdfPrintButton } from '@/components/PdfPrintButton';
 import { SmartLink } from '@/components/SmartLink';
 import { HelpHint } from '@/components/ui';
 import { Skeleton } from '@/components/ui/index';
-import { fcfa } from '@/lib/format';
+import { fcfa, pluralFr } from '@/lib/format';
 import type { CoveragePieSlice } from './CoveragePieChart';
 import type { Overview } from './types';
 
@@ -81,17 +81,19 @@ export function FinanceSection({
   remainingVsExpected,
 }: FinanceSectionProps) {
   return (
-    <section className="dashboard-finance overflow-hidden rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
-      <div className="dashboard-finance__hero relative px-4 py-5 sm:px-6 sm:py-6">
+    <section className="dashboard-finance flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--odoo-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
+      <div className="dashboard-finance__hero relative order-2 px-4 py-5 sm:px-6 sm:py-6 max-lg:py-3 lg:order-1">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)] max-lg:sr-only">
               Synthèse · mois en cours
             </p>
-            <p className="mt-1.5 text-3xl font-bold tracking-tight text-[var(--color-ink)] sm:text-[2rem]">{monthLabelCap}</p>
-            <p className="mt-1 text-sm text-[var(--color-muted)]">{rangeLabel}</p>
+            <p className="mt-1.5 text-3xl font-bold tracking-tight text-[var(--color-ink)] max-lg:mt-0 max-lg:text-xl sm:text-[2rem]">
+              {monthLabelCap}
+            </p>
+            <p className="mt-1 text-sm text-[var(--color-muted)] max-lg:hidden">{rangeLabel}</p>
             {pctOfExpected !== null ? (
-              <div className="mt-4 max-w-sm">
+              <div className="mt-4 max-w-sm max-lg:mt-2">
                 <div className="mb-1.5 flex items-baseline justify-between gap-2 text-xs">
                   <span className="font-medium text-[var(--color-ink)]">Couverture des loyers</span>
                   <span className="font-semibold tabular-nums text-[var(--status-paid)]">{pctOfExpected}%</span>
@@ -105,7 +107,7 @@ export function FinanceSection({
               </div>
             ) : null}
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 max-lg:hidden">
             <PdfPrintButton
               path="/dashboard/worksheet.pdf"
               title="Feuille de route PDF : cases « perçu », notes manuscrites, puis saisie dans Paiements"
@@ -114,7 +116,7 @@ export function FinanceSection({
         </div>
       </div>
 
-      <div className="grid gap-px bg-[var(--odoo-border)] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="order-1 grid gap-px bg-[var(--odoo-border)] sm:grid-cols-2 xl:grid-cols-4 lg:order-2">
         <KpiTile
           tone="ok"
           label="Encaissé (loyers)"
@@ -141,14 +143,14 @@ export function FinanceSection({
           label="Retards / impayés"
           help="Total restant dû sur les échéances en retard ou impayées."
           value={fcfa(kpis.overdueAmount)}
-          caption={`${kpis.overdueCount} échéance(s)`}
+          caption={pluralFr(kpis.overdueCount, 'échéance', 'échéances')}
           icon={<KpiIconAlert className="size-5" />}
         />
       </div>
 
       {coveragePieData ? (
         <div
-          className="border-t border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] px-4 py-5 sm:px-6"
+          className="order-3 hidden border-t border-[var(--odoo-border)] bg-[var(--odoo-table-head-bg)] px-4 py-5 sm:px-6 lg:block"
           role="img"
           aria-label={`Encaissement du mois : ${pctOfExpected ?? 0} pour cent du loyer attendu encaissé, reste ${fcfa(remainingVsExpected)} à percevoir.`}
         >

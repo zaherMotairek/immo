@@ -487,7 +487,8 @@ export function GlobalSearchBar() {
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="off"
-          placeholder={`Qui ou quoi cherchez-vous ? (${SHORTCUT_HINT})`}
+          placeholder="Rechercher…"
+          title={`Recherche globale (${SHORTCUT_HINT})`}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);

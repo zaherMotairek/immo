@@ -61,7 +61,10 @@ export function useLeasesData() {
         method: 'POST',
         json: { year },
       });
-      toast(`${res.createdCount} échéance(s) créée(s) ou déjà existantes pour ${year}.`, { variant: 'success' });
+      toast(
+        `${res.createdCount} ${res.createdCount === 1 ? 'échéance créée' : 'échéances créées'} ou déjà existantes pour ${year}.`,
+        { variant: 'success' },
+      );
       load();
     } catch (e2) {
       toast(e2 instanceof Error ? e2.message : 'Erreur', { variant: 'error' });
