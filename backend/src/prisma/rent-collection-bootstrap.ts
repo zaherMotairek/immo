@@ -2,8 +2,28 @@ import type { PrismaClient } from '@prisma/client';
 
 const TAG = '[rent-collection-bootstrap]';
 
+async function tableHasColumn(
+  prisma: PrismaClient,
+  table: string,
+  column: string,
+): Promise<boolean> {
+  const rows = await prisma.$queryRaw<{ ok: number }[]>`
+    SELECT 1 AS ok FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = ${table} AND column_name = ${column}
+    LIMIT 1
+  `;
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 export async function runRentCollectionBootstrap(prisma: PrismaClient): Promise<void> {
   try {
+    const eventsExists = await tableHasColumn(prisma, 'payment_collection_events', 'id');
+    if (eventsExists) {
+      const migrationShape = await tableHasColumn(prisma, 'payment_collection_events', 'task_id');
+      if (migrationShape) {
+        return;
+      }
+    }
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "rent_collectors" (
         "id" TEXT NOT NULL,
