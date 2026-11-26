@@ -72,7 +72,7 @@ export function LeasesPage() {
   });
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-4 pb-10 sm:space-y-6">
       <LeasesHeader
         totalCount={data.leases.length}
         hasLeases={data.leases.length > 0}

@@ -193,7 +193,7 @@ export function DashboardPage() {
         />
       ) : null}
 
-      <ParkSection kpis={kpis} />
+      <ParkSection kpis={kpis} className="max-lg:hidden" />
 
       <ChartsSection kpis={kpis} />
 

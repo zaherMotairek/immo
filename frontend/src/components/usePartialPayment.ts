@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { fcfa } from '@/lib/format';
 import { paymentRemaining } from '@/lib/paymentRow';
 import type { PaymentRow } from '@/lib/paymentRow';
 
@@ -30,11 +31,11 @@ export function usePartialPayment(onSaved: (paymentId: string) => void | Promise
     const remaining = paymentRemaining(partialFor);
     const n = Number(partialAmount.replace(/\s/g, '').replace(',', '.'));
     if (!Number.isFinite(n) || n < 1) {
-      setPartialErr('Indiquez un montant valide (minimum 1 FCFA).');
+      setPartialErr('Indiquez un montant valide (minimum 1 F CFA).');
       return;
     }
     if (n > remaining + 0.01) {
-      setPartialErr(`Maximum : ${Math.round(remaining).toLocaleString('fr-FR')} FCFA.`);
+      setPartialErr(`Maximum : ${fcfa(Math.round(remaining))}.`);
       return;
     }
     const id = partialFor.id;

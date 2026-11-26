@@ -50,9 +50,9 @@ function ParkCard({
 }
 
 /** Cartes « parc » : biens, unités, locataires, loyer mensuel attendu. */
-export function ParkSection({ kpis }: { kpis: Overview['kpis'] }) {
+export function ParkSection({ kpis, className }: { kpis: Overview['kpis']; className?: string }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-4${className ? ` ${className}` : ''}`}>
       <ParkCard
         to="/biens"
         ariaLabel={`Voir les biens — ${kpis.buildings} enregistré${kpis.buildings !== 1 ? 's' : ''}`}

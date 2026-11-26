@@ -32,11 +32,11 @@ const navSecondary: NavItem[] = [
 
 const navAccount: NavItem[] = [{ to: '/profil', label: 'Mon compte' }];
 
-/** Onglets barre du bas (mobile) — Baux accessible via Plus. */
+/** Onglets barre du bas (mobile) — locataires et le reste sous « Plus ». */
 const mobileBottomTabs: NavItem[] = [
   { to: '/', label: 'Accueil', short: 'Accueil', end: true },
   { to: '/biens', label: 'Mes biens', short: 'Biens' },
-  { to: '/locataires', label: 'Locataires', short: 'Locat.' },
+  { to: '/baux', label: 'Baux', short: 'Baux' },
   { to: '/paiements', label: 'Paiements', short: 'Loyers' },
 ];
 
@@ -142,7 +142,7 @@ export function Layout() {
   }, [location.pathname, location.search]);
 
   const moreIsActive = useMemo(() => {
-    const paths = [...navSecondary, ...navAccount, { to: '/baux', label: 'Baux' }];
+    const paths = [...navSecondary, ...navAccount, { to: '/locataires', label: 'Locataires' }];
     if (adminItem) paths.push(adminItem);
     return paths.some((i) => pathMatches(location.pathname, i));
   }, [location.pathname, adminItem]);
@@ -164,21 +164,21 @@ export function Layout() {
         }`}
         aria-label="Navigation principale"
       >
-        <div className="flex shrink-0 items-center justify-between gap-2 p-4 lg:px-3 lg:pt-5">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="h-8 w-1 shrink-0 rounded-sm bg-brand-600" aria-hidden />
-            <div className="min-w-0">
-              <div className="odoo-sidebar-brand truncate text-[15px] font-semibold">ImmoPilot</div>
+        <div className="flex shrink-0 flex-col gap-3 border-b border-[var(--odoo-border)] p-4 lg:px-3 lg:pt-5 lg:pb-4">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 h-8 w-1 shrink-0 rounded-sm bg-brand-600" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <div className="odoo-sidebar-brand text-[15px] font-semibold leading-snug">ImmoPilot</div>
               <p className="mt-0.5 text-[11px] font-medium leading-tight text-[var(--color-muted)]">Gestion locative</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center justify-between gap-2 pl-3">
             <ThemeToggle className="shrink-0" tone="onLight" />
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              className="shrink-0"
+              className="min-h-11 shrink-0"
               onClick={() => setDesktopNavOpenPersist(false)}
               aria-label="Masquer le menu latéral"
               title="Masquer le menu"
@@ -360,9 +360,9 @@ export function Layout() {
                 Navigation
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <NavLink to="/baux" className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
-                  <SidebarNavIcon to="/baux" />
-                  Baux
+                <NavLink to="/locataires" className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>
+                  <SidebarNavIcon to="/locataires" />
+                  Locataires
                 </NavLink>
                 {navSecondary.map((l) => (
                   <NavLink key={l.to} to={l.to} className="mobile-more-link" onClick={saveScrollBeforeMenuNav}>

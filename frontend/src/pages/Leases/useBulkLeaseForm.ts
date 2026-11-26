@@ -293,7 +293,7 @@ export function useBulkLeaseForm({
       const msg = e2 instanceof Error ? e2.message : 'Erreur';
       setErr(
         created > 0
-          ? `${created} bail(s) créé(s), puis erreur : ${msg}. Rechargez la liste et complétez le reste.`
+          ? `${created} ${created === 1 ? 'bail créé' : 'baux créés'}, puis erreur : ${msg}. Rechargez la liste et complétez le reste.`
           : msg,
       );
       if (created > 0) load();

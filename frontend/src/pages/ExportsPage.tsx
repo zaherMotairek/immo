@@ -4,6 +4,7 @@ import { HelpHint } from '@/components/ui';
 import { Button, Callout, Card, Field, Input } from '@/components/ui/index';
 import { useRegisterRootSectionFallback } from '@/context/NavigationContext';
 import { downloadReport, importReportExcel } from '@/lib/api';
+import { pluralFr } from '@/lib/format';
 
 export function ExportsPage() {
   useRegisterRootSectionFallback();
@@ -21,13 +22,15 @@ export function ExportsPage() {
     try {
       const r = await importReportExcel(f);
       const parts = [
-        r.buildingsCreated ? `${r.buildingsCreated} bien(s)` : null,
-        r.unitsCreated ? `${r.unitsCreated} unité(s)` : null,
-        r.tenantsCreated ? `${r.tenantsCreated} locataire(s)` : null,
-        r.leasesCreated ? `${r.leasesCreated} bail(aux) créé(s)` : null,
-        r.leasesUpdated ? `${r.leasesUpdated} bail(aux) mis à jour` : null,
-        r.paymentsUpserted ? `${r.paymentsUpserted} échéance(s)` : null,
-        r.chargesCreated ? `${r.chargesCreated} charge(s)` : null,
+        r.buildingsCreated ? pluralFr(r.buildingsCreated, 'bien', 'biens') : null,
+        r.unitsCreated ? pluralFr(r.unitsCreated, 'unité', 'unités') : null,
+        r.tenantsCreated ? pluralFr(r.tenantsCreated, 'locataire', 'locataires') : null,
+        r.leasesCreated
+          ? `${pluralFr(r.leasesCreated, 'bail', 'baux')} créé${r.leasesCreated > 1 ? 's' : ''}`
+          : null,
+        r.leasesUpdated ? `${pluralFr(r.leasesUpdated, 'bail', 'baux')} mis à jour` : null,
+        r.paymentsUpserted ? pluralFr(r.paymentsUpserted, 'échéance', 'échéances') : null,
+        r.chargesCreated ? pluralFr(r.chargesCreated, 'charge', 'charges') : null,
       ].filter(Boolean);
       setImportOk(parts.length ? `Import enregistré : ${parts.join(', ')}.` : 'Import terminé (aucune nouvelle ligne).');
       if (r.warnings.length) {
