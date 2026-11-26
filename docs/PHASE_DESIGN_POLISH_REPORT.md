@@ -29,7 +29,7 @@ Périmètre : UI uniquement — pas de logique métier, API ni schéma DB.
 npm run check   → OK (lint, build front, typecheck + build API)
 ```
 
-Captures Playwright mobile 390 / desktop 1440 (clair + sombre) : **non exécutées dans cette session** — lancer `npm --prefix frontend run e2e:screenshots` avec API + front en marche si besoin pour la PR.
+Captures Playwright mobile 390 / desktop 1440 (clair + sombre) : **OK** — `npm --prefix frontend run e2e:screenshots` (1 passed, ~2,4 min) ; baselines dans `frontend/e2e/baselines/`.
 
 ## Suite proposée
 
