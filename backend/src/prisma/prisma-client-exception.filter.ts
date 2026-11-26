@@ -90,6 +90,16 @@ export class PrismaClientExceptionFilter implements ExceptionFilter {
         });
         return;
       }
+      if (exception.code === 'P2010') {
+        response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message:
+            'Requête SQL refusée par PostgreSQL (souvent migration manquante ou identifiant mal typé). ' +
+            MIGRATE_HINT,
+          code: exception.code,
+        });
+        return;
+      }
       if (this.looksLikeSchemaDrift(exception.message)) {
         response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

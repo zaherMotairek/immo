@@ -269,15 +269,25 @@ export class OnboardingService {
       }
 
       if (wipeCollectors) {
-        await tx.$executeRawUnsafe(
-          `DELETE FROM payment_collection_events WHERE task_id IN (
-            SELECT id FROM payment_collection_tasks WHERE organization_id = $1::uuid
-          )`,
-          organizationId,
-        );
-        await tx.$executeRawUnsafe(`DELETE FROM payment_collection_tasks WHERE organization_id = $1::uuid`, organizationId);
-        const rc = await tx.$executeRawUnsafe(`DELETE FROM rent_collectors WHERE organization_id = $1::uuid`, organizationId);
-        counts.collectors = Number(rc) || 0;
+        // organization_id = TEXT dans les migrations historiques — pas de ::uuid (P2010).
+        try {
+          await tx.$executeRawUnsafe(
+            `DELETE FROM payment_collection_events WHERE task_id IN (
+              SELECT id FROM payment_collection_tasks WHERE organization_id = $1
+            )`,
+            organizationId,
+          );
+          await tx.$executeRawUnsafe(`DELETE FROM payment_collection_tasks WHERE organization_id = $1`, organizationId);
+          const rc = await tx.$executeRawUnsafe(`DELETE FROM rent_collectors WHERE organization_id = $1`, organizationId);
+          counts.collectors = Number(rc) || 0;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/does not exist|relation.*payment_collection|relation.*rent_collector/i.test(msg)) {
+            counts.collectors = 0;
+          } else {
+            throw e;
+          }
+        }
       }
 
       if (wipeBuildings) {
