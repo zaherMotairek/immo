@@ -141,11 +141,12 @@ export function InspectionsPage() {
         subtitle="Checklist entrée / sortie, photos horodatées, PDF et comparaison avec la caution."
       />
 
-      {err ? <Callout tone="danger">{err}</Callout> : null}
+      {err ? <Callout variant="danger">{err}</Callout> : null}
 
       <Card className="space-y-4 p-4">
-        <Field label="Bail">
+        <Field label="Bail" htmlFor="insp-lease">
           <Select
+            id="insp-lease"
             value={leaseId}
             onValueChange={setLeaseId}
             options={leases.map((l) => ({
@@ -212,9 +213,11 @@ export function InspectionsPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-base font-semibold">{KIND_LABEL[selected.kind]}</h2>
-                  <StatusBadge tone={selected.status === 'SIGNED' ? 'success' : 'neutral'}>
-                    {selected.status === 'SIGNED' ? 'Signé' : 'Brouillon'}
-                  </StatusBadge>
+                  <StatusBadge
+                    status={selected.status === 'SIGNED' ? 'PAID' : 'PENDING'}
+                    label={selected.status === 'SIGNED' ? 'Signé' : 'Brouillon'}
+                    size="sm"
+                  />
                 </div>
                 <Button type="button" size="sm" variant="secondary" onClick={() => downloadInspectionPdf(selected.id)}>
                   Export PDF
@@ -233,16 +236,18 @@ export function InspectionsPage() {
                     <p className="text-xs font-semibold uppercase text-[var(--color-muted)]">{it.room}</p>
                     <p className="text-sm font-medium">{it.element}</p>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <Field label="État">
+                      <Field label="État" htmlFor={`insp-cond-${it.id}`}>
                         <Select
+                          id={`insp-cond-${it.id}`}
                           value={it.condition}
                           disabled={!canWrite || selected.status === 'SIGNED'}
                           onValueChange={(v) => void saveItem(it.id, v, it.note ?? '')}
                           options={CONDITION_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
                         />
                       </Field>
-                      <Field label="Note">
+                      <Field label="Note" htmlFor={`insp-note-${it.id}`}>
                         <Input
+                          id={`insp-note-${it.id}`}
                           defaultValue={it.note ?? ''}
                           disabled={!canWrite || selected.status === 'SIGNED'}
                           onBlur={(e) => {
@@ -271,8 +276,9 @@ export function InspectionsPage() {
                 ))}
 
                 {selected.kind === 'MOVE_OUT' && canWrite ? (
-                  <Field label="Décision caution">
+                  <Field label="Décision caution" htmlFor="insp-deposit">
                     <Select
+                      id="insp-deposit"
                       value={selected.depositRefundDecision ?? 'PENDING'}
                       disabled={selected.status === 'SIGNED'}
                       onValueChange={async (v) => {
@@ -294,8 +300,13 @@ export function InspectionsPage() {
 
                 {canWrite && selected.status !== 'SIGNED' ? (
                   <>
-                    <Field label="Nom du locataire (signature à l’écran)">
-                      <Input value={signature} onChange={(e) => setSignature(e.target.value)} required />
+                    <Field label="Nom du locataire (signature à l’écran)" htmlFor="insp-signature" required>
+                      <Input
+                        id="insp-signature"
+                        value={signature}
+                        onChange={(e) => setSignature(e.target.value)}
+                        required
+                      />
                     </Field>
                     <Button type="submit" disabled={saving || !signature.trim()}>
                       Valider et signer

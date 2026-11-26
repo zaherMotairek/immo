@@ -109,9 +109,9 @@ export function RepairsPage() {
         }
       />
 
-      {err ? <Callout tone="danger">{err}</Callout> : null}
+      {err ? <Callout variant="danger">{err}</Callout> : null}
       {overdue.length ? (
-        <Callout tone="warning">
+        <Callout variant="warning">
           {overdue.length} réparation{overdue.length > 1 ? 's' : ''} en retard (échéance dépassée).
         </Callout>
       ) : null}
@@ -126,9 +126,11 @@ export function RepairsPage() {
             <Card key={r.id} className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-sm font-semibold text-[var(--color-ink)]">{r.title}</h3>
-                <StatusBadge tone={r.status === 'DONE' ? 'success' : r.urgency === 'HIGH' ? 'danger' : 'neutral'}>
-                  {STATUS_LABEL[r.status] ?? r.status}
-                </StatusBadge>
+                <StatusBadge
+                  status={r.status === 'DONE' ? 'PAID' : r.urgency === 'HIGH' ? 'LATE' : 'PENDING'}
+                  label={STATUS_LABEL[r.status] ?? r.status}
+                  size="sm"
+                />
               </div>
               <p className="mt-1 text-sm text-[var(--color-muted)]">
                 {r.building?.name}
@@ -203,26 +205,28 @@ export function RepairsPage() {
             void createRepair();
           }}
         >
-          <Field label="Titre">
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <Field label="Titre" htmlFor="repair-title" required>
+            <Input id="repair-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </Field>
-          <Field label="Bien">
+          <Field label="Bien" htmlFor="repair-building">
             <Select
+              id="repair-building"
               value={buildingId}
               onValueChange={setBuildingId}
               options={buildings.map((b) => ({ id: b.id, label: b.name }))}
               searchable
             />
           </Field>
-          <Field label="Urgence">
+          <Field label="Urgence" htmlFor="repair-urgency">
             <Select
+              id="repair-urgency"
               value={urgency}
               onValueChange={setUrgency}
               options={Object.entries(URGENCY_LABEL).map(([k, v]) => ({ id: k, label: v }))}
             />
           </Field>
-          <Field label="Échéance souhaitée">
-            <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+          <Field label="Échéance souhaitée" htmlFor="repair-deadline">
+            <Input id="repair-deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setAddOpen(false)}>
