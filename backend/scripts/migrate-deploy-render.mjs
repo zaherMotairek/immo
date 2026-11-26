@@ -19,20 +19,30 @@ import { PrismaClient } from '@prisma/client';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STUCK = '20261030170000_phase_b_bootstraps_and_receipt_revoke';
 
+function withoutNeonPoolerHost(url) {
+  if (!url || !url.includes('-pooler.')) return url;
+  return url.replace('-pooler.', '.');
+}
+
 function resolveMigrateDatabaseUrl() {
   const explicit =
     process.env.DATABASE_URL_DIRECT?.trim() ||
     process.env.DIRECT_URL?.trim() ||
     process.env.DATABASE_URL_UNPOOLED?.trim() ||
     '';
-  if (explicit) return explicit;
+  if (explicit) {
+    const direct = withoutNeonPoolerHost(explicit);
+    if (direct !== explicit) {
+      console.warn(
+        '[migrate-deploy-render] DATABASE_URL_DIRECT contenait -pooler — host corrigé pour migrate.',
+      );
+    }
+    return direct;
+  }
 
   const url = process.env.DATABASE_URL?.trim();
   if (!url) return url;
-  if (url.includes('-pooler.')) {
-    return url.replace('-pooler.', '.');
-  }
-  return url;
+  return withoutNeonPoolerHost(url);
 }
 
 function shouldDisableAdvisoryLock() {
