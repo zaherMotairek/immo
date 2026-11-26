@@ -24,6 +24,34 @@ export class OnboardingService {
     }
   }
 
+  /** Tables collecteurs : schéma bootstrap (payment_id) ou migration (task_id) — toujours par organization_id. */
+  private async purgePaymentCollectionTables(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+  ): Promise<number> {
+    try {
+      await tx.$executeRawUnsafe(
+        `DELETE FROM payment_collection_events WHERE organization_id = $1`,
+        organizationId,
+      );
+      await tx.$executeRawUnsafe(
+        `DELETE FROM payment_collection_tasks WHERE organization_id = $1`,
+        organizationId,
+      );
+      const rc = await tx.$executeRawUnsafe(
+        `DELETE FROM rent_collectors WHERE organization_id = $1`,
+        organizationId,
+      );
+      return Number(rc) || 0;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/does not exist|relation.*payment_collection|relation.*rent_collector/i.test(msg)) {
+        return 0;
+      }
+      throw e;
+    }
+  }
+
   async getStatus(organizationId: string, user?: JwtAuthUser) {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
@@ -265,6 +293,11 @@ export class OnboardingService {
           ).map((l) => l.id)
         : [];
 
+      if (wipePayments || wipeCollectors) {
+        const n = await this.purgePaymentCollectionTables(tx, organizationId);
+        if (wipeCollectors) counts.collectors = n;
+      }
+
       if (wipePayments && leaseIds.length) {
         const rem = await tx.paymentReminder.deleteMany({
           where: { payment: { leaseId: { in: leaseIds } } },
@@ -284,28 +317,6 @@ export class OnboardingService {
       if (wipeCharges) {
         const c = await tx.charge.deleteMany({ where: { building: { organizationId } } });
         counts.charges = c.count;
-      }
-
-      if (wipeCollectors) {
-        // organization_id = TEXT dans les migrations historiques — pas de ::uuid (P2010).
-        try {
-          await tx.$executeRawUnsafe(
-            `DELETE FROM payment_collection_events WHERE task_id IN (
-              SELECT id FROM payment_collection_tasks WHERE organization_id = $1
-            )`,
-            organizationId,
-          );
-          await tx.$executeRawUnsafe(`DELETE FROM payment_collection_tasks WHERE organization_id = $1`, organizationId);
-          const rc = await tx.$executeRawUnsafe(`DELETE FROM rent_collectors WHERE organization_id = $1`, organizationId);
-          counts.collectors = Number(rc) || 0;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          if (/does not exist|relation.*payment_collection|relation.*rent_collector/i.test(msg)) {
-            counts.collectors = 0;
-          } else {
-            throw e;
-          }
-        }
       }
 
       if (wipeBuildings) {

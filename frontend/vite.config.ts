@@ -27,6 +27,7 @@ const apiProxy = {
   '/health': { target: 'http://localhost:4000', changeOrigin: true },
   '/version': { target: 'http://localhost:4000', changeOrigin: true },
   '/public': { target: 'http://localhost:4000', changeOrigin: true },
+  '/me': { target: 'http://localhost:4000', changeOrigin: true },
 } as const;
 
 export default defineConfig({
