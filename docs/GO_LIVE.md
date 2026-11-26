@@ -18,7 +18,8 @@ Créer la branche Neon depuis un snapshot **anonymisé** ou vide + `prisma migra
 | Variable | Staging | Prod | Notes |
 |----------|---------|------|-------|
 | `NODE_ENV` | `production` | `production` | |
-| `DATABASE_URL` | Neon **staging** | Neon **prod** | SSL Neon |
+| `DATABASE_URL` | Neon **staging** | Neon **prod** | SSL Neon ; pooler pour l’app |
+| `DATABASE_URL_DIRECT` | optionnel | **recommandé Render** | Même base, hôte **sans** `-pooler` (migrations Prisma) |
 | `JWT_SECRET` | secret staging | secret **différent** | ≥32 car. |
 | `FRONTEND_ORIGIN` | URL front staging | URL front prod | CORS, CSV multi-origines OK |
 | `PUBLIC_APP_URL` | idem front | idem | liens reset / vérif e-mail |
